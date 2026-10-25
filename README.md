@@ -57,7 +57,8 @@ small squares).
 - After a game patch it checks its data against the game (on Chef 1.0.x and 1.2+) and leaves out anything that
   moved. If it can't check, it stays off and says so, rather than risk a crash.
 
-**Known issues:** controllers (right trigger to fire, Y to swap) are untested, reports welcome. The Arc Thrower and the
+**Known issues:** controllers (right trigger to fire, Y to swap) work on an Xbox-style pad; PlayStation pads are
+untested, reports welcome. The Arc Thrower and the
 Blitzer show no ammo (they have none); the Solo Silo's remote shows nothing.
 
 ## For developers
@@ -83,5 +84,6 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
 
 ## License
 
-Free to use, change and share for anything except making money from it; keep the credit. See [LICENSE](LICENSE).
+Free to use, change and share; don't sell it or put it behind a paywall (donations and Donation Points are fine);
+keep the credit. See [LICENSE](LICENSE).
 Not affiliated with Arrowhead Game Studios.

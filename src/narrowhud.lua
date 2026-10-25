@@ -14,7 +14,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '1.0.1' }
+local M = { version = '1.0.2' }
 if type(chef.own_log) == 'function' then chef.own_log('narrowhud') end
 local log = function(fmt, ...) chef.log(fmt, ...) end
 
@@ -44,6 +44,11 @@ TYPES[1] = { id = DATA.player.id, name = DATA.player.name, has = {}, player = tr
 TYPES[2] = { id = DATA.avatar.id, name = DATA.avatar.name, has = {}, avatar = true }
 add_types(DATA.backpacks, true)
 add_types(DATA.weapons, false)
+-- In a hand: only types with an owner field. Every weapon learned in testing has one (59 types); a player's log as host
+-- (1.0.1) had two without it (e45066e4, b747653b: objects a host owns, fired as the player fired) learned to the
+-- rifles' pose and shown in place of the player's own weapon.
+local HANDHELD = {}
+for _, t in ipairs(TYPES) do if t.has.owner then HANDHELD[t.id] = true end end
 log('NarrowHUD %s: %d types (game build %s)', M.version, #TYPES, tostring(DATA.build))
 
 local AVATAR_RESOURCE = '4d1c334d294dfa97'   -- the third-person Helldiver unit
@@ -116,15 +121,18 @@ do
 end
 
 ------------------------------------------------------------------------------------------------ settings, learned
-local cfg = { size = 1, height = 9, side = 3, side_up = 0, right = false, mags_number = false, items = true, pack = true, font = true,
+local cfg = { size = 1, side_size = 1.25, height = 9, side = 3, side_up = 0, right = false, mags_number = false, items = true, pack = true, font = true,
               research = false, any_build = false, opacity = 1, fade = false, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1 }
 local apply_palette                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
 if chef.has and chef.has('menu') then
   chef.title('NarrowHUD')
+  -- (beside the crosshair, each size is a step bigger: players found it small even at Huge. Its Small is Under's
+  -- Medium, and Huge is new)
   local SIZES = { 0.8, 1.0, 1.25, 1.5 }
-  local function size_of(i) return SIZES[i] or 1 end
+  local SIDE_SIZES = { 1.0, 1.25, 1.5, 1.9 }
+  local function size_of(i) cfg.side_size = SIDE_SIZES[i] or 1.25 return SIZES[i] or 1 end
   cfg.size = size_of(chef.option('size', { type = 'choice', label = 'Size', choices = { 'Small', 'Medium', 'Large', 'Huge' }, default = 2 }))
   chef.on_change('size', function(v) cfg.size = size_of(v) end)
   cfg.right = chef.option('position', { type = 'choice', label = 'Position', choices = { 'Under the crosshair', 'Beside the crosshair (compact)' }, default = 1 }) == 2
@@ -310,12 +318,13 @@ end
 -- ("10,30"), next to the single pose older versions kept (learned.grip).
 local distrust = {}                                 -- types with an object that fired without your fire button
 local function has_pose(id, grip)
+  if not HANDHELD[id] then return false end
   if learned.grip[id] == grip then return true end
   local l = learned.poses[id]
   return l ~= nil and string.find(',' .. l .. ',', ',' .. grip .. ',', 1, true) ~= nil
 end
 local function add_pose(id, grip)
-  if has_pose(id, grip) then return end
+  if has_pose(id, grip) or not HANDHELD[id] then return end
   local l = learned.poses[id]
   if learned.grip[id] and not l then l = tostring(learned.grip[id]) end
   learn('poses', id, l and (l .. ',' .. grip) or tostring(grip))
@@ -529,8 +538,55 @@ end
 -- troops' rifles ...), and their shots look like yours. A shot counts as yours only within 0.4 s of your fire button;
 -- an object that fires three times without it is someone else's for the rest of the session. (0.3.5 tried the
 -- weapons' position field instead: it isn't where a carried weapon is.)
--- A gamepad's right trigger counts too (Pad1: the first controller).
-local input = { ok = nil, last = -100, pad = nil, pad_said = false }
+-- A controller's right trigger counts too: R2 on a PlayStation pad.
+--
+-- The controllers: every pad the engine has (Pad1 to Pad8) that's active or connected, its buttons found by the names
+-- the pad lists itself (num_buttons, button_name), so no button name a pad doesn't know is asked about. Looked for
+-- every 2 s until one turns up, and again when one goes. A pad that doesn't list its buttons: the Xbox names on Pad1,
+-- as before 1.0.2.
+local PAD_FIRE = { 'right_trigger', 'r2', 'trigger_right', 'rt' }
+local PAD_SWAP = { 'y', 'triangle' }
+local pads = { list = nil, look_at = -100, said = false }
+local function pad_list(now)
+  if pads.list and now < pads.look_at then return pads.list end
+  pads.look_at = now + 2
+  local list = {}
+  for n = 1, 8 do
+    local p = 'Pad' .. n
+    if call('pad', p .. '.active') == true or call('pad', p .. '.connected') == true then
+      local count, by = call('pad', p .. '.num_buttons'), {}
+      if type(count) == 'number' and count > 0 and count <= 64 then
+        for i = 0, count - 1 do
+          local nm = call('pad', p .. '.button_name', i)
+          if type(nm) == 'string' and nm ~= '' then by[nm:lower()] = i end
+        end
+      end
+      local e = { name = p, listed = next(by) ~= nil }
+      for _, c in ipairs(PAD_FIRE) do if by[c] then e.fire = by[c] break end end
+      for _, c in ipairs(PAD_SWAP) do if by[c] then e.swap = by[c] break end end
+      if e.fire or e.swap then list[#list + 1] = e end
+    end
+  end
+  if #list == 0 then
+    -- (no pad listed its buttons: the Xbox names on the first one)
+    local f, y = call('pad', 'Pad1.button_index', 'right_trigger'), call('pad', 'Pad1.button_index', 'y')
+    if type(f) == 'number' or type(y) == 'number' then
+      list[1] = { name = 'Pad1', fire = type(f) == 'number' and f or nil, swap = type(y) == 'number' and y or nil }
+    end
+  end
+  for _, e in ipairs(list) do e.button, e.pressed = e.name .. '.button', e.name .. '.pressed' end
+  if #list > 0 and not pads.said then
+    pads.said = true
+    local d = {}
+    for _, e in ipairs(list) do d[#d + 1] = string.format('%s (fire %s, swap %s%s)', e.name, tostring(e.fire), tostring(e.swap), e.listed and '' or ', not listed') end
+    log('controller: %s', table.concat(d, '; '))
+  end
+  -- (still there: looked at again in 10 s, for one plugged in or swapped)
+  if #list > 0 then pads.look_at = now + 10 end
+  pads.list = list
+  return list
+end
+local input = { ok = nil, last = -100, pad_said = false }
 local function read_fire_button(now)
   if input.ok == false then return end
   local v = nil
@@ -544,11 +600,14 @@ local function read_fire_button(now)
     end
     v = type(input.idx) == 'number' and call('mouse', 'Mouse.button', input.idx) or nil
   end
-  if input.pad == nil then
-    local p = call('pad', 'Pad1.button_index', 'right_trigger')
-    input.pad = type(p) == 'number' and p or false
+  local pv = nil
+  for _, p in ipairs(pad_list(now)) do
+    if p.fire then
+      local x = call('pad', p.button, p.fire)
+      if x == true then x = 1 end
+      if type(x) == 'number' and (pv == nil or x > pv) then pv = x end
+    end
   end
-  local pv = input.pad and call('pad', 'Pad1.button', input.pad)
   if type(v) ~= 'number' and type(pv) ~= 'number' then
     if input.ok == nil then input.ok = false log('fire button: not readable (%s), shots aren\'t checked against it', tostring(v)) end
     return
@@ -560,7 +619,9 @@ local function read_fire_button(now)
     if not input.pad_said then input.pad_said = true log('fire button: a controller\'s right trigger seen') end
   end
 end
-local function pressed_recently(now) return input.ok ~= true or now - input.last <= 0.4 end
+-- (blind: your weapon in hand keeps firing and no fire input of any kind has been seen for a while: a controller
+-- NarrowHUD can't read. Shots aren't checked from then on, as when nothing can be read)
+local function pressed_recently(now) return input.ok ~= true or input.blind or now - input.last <= 0.4 end
 local function hand_pose()
   local u = my_unit()
   if u == nil or chef.unit_alive(u) ~= true then return nil end
@@ -673,13 +734,11 @@ local function read_swap(now)
     local w = chef.wheel()
     if type(w) == 'number' and w ~= 0 then key = 'wheel' end
   end
-  -- a controller's weapon swap (Y on an Xbox pad, the game's default): the other weapon, like the wheel
+  -- a controller's weapon swap (Y, triangle on a PlayStation pad: the game's default): the other weapon, like the wheel
   if key == nil then
-    if swap.pad == nil then
-      local p = call('pad', 'Pad1.button_index', 'y')
-      swap.pad = type(p) == 'number' and p or false
+    for _, p in ipairs(pad_list(now)) do
+      if p.swap and call('pad', p.pressed, p.swap) == true then key = 'wheel' end
     end
-    if swap.pad and call('pad', 'Pad1.pressed', swap.pad) == true then key = 'wheel' end
   end
   if key ~= nil then swap.prev_at, swap.key, swap.at, swap.used, swap.from = swap.at, key, now, false, hand.goid end
 end
@@ -690,7 +749,8 @@ local function pick(s, grip, now)
   local same, unknown, last = {}, {}, nil
   for goid, o in pairs(objs) do
     local t = o.t and TYPES[o.t]
-    if t and not t.pack and not t.player and not t.avatar and not t.other and o.on and not o.ub and not o.notmine then
+    if t and HANDHELD[t.id] and not t.pack and not t.player and not t.avatar and not t.other and o.on and not o.ub
+       and not o.notmine then
       if has_pose(t.id, grip) then same[#same + 1] = goid
       elseif learned.grip[t.id] == nil and learned.poses[t.id] == nil then unknown[#unknown + 1] = goid end
     end
@@ -951,6 +1011,15 @@ local function watch_fire(s, grip)
       -- (a weapon whose trigger was never seen held can't take the hands from one whose trigger has been: the shown
       -- weapon keeps them while a dog's fires)
       if fired(o.prev, w) then
+        -- the weapon in hand firing with no fire input seen in the last 20 s, twice: the fire input can't be read
+        if goid == hand.goid and not pressed_recently(now) and now - input.last > 20 then
+          input.blind_shots = (input.blind_shots or 0) + 1
+          if input.blind_shots >= 2 and not input.blind then
+            input.blind = true
+            log('fire button: your weapon fires with no fire button or trigger seen (a controller NarrowHUD can\'t read?): shots aren\'t checked from now on')
+            o.unpressed, o.notmine, distrust[t.id] = 0, nil, nil
+          end
+        end
         -- (counted both ways: someone else's can fire just as you press)
         if pressed_recently(now) then o.pressed = (o.pressed or 0) + 1 else o.unpressed = (o.unpressed or 0) + 1 end
         local p, u = o.pressed or 0, o.unpressed or 0
@@ -968,7 +1037,8 @@ local function watch_fire(s, grip)
       -- session (someone else's of the same kind), it must have fired with it twice and more than without
       local yours = (o.unpressed or 0) == 0 or o.mine
       if distrust[t.id] then yours = o.mine end
-      if grip and grip ~= 0 and not THROWABLE[grip] and fired(o.prev, w) and not o.ub and by_you and not steals
+      if grip and grip ~= 0 and not THROWABLE[grip] and HANDHELD[t.id] and fired(o.prev, w) and not o.ub and by_you
+         and not steals
          and not o.notmine and pressed_recently(now) and yours then
         any_fired = true
         o.fired_at = chef.time()
@@ -996,7 +1066,7 @@ local function watch_fire(s, grip)
       end
       -- a weapon with no ammo of its own (the Arc Thrower): learned when its trigger is held at a pose nothing else has
       if grip and grip ~= 0 and not THROWABLE[grip] and t.noammo and not o.ub and not o.notmine
-         and w.held == true and (o.prev == nil or o.prev.held ~= true) and not has_pose(t.id, grip) then
+         and w.held == true and (o.prev == nil or o.prev.held ~= true) and HANDHELD[t.id] and not has_pose(t.id, grip) then
         -- (a pose another weapon of yours has is taken, unless that one's trigger field reads not held now: the
         -- Solo Silo's remote held like the Warrant)
         local taken = false
@@ -1060,7 +1130,7 @@ local function watch_fire(s, grip)
     if n == 1 then
       local t = TYPES[objs[only].t]
       objs[only].fired_at = chef.time()
-      if not has_pose(t.id, grip) then
+      if HANDHELD[t.id] and not has_pose(t.id, grip) then
         log('learned: type %s (fed from the backpack) goes with hand pose %d', t.id, grip)
         add_pose(t.id, grip)
       end
@@ -1242,7 +1312,25 @@ local function shown(s, goid, t, w, o)
       d.top = d.pack_top
     else
       if d.mag > (learned.mag[t.id] or 0) then learn('mag', t.id, d.mag) end
-      d.top = math.max(1, learned.mag[t.id] or d.mag)            -- (a single-shot weapon's magazine is always 0)
+      -- The magazine's size is this weapon's in this mission: attachments change it (the Liberator Penetrator's
+      -- shortened magazine: 30 instead of 45), and they're set for the whole mission. The most this object has held
+      -- is its size, once it's known to have been full: it was there in the mission's first 30 s (you drop with
+      -- full magazines), held as much as the most learned, or was reloaded. Until then, the most learned.
+      local top = learned.mag[t.id] or d.mag
+      local o = objs[goid]                                         -- (the underbarrel's own object when it's selected)
+      if o then
+        if o.mag_max == nil then
+          o.mag_max = d.mag
+          o.mag_full = (blocked.since ~= nil and chef.time() - blocked.since < 30) or d.mag >= (learned.mag[t.id] or 0)
+        elseif d.mag > o.mag_max then
+          o.mag_max, o.mag_full = d.mag, true
+        elseif o.mag_prev and d.mag > o.mag_prev then
+          o.mag_full = true
+        end
+        o.mag_prev = d.mag
+        if o.mag_full then top = o.mag_max end
+      end
+      d.top = math.max(1, top)                                     -- (a single-shot weapon's magazine is always 0)
     end
   end
   d.reloading = (tonumber(w.reload_stage) or 0) ~= 0 and d.kind == 'ammo'
@@ -1517,7 +1605,7 @@ local function seg_max() return math.floor(25 + (cfg.size - 0.8) / 0.7 * 25 + 0.
 local function draw_side(d, items)
   local w, h = chef.screen()
   if not w then return end
-  local k = (h / 1440) * cfg.size
+  local k = (h / 1440) * (cfg.side_size or 1.25)
   local big = math.floor(28 * k + 0.5)
   local small = math.max(7, math.floor(16 * k + 0.5))
   local tiny = math.max(6, math.floor(12 * k + 0.5))
@@ -2018,6 +2106,11 @@ function M.update(dt)
     local g = call('avatar.grenades', 'GameSession.game_object_field', s, me.avatar, DATA.avatar.grenades)
     local st = call('avatar.stims', 'GameSession.game_object_field', s, me.avatar, DATA.avatar.stims)
     items_now = (type(g) == 'number' and type(st) == 'number') and { g = g, s = st } or nil
+    -- (research: what the avatar's grenade and stim fields read, each time they change)
+    if cfg.research then
+      local said = string.format('research: items: grenades=%s stims=%s (avatar %s)', tostring(g), tostring(st), tostring(me.avatar))
+      if said ~= hand.items_said then hand.items_said = said log('%s', said) end
+    end
     if items_now then
       read_av_refs(s)
       local r, pgoid = pack_ammo(s)

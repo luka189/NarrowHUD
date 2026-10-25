@@ -43,7 +43,7 @@ def setup(rt, game_font=True, chef11=False, seeded=False):
     g.DATA_ROLES = rt.table_from(dict(re.findall(r'(\w+) = \{ letter = "\w", id = "(\w+)", name = "[^"]+" \}', DATA)))
     unk2 = [n for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
             if n != unknown_name and t not in ('8fcdd35c', '17783758', '30294946', 'a4eff4fa', '56e55184', 'f94a73b3', '17b02218')
-            and 'r' in roles and 'm' in roles and 'k' not in roles and 'h' not in roles][0]
+            and 'r' in roles and 'm' in roles and 'k' not in roles and 'n' in roles and 'h' not in roles][0]
     ub2 = [(t, n) for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
            if n not in (unknown_name, unk2) and 'r' in roles and 'k' in roles and 'h' not in roles
            and t not in ('8fcdd35c', '17783758', '30294946', 'a4eff4fa', '56e55184', 'f94a73b3', '17b02218')][3]
@@ -144,9 +144,21 @@ chef = {
     if name == 'Network.object_info' and OBJINFO then return OBJINFO(s) end
     if name == 'Mouse.button_index' then return 0 end
     if name == 'Mouse.button' then return (FIRE and not PAD) and 1 or 0 end
-    if name == 'Pad1.button_index' then return s == 'y' and 3 or 5 end
-    if name == 'Pad1.button' then return (FIRE and PAD) and 1 or 0 end
-    if name == 'Pad1.pressed' then return PADY == true end
+    -- (PADN: the controller in use; NOPAD: its trigger can't be read at all)
+    local pn, pf = name:match('^Pad(%d)%.(.*)$')
+    if pn then
+      pn = tonumber(pn)
+      local mine = pn == (PADN or 1)
+      -- (PADNAMES false: the pad doesn't list its buttons; PS: a PlayStation pad's names)
+      if pf == 'active' then return mine end
+      if pf == 'connected' then return false end
+      if pf == 'num_buttons' then return PADNAMES ~= false and 6 or nil end
+      if pf == 'button_name' then return (PS and { [0] = 'cross', 'circle', 'square', 'triangle', 'l2', 'r2' }
+                                             or { [0] = 'a', 'b', 'x', 'y', 'left_trigger', 'right_trigger' })[s] end
+      if pf == 'button_index' then return (pn == 1 and not PS) and (s == 'y' and 3 or 5) or nil end
+      if pf == 'button' then return (s == 5 and FIRE and PAD and not NOPAD and mine) and 1 or 0 end
+      if pf == 'pressed' then return s == 3 and mine and PADY == true end
+    end
     if name == 'GameSession.objects_owned_by' and BLOCKED then return nil, 'refused' end
     if name == 'GameSession.game_object_is_type' and BLOCKED then return nil, 'refused' end
     if name == 'World.create_screen_gui' then GUIS = GUIS + 1 return 'G' end
@@ -286,6 +298,18 @@ def main():
     n = rt.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 21 then n = n + 1 end end return n end)()")
     check('after its first shot: 44 ticks again (%d)' % n, n == 44)
     rt.execute('CHANGE.size(2) run(0.3)')
+
+    # an attachment's shorter magazine (the Liberator Penetrator's 30 instead of 45): once reloaded, a full 30 reads
+    # full, not 2/3 (at a mission's start it's known at once: you drop with full magazines)
+    ticks = "(function() local lit, all = 0, 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 14 then all = all + 1 if d[9] ~= 55 then lit = lit + 1 end end end return lit .. '/' .. all end)()"
+    rt.execute('''OBJ[3].fields[ROLE.carry] = 1 OBJ[46] = { name = NAMES.arb, fields = {} } OBJ[46].fields[ROLE.rounds] = 20
+      OBJ[46].fields[ROLE.chamber] = true OBJ[46].fields[ROLE.magazines] = 7 OBJ[46].fields[ROLE.carry] = 0
+      OBJ[46].fields[ROLE.fire_mode] = 1 OBJ[46].fields[ROLE.underbarrel] = 32767 OBJ[46].fields[ROLE.reload_stage] = 0
+      GRIP = 10 run(3)''')
+    check('a 20-round magazine, size not known yet: the learned 44, a solid bar (%s)' % rt.eval(ticks), rt.eval(ticks) == '2/2')
+    rt.execute('OBJ[46].fields[ROLE.rounds] = 30 run(0.5)')
+    check('reloaded to 30: 30 ticks, all full (%s)' % rt.eval(ticks), rt.eval(ticks) == '30/30')
+    rt.execute('OBJ[46] = nil OBJ[3].fields[ROLE.carry] = 0 run(2)')
 
     # a single-shot underbarrel launcher: no shell in the slot, one in the chamber: 1
     rt.execute('''OBJ[3].fields[ROLE.underbarrel] = 8 OBJ[3].fields[ROLE.fire_mode] = 8
@@ -648,6 +672,37 @@ def main():
     t = rt7.eval('texts()')
     check('controller: a weapon fired with the right trigger learned and shown [%s]' % t, t.startswith('8 |'))
     check('controller: not taken for someone else\'s', not any('not yours' in l for l in rt7.eval('logs').values()))
+    # a type with no owner field (an object a host owns, from a player's log): never learned to the hand pose
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil OBJ[70] = { name = '%s', fields = {} } OBJ[70].fields[ROLE.rounds] = 30 OBJ[70].fields[ROLE.magazines] = 3
+      OBJ[70].fields[ROLE.chamber] = true GRIP = 10 run(3) for i = 1, 4 do OBJ[70].fields[ROLE.rounds] = 30 - i run(0.5) end''' % type_name('e45066e4'))
+    check('no owner field: not learned [%s]' % r.eval('texts()'), not any('learned: type e45066e4' in l for l in r.eval('logs').values()) and '26' not in r.eval('texts()'))
+    # a controller that isn't the first one the engine has (Pad3)
+    rt7b = lua51.LuaRuntime()
+    setup(rt7b)
+    rt7b.execute('PAD = true PADN = 3 GRIP = 70 run(3) for i = 1, 4 do OBJ[4].fields[ROLE.rounds] = 12 - i run(0.5) end')
+    t = rt7b.eval('texts()')
+    check('controller on Pad3: its trigger read, the weapon shown [%s]' % t, t.startswith('8 |'))
+    # a PlayStation pad (R2), and a pad that doesn't list its buttons (the Xbox names on Pad1)
+    for label, setup_lua in (('PlayStation pad on Pad2 (R2)', 'PS = true PADN = 2'), ('unlisted buttons', 'PADNAMES = false')):
+        r = lua51.LuaRuntime()
+        setup(r)
+        r.execute('PAD = true ' + setup_lua + ' GRIP = 70 run(3) for i = 1, 4 do OBJ[4].fields[ROLE.rounds] = 12 - i run(0.5) end')
+        t = r.eval('texts()')
+        check('controller, %s: the weapon shown [%s]' % (label, t), t.startswith('8 |'))
+        check('controller, %s: logged once' % label, sum(1 for l in r.eval('logs').values() if l.find('controller: Pad') >= 0) == 1)
+    # a controller NarrowHUD can't read at all: the weapon in hand (known from the seed) keeps showing as it fires
+    rt7c = lua51.LuaRuntime()
+    setup(rt7c, seeded=True)
+    rt7c.execute('''PAD = true NOPAD = true OBJ[3] = nil OBJ[40] = { name = NAMES.verdict, fields = {} } OBJ[40].fields[ROLE.rounds] = 10
+      OBJ[40].fields[ROLE.magazines] = 6 OBJ[40].fields[ROLE.chamber] = true OBJ[40].fields[ROLE.carry] = 0 GRIP = 36 run(3)
+      for i = 1, 6 do OBJ[40].fields[ROLE.rounds] = 10 - i run(0.6) end''')
+    t = rt7c.eval('texts()')
+    logs = list(rt7c.eval('logs').values())
+    check('unreadable controller: still shown after 6 shots [%s]' % t, t.startswith('4 |'))
+    check('unreadable controller: logged once', sum(1 for l in logs if "shots aren't checked from now on" in l) == 1)
+    check('unreadable controller: not taken for someone else\'s', not any('not yours' in l for l in logs))
     # beside the crosshair (compact): a vertical bar right of the middle, the count right of it, the magazines as
     # squares under it, labels under those
     rt7.execute('CHANGE.position(2) GRIP = 10 run(1)')
@@ -657,7 +712,7 @@ def main():
     check('beside: everything right of the middle (%s)' % (min(xs) if xs else None), xs and min(xs) > 1720)
     bar = [d for d in rects if d[5] > d[4] * 5]
     check('beside: a vertical bar (%s)' % bar[:2], len(bar) >= 1)
-    squares = [d for d in rects if d[4] == d[5] and d[4] == 6]
+    squares = [d for d in rects if d[4] == d[5] and d[4] == 8]
     check('beside: 7 magazines as squares (%d)' % len(squares), len(squares) == 7)
     rt7.execute('GRIP = 52 run(1)')
     tx = {d[4]: (d[2], d[3]) for d in rt7.eval('draws').values() if d[1] == 'text'}
@@ -803,12 +858,12 @@ def main():
     rt17 = lua51.LuaRuntime()
     setup(rt17)
     rt17.execute('CHANGE.position(2) GRIP = 10 run(2) OBJ[3].fields[ROLE.magazines] = 5 run(1)')
-    sq = [d for d in rt17.eval('draws').values() if d[1] == 'rect' and d[4] == d[5] == 6]
+    sq = [d for d in rt17.eval('draws').values() if d[1] == 'rect' and d[4] == d[5] == 8]
     grey = [d for d in sq if d[6] == 150]
     check('5 of 7 magazines: 7 squares, 2 grey (%d, %d)' % (len(sq), len(grey)), len(sq) == 7 and len(grey) == 2)
     rt17.execute('CHANGE.mags(2) run(1)')
     tx = {d[4]: (d[2], d[3]) for d in rt17.eval('draws').values() if d[1] == 'text'}
-    sq = [d for d in rt17.eval('draws').values() if d[1] == 'rect' and d[4] == d[5] == 6]
+    sq = [d for d in rt17.eval('draws').values() if d[1] == 'rect' and d[4] == d[5] == 8]
     check('as a number: x5 after the count, no squares %s' % tx, 'x5' in tx and not sq and tx['x5'][0] > tx['45'][0])
 
     # options: colours, opacity, fade, text toggles, the fire button, beside up / down

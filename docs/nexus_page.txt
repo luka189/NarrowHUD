@@ -2,9 +2,9 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 1.0.1
+Version: 1.0.2
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v1.0.1.zip
+Main file: NarrowHUD-v1.0.2.zip
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2 and newer"
 
 Summary (the short line under the title, at most 350 characters):
@@ -87,7 +87,7 @@ update, or turn on "Run on a game version it wasn't made for" at your own risk.
 
 [size=4][b]Known issues[/b][/size]
 [list]
-[*][b]Controllers[/b] (right trigger to fire, Y to swap) are untested. Reports welcome.
+[*][b]Controllers[/b] (right trigger to fire, Y to swap) work on an Xbox-style pad; PlayStation pads are untested. Reports welcome.
 [*]The Arc Thrower and the Blitzer have no ammo to show (only a charge line). The Solo Silo's remote shows nothing.
 [*]4K, render scale under 100 % and HDR are untested; 3440x1440, 1080p and non-widescreen are fine.
 [/list]
@@ -107,7 +107,7 @@ Permissions (the Permissions tab)
 - Modify and reupload: yes
 - Convert to other games: yes
 - Use assets in other mods: yes, with credit
-- Use in paid mods / donation points: no (no monetary gain)
+- Use in paid mods: no; donation points: yes (no selling or paywalls; donations are fine)
 - Credit: "Based on NarrowHUD by luka189"
 (The same terms are in LICENSE.txt in the zip.)
 

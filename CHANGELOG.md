@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.2
+
+**Fixes**
+- Controllers: the HUD could disappear after a few shots. When NarrowHUD couldn't see the trigger, your shots looked
+  like someone else's and your weapon was hidden. Now every connected controller is read, not only the first, by the
+  button names the pad gives itself (R2 and triangle on a PlayStation pad). And if the weapon in your hand keeps
+  firing with no fire button or trigger seen at all, NarrowHUD stops checking your shots for the rest of the session
+  (it says so in narrowhud.log) instead of hiding the weapon. Checked on an Xbox-style pad; PlayStation pads untested.
+- Hosting: two kinds of object a host owns (not weapons you carry) could be learned as your rifle when they fired as
+  you fired, and then shown instead of it. Only real hand-held weapon types can be the weapon in your hand now;
+  anything already learned wrongly is ignored, no reset needed.
+- Magazine attachments: the bar's size is now the weapon's own magazine in this mission, not the largest ever seen for
+  its type. A Liberator Penetrator with the shortened magazine (30 instead of 45) read 2/3 full when full. A weapon
+  you drop in with is known at once; one picked up later, after its first reload.
+
+**Changes**
+- Beside the crosshair is bigger at every size (it was small even at Huge): Small is the old Medium, Medium the old
+  Large, Large the old Huge, and Huge is new (about a quarter bigger again). Under the crosshair is unchanged.
+- The research log also notes your grenade and stim counts as they change (for bug reports).
+- License: "no monetary gain" made plain: no selling and no paywalls (Patreon and the like); donations and Donation
+  Points are fine.
+
 ## 1.0.1
 
 - The Dagger (and any other laser) could be taken for a charge weapon like the Nova, which hid its heat marks. Only
