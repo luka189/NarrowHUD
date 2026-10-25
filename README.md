@@ -9,17 +9,6 @@ your spare magazines, plus your stims, grenades and backpack. It runs on
 [Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.0.x or 1.2 and newer** (1.1 doesn't allow the
 reads it needs).
 
-```
-Under the crosshair:   UNGUIDED  ||||||||||||||||||||||||    10 | x6
-                       [stim] 6   [grenade] 5
-
-Beside it (compact):   ======
-                       | 10
-                       | ■■■■■■□□
-                       UNGUIDED
-                       [stim] 6 [grenade] 5
-```
-
 ## Install
 
 1. Install Chef Shared Loader (1.0.x, or 1.2 or newer) as its page says.
