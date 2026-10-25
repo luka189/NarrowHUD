@@ -1,0 +1,103 @@
+"""Builds NarrowHUD for Arsenal / HD2 Mod Manager (needs Chef Shared Loader 1.0.0 or newer):
+
+    python3 tools/build.py [--out DIR]
+
+writes build/narrowhud.lua (src/data_generated.lua put in front of src/narrowhud.lua as DATA) and
+NarrowHUD-v<version>.zip: one patch archive holding it as the plain-text Lua resource mods/luka189/narrowhud, and
+manifest.json. The archive layout and name hash are the ones Lua mods for the current game use (MurmurHash64A, seed 0;
+a Lua resource is u32 length, u32 2, the text).
+"""
+import argparse
+import json
+from pathlib import Path
+import re
+import struct
+import zipfile
+
+ROOT = Path(__file__).resolve().parent.parent
+NAME = 'mods/luka189/narrowhud'
+GUID = '8e4b6f12-3a7d-4c95-b0e1-6d2f9a54c3b7'
+LUA_TYPE = 0xA14E8DFA2CD117E2
+ARCHIVE = '9ba626afa44a3aa3.patch_0'
+
+
+def resource_hash(name):
+    data = name.encode('utf-8')
+    mask, mix = (1 << 64) - 1, 0xC6A4A7935BD1E995
+    value = len(data) * mix & mask
+    end = len(data) // 8 * 8
+    for (word,) in struct.iter_unpack('<Q', data[:end]):
+        word = word * mix & mask
+        word ^= word >> 47
+        value = (value ^ (word * mix & mask)) * mix & mask
+    if data[end:]:
+        value = (value ^ int.from_bytes(data[end:], 'little')) * mix & mask
+    value ^= value >> 47
+    value = value * mix & mask
+    return value ^ (value >> 47)
+
+
+def make_archive(resources):
+    count = len(resources)
+    offset = (104 + 80 * count + 15) & ~15
+    entries, body = bytearray(), bytearray(offset)
+    for index, (name, resource) in enumerate(sorted(resources.items())):
+        entries += struct.pack('<7Q6I', name, LUA_TYPE, offset, 0, 0, 0, 0, len(resource), 0, 0, 16, 16, index)
+        body += resource
+        body += b'\0' * (-len(body) % 16)
+        offset = len(body)
+    header = struct.pack('<III20sQQ24s', 0xF0000011, 1, count, b'', offset, 0, b'')
+    types = struct.pack('<IIQIIII', 0, 0, LUA_TYPE, count, 0, 16, 16)
+    body[:104 + len(entries)] = header + types + entries
+    return bytes(body)
+
+
+def source():
+    main = (ROOT / 'src' / 'narrowhud.lua').read_text(encoding='utf-8')
+    data = (ROOT / 'src' / 'data_generated.lua').read_text(encoding='utf-8')
+    lines = main.split('\n')
+    if lines[0] != f'-- HD2-Addon: {NAME}':
+        raise SystemExit('src/narrowhud.lua must start with its header line')
+    # the header lines (-- HD2-...) stay first: Chef reads them from the first 400 characters
+    n = 1
+    while lines[n].startswith('-- HD2-'):
+        n += 1
+    head, rest = '\n'.join(lines[:n]), '\n'.join(lines[n:])
+    seed = (ROOT / 'src' / 'learned_seed.lua').read_text(encoding='utf-8')
+    return f'{head}\nlocal DATA = (function()\n{data}\nend)()\nlocal SEED = (function()\n{seed}\nend)()\n{rest}'
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--out', default=str(ROOT / 'build'))
+    args = parser.parse_args()
+    src = source()
+    version = re.search(r"local M = \{ version = '([^']+)' \}", src).group(1)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / 'narrowhud.lua').write_text(src, encoding='utf-8')
+    lua = src.encode('utf-8')
+    manifest = {'Version': 1, 'Guid': GUID, 'Name': f'NarrowHUD {version}',
+                'Description': 'Ammo and heat as a narrow bar by the crosshair, plus stims, grenades and your backpack. '
+                               'Needs Chef Shared Loader 1.0.x or 1.2 and newer. Settings: F9 menu, NarrowHUD.',
+                'IconPath': 'thumbnail.png'}
+    files = {f'core/{ARCHIVE}': make_archive({resource_hash(NAME): struct.pack('<II', len(lua), 2) + lua}),
+             f'core/{ARCHIVE}.stream': b'', f'core/{ARCHIVE}.gpu_resources': b'',
+             'manifest.json': (json.dumps(manifest, indent=2) + '\n').encode(),
+             'Source/narrowhud.lua': lua,
+             'thumbnail.png': (ROOT / 'art' / 'thumbnail.png').read_bytes(),
+             'LICENSE.txt': (ROOT / 'LICENSE').read_bytes()}
+    manifest['Options'] = [{'Name': 'NarrowHUD', 'Description': 'The mod. Keep this ticked.', 'Include': ['core']}]
+    files['manifest.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
+    z = out / f'NarrowHUD-v{version}.zip'
+    with zipfile.ZipFile(z, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        for path, content in sorted(files.items()):
+            info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o100644 << 16
+            zf.writestr(info, content)
+    print(f'Built {z}')
+
+
+if __name__ == '__main__':
+    main()

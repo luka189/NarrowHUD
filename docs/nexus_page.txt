@@ -1,0 +1,122 @@
+NarrowHUD: Nexus Mods page text
+================================
+
+Name: NarrowHUD
+Version: 1.0.1
+Category: User Interface (or Gameplay > HUD, whichever the site lists)
+Main file: NarrowHUD-v1.0.1.zip
+Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2 and newer"
+
+Summary (the short line under the title, at most 350 characters):
+--------------------------------------------------------------------
+A narrow ammo and heat readout by your crosshair: the magazine as a bar, the count, your spare magazines, stims,
+grenades and backpack. Two layouts, a colourblind palette, fade when idle. Reads only, never writes. Needs Chef
+Shared Loader 1.0.x or 1.2+.
+
+Description (paste into the BBCode editor):
+-------------------------------------------
+[size=5][b]NarrowHUD[/b][/size]
+[i]Narrow enough to not limit the Design Space.[/i]
+
+A small ammo and heat readout right by your crosshair, so you never have to look at the corner of the screen
+mid-fight.
+
+[size=4][b]What it shows[/b][/size]
+[list]
+[*][b]Ammo[/b]: a tick per round for smaller magazines (a solid bar for big ones), the count, and your spare
+magazines. Orange when low, red when empty, dimmed while reloading. A tactical reload's chambered round gets its own
+tick.
+[*][b]Heat[/b] for laser weapons, the Quasar and the Nova: the bar, the percentage and a 75 % mark; charge weapons
+fill up as they charge. The Double-Edge Sickle runs to 200 % with marks at 50, 100 and 180. Cooling follows the
+planet.
+[*][b]Backpack weapons[/b] (Autocannon, Recoilless, C4 ...): what's loaded plus the spare ammo in the backpack.
+Backpack-fed weapons show the backpack's ammo.
+[*][b]Fire modes[/b], [b]weapon modes[/b] (GUIDED / UNGUIDED, APHET / FLAK, HEAT / HE ...), [b]underbarrels[/b] and
+the [b]rate of fire[/b] setting.
+[*][b]Lock-on[/b] (Spear, WASP) and [b]charge meters[/b] (Railgun, Epoch).
+[*][b]Stims, grenades[/b], your [b]backpack[/b]'s fill, the warp pack's heat and the jump pack's recharge.
+[/list]
+
+[size=4][b]Two layouts[/b][/size]
+[list]
+[*][b]Under the crosshair[/b]: a wide narrow bar, the count and magazines to its right, stims and grenades below.
+[*][b]Beside the crosshair[/b] (compact): a short vertical bar, the count, your magazines as small squares (or a
+number), the modes, stims and grenades.
+[/list]
+
+[size=4][b]Settings[/b][/size] (F9 menu > NarrowHUD)
+[list]
+[*]Size, layout, distance from the crosshair, up / down offset
+[*]Magazines as squares or a number
+[*]Opacity, and fading out when full and not firing
+[*]Colours: standard, or colourblind (white, sky blue, yellow, magenta)
+[*]Show or hide the rate of fire, fire mode and weapon modes; stims and grenades; the backpack bar
+[*]Your fire button and swap keys, if you've changed them in the game
+[*]Keys to forget what NarrowHUD learned (about the weapon in hand, or everything)
+[/list]
+
+[size=4][b]Install[/b][/size]
+[list=1]
+[*]Install [b]Chef Shared Loader[/b] (1.0.x, or 1.2 or newer; 1.1 doesn't allow the reads NarrowHUD needs).
+[*]Add the NarrowHUD zip in your mod manager and enable it.
+[*]Play. Settings are in F9.
+[/list]
+
+[size=4][b]How it works[/b][/size]
+NarrowHUD [b]only reads[/b] game state, through Chef Shared Loader's crash-guarded calls; it never writes anything
+to the game.
+The game doesn't tell mods which weapon is in your hand, so NarrowHUD watches how your Helldiver holds it and learns
+which weapon that is the first time you fire. It ships knowing 95 weapons from testing, so most show straight away;
+anything new shows from its first shot. Weapons held the same way (one-handed with a shield, for example) are told
+apart by your swap keys.
+After a game patch it checks its data against the game and leaves out anything that changed. If it can't check, it
+stays off and tells you, rather than risk a crash.
+
+[size=4][b]FAQ[/b][/size]
+[b]A weapon doesn't show.[/b] Fire it once: NarrowHUD learns it from the first shot.
+[b]It shows the wrong weapon's ammo.[/b] Fire the one you're holding and it corrects itself. If it keeps happening,
+set a key for "Forget what's learned about the weapon in hand" in F9, press it while holding the weapon, and fire.
+[b]I changed my fire button or swap keys in the game.[/b] Set the same in F9 > NarrowHUD.
+[b]"NarrowHUD is off: the game was updated".[/b] A patch changed something NarrowHUD can't check safely. Wait for an
+update, or turn on "Run on a game version it wasn't made for" at your own risk.
+[b]The pixel font setting is missing.[/b] On Chef 1.1 and newer it's Chef's own: F9 > Chef Shared Loader > Game font.
+[b]Where does it keep what it learned?[/b] chef_data_luka189_2fnarrowhud__learned.lua in
+%APPDATA%\Arrowhead\Helldivers2. Its log is narrowhud.log in the same folder.
+[b]Does it work in multiplayer?[/b] Yes, hosting and joining. It only shows your own weapons and backpack.
+[b]Performance?[/b] About 0.3 ms a frame.
+
+[size=4][b]Known issues[/b][/size]
+[list]
+[*][b]Controllers[/b] (right trigger to fire, Y to swap) are untested. Reports welcome.
+[*]The Arc Thrower and the Blitzer have no ammo to show (only a charge line). The Solo Silo's remote shows nothing.
+[*]4K, render scale under 100 % and HDR are untested; 3440x1440, 1080p and non-widescreen are fine.
+[/list]
+Bug reports: turn on "Research log" in F9 (from the next start), play until it happens, and post narrowhud.log.
+
+[size=4][b]Credits[/b][/size]
+[list]
+[*]Weapon heat and charge values: the Helldivers 2 wiki (helldivers.wiki.gg).
+[*]The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used.
+[*]Runs on Chef Shared Loader by Th3chef.
+[/list]
+Not affiliated with Arrowhead Game Studios.
+
+Permissions (the Permissions tab)
+---------------------------------
+- Upload to other sites: yes
+- Modify and reupload: yes
+- Convert to other games: yes
+- Use assets in other mods: yes, with credit
+- Use in paid mods / donation points: no (no monetary gain)
+- Credit: "Based on NarrowHUD by luka189"
+(The same terms are in LICENSE.txt in the zip.)
+
+Images (art/promo)
+------------------
+- Page banner: banner.jpg (1300 x 372)
+- Main image (the tile): main_tile.jpg (1920 x 1080: the logo and name, the beside layout, the under layout);
+  more: hero_under.jpg, hero_beside.jpg
+- Settings comparisons: layouts.jpg, sizes_under.jpg, sizes_beside.jpg, magazines.jpg, colours.jpg, fade.jpg,
+  items.jpg
+- Thumbnail / logo: art/logo.png (1024 x 1024), art/thumbnail.png (512 x 512)
+- A short clip: swapping weapons and firing (optional)
