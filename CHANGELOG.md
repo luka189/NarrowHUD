@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.4
+
+- Hosting with SEAF: a soldier's gun of the same kind as yours, firing as you fired, could take the HUD over. Now
+  the weapon in your hand keeps it while it's firing; another one on the same hand pose takes over only after a swap
+  (keys, the wheel, a pose change), when the shown one is gone, or when it keeps firing with your fire button while
+  the shown one does nothing.
+- SEAF, from a host's log (thanks!): five kinds of SEAF gun had been learned as "your" weapon for up to 7 hand
+  poses each. Now a gun that fires at the same moment as the weapon in your hand isn't learned for that pose; a kind
+  learned for 4 or more poses that didn't ship with NarrowHUD is never shown (every real weapon has 1 to 3), which
+  also clears what older versions learned wrongly; and once your fire button has been seen, a gun shown firing on
+  its own no longer switches the fire-button check off (1.0.2's controller fallback was set off that way).
+- Research log: more for the SEAF case (each switch between two objects on one pose, with both objects' fields;
+  weapons that turn up later in a mission; each time a soldier's gun was kept out).
+- New setting "Fire and weapon modes in their own colours" (off by default): each mode always in the same colour
+  (cream, sky blue or green, the same in both palettes), and a weapon's modes never share one, so a switch is easy
+  to see. SEMI, SAFE, APHET, HEAT, GUIDED, DEPLOY: cream; AUTO, UNSAFE, FLAK, HE, UNGUIDED, DETONATE, ARTILLERY,
+  LASER: blue; BURST, VOLLEY, TOTAL, CLUSTER: green.
+- "Fade out when full and not firing" is now "When nothing changes for a while": Shown, Dimmed (a quarter) or
+  Hidden, after a number of seconds you set (2 to 15, 4 by default). Any change wakes it at once: the count, heat
+  (cooling too), a reload, the magazines, a mode, swapping or picking up a weapon, stims, grenades, the backpack, or
+  just pressing fire. It's a new row, so it starts at Shown once.
+
 ## 1.0.3
 
 **The settings, reorganised.** Your position and distance settings go back to the default once (they're new rows);

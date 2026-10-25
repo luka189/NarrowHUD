@@ -26,7 +26,8 @@ reads it needs).
 - **Backpack weapons** (Autocannon, Recoilless, C4 ...): what's loaded and the spare ammo in the backpack. Weapons fed
   straight from a backpack show the backpack's ammo.
 - **Underbarrels** (marked UB), **fire modes** (AUTO, SEMI, BURST ...), **weapon modes** (GUIDED / UNGUIDED, APHET /
-  FLAK, HEAT / HE ...) and the **rate of fire** for weapons with a setting.
+  FLAK, HEAT / HE ...) and the **rate of fire** for weapons with a setting. With a setting, each mode in its own
+  colour (cream, blue or green), so a switch is easy to see.
 - **Lock-on** (Spear, WASP ...) and **charge meters** (Railgun, Epoch).
 - **Stims, grenades** and how full your **backpack** is; the warp pack's heat and the jump pack's recharge.
 
@@ -41,7 +42,7 @@ small squares), or **a screen corner** by the game's weapon panel (best with the
   fire mode, the rate of fire, the charge meter, stims, grenades, the backpack bar.
 - Spare magazines beside and in the corner: squares or a number; the empty squares shown or hidden.
 - Empty parts (of the ammo bar, the magazine squares, the backpack bar) faint, or as outlines.
-- Opacity, and fading out when full and not firing.
+- Opacity, and dimming or hiding when nothing has changed for a few seconds.
 - Colours: standard, or colourblind (white, sky blue, yellow, magenta: told apart by brightness too).
 - The game's font or a pixel font (Chef 1.0.x; from 1.1 on, Chef's own "Game font" setting does that for every mod).
 - Your fire button and swap keys, as you've bound them in the game (left mouse and 1 / 2 / 3 by default).

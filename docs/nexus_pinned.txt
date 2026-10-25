@@ -1,0 +1,38 @@
+[size=4][b]Bug reports: please read first[/b][/size]
+
+Thanks for all the reports! To get your problem fixed quickly, please include [b]both logs[/b] from a session where it happened. Without them I can usually only guess.
+
+[size=3][b]1. First, the quick checks[/b][/size]
+[list]
+[*][b]Chef Shared Loader version:[/b] NarrowHUD needs [b]1.0.x, or 1.2 and newer[/b]. Chef 1.1 blocks the reads it needs.
+[*][b]Only in missions:[/b] nothing shows on the ship or in menus.
+[*][b]Hidden while you hold a grenade or a stratagem ball[/b], on purpose.
+[*][b]A weapon doesn't show?[/b] Fire it once: NarrowHUD learns it from the first shot.
+[*][b]Not showing in the middle of an operation?[/b] Try the next mission, or restart the game. (Being looked into.)
+[*][b]Settings missing or moved?[/b] 1.0.3 reorganised the F9 menu. Placement is now Position plus two Offset sliders, and every part has its own "Show ..." toggle. Try the F9 menu's search ( [b]/[/b] ).
+[/list]
+
+[size=3][b]2. Turn on the research log[/b][/size]
+[list=1]
+[*]Press [b]F9[/b] > NarrowHUD > [b]Research log[/b] > on.
+[*][b]Restart the game[/b] (it only takes effect from the next start).
+[*]Play until the problem happens. Fire each of your weapons a few times.
+[*]Quit the game.
+[/list]
+
+[size=3][b]3. Post both logs[/b][/size]
+Both are in [b]%APPDATA%\Arrowhead\Helldivers2[/b] (paste that into the Explorer address bar):
+[list]
+[*][b]narrowhud.log[/b]
+[*][b]chef_loader.log[/b]
+[/list]
+Upload them to a paste site (pastebin.com, or similar) and post the links here, or attach them in a bug report.
+
+[size=3][b]4. And tell me[/b][/size]
+[list]
+[*]What you expected, and what you saw (a screenshot helps a lot)
+[*]Your NarrowHUD and Chef Shared Loader versions
+[*]Mouse or controller (Xbox or PlayStation)
+[*]Host or joined, and whether you were mid-operation
+[*]Your layout (under, beside, corner) and any settings you changed
+[/list]

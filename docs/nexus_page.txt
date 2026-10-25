@@ -2,15 +2,15 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 1.0.3
+Version: 1.0.4
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v1.0.3.zip
+Main file: NarrowHUD-v1.0.4.zip
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2 and newer"
 
 Summary (the short line under the title, at most 350 characters):
 --------------------------------------------------------------------
 A narrow ammo and heat readout by your crosshair: the magazine as a bar, the count, your spare magazines, stims,
-grenades and backpack. Three layouts, a colourblind palette, fade when idle. Reads only, never writes. Needs Chef
+grenades and backpack. Three layouts, a colourblind palette, dims or hides when idle. Reads only, never writes. Needs Chef
 Shared Loader 1.0.x or 1.2+.
 
 Description (paste into the BBCode editor):
@@ -32,7 +32,7 @@ planet.
 [*][b]Backpack weapons[/b] (Autocannon, Recoilless, C4 ...): what's loaded plus the spare ammo in the backpack.
 Backpack-fed weapons show the backpack's ammo.
 [*][b]Fire modes[/b], [b]weapon modes[/b] (GUIDED / UNGUIDED, APHET / FLAK, HEAT / HE ...), [b]underbarrels[/b] and
-the [b]rate of fire[/b] setting.
+the [b]rate of fire[/b] setting. Optionally each mode in its own colour, so a switch is easy to see.
 [*][b]Lock-on[/b] (Spear, WASP) and [b]charge meters[/b] (Railgun, Epoch).
 [*][b]Stims, grenades[/b], your [b]backpack[/b]'s fill, the warp pack's heat and the jump pack's recharge.
 [/list]
@@ -52,7 +52,7 @@ you put it).
 [*]Every part shown or hidden on its own: bar, count, magazines, HEAT label, modes, fire mode, rate of fire, charge meter, stims, grenades, backpack bar
 [*]Magazines as squares or a number; the empty squares shown or hidden
 [*]Empty parts of the ammo bar, magazines and backpack bar faint, or as outlines
-[*]Opacity, and fading out when full and not firing
+[*]Opacity, and dimming or hiding when nothing has changed for a few seconds
 [*]Colours: standard, or colourblind (white, sky blue, yellow, magenta)
 [*]Your fire button and swap keys, if you've changed them in the game
 [*]Keys to forget what NarrowHUD learned (about the weapon in hand, or everything)

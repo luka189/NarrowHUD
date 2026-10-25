@@ -14,7 +14,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '1.0.3' }
+local M = { version = '1.0.4' }
 if type(chef.own_log) == 'function' then chef.own_log('narrowhud') end
 local log = function(fmt, ...) chef.log(fmt, ...) end
 
@@ -124,7 +124,7 @@ end
 local cfg = { size = 1, side_size = 1.25, off_x = 0, off_y = 0, right = false, corner = false, mags_number = false,
               show_bar = true, show_count = true, show_mags = true, show_heat = true, show_charge = true,
               show_stims = true, show_grenades = true, pack = true, font = true,
-              research = false, any_build = false, opacity = 1, fade = false, show_rpm = true, show_fmode = true,
+              research = false, any_build = false, opacity = 1, idle = 1, idle_secs = 4, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1 }
 local apply_palette                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
@@ -173,8 +173,14 @@ if chef.has and chef.has('menu') then
   chef.on_change('outline', function(v) cfg.outline = v == true end)
   cfg.opacity = (chef.option('opacity', { type = 'slider', label = 'Opacity (%)', min = 20, max = 100, step = 5, default = 100 }) or 100) / 100
   chef.on_change('opacity', function(v) cfg.opacity = (v or 100) / 100 end)
-  cfg.fade = chef.option('fade', { type = 'toggle', label = 'Fade out when full and not firing', default = false }) == true
-  chef.on_change('fade', function(v) cfg.fade = v == true end)
+  -- when nothing has changed for a while (the count, heat, magazines, modes, the weapon, the items ...) and you
+  -- haven't pressed fire: shown, dimmed to a quarter, or hidden; back at once on the next change
+  cfg.idle = chef.option('idle', { type = 'choice', label = 'When nothing changes for a while', choices = { 'Shown', 'Dimmed', 'Hidden' }, default = 1 }) or 1
+  chef.on_change('idle', function(v) cfg.idle = v or 1 end)
+  cfg.idle_secs = chef.option('idle_secs', { type = 'slider', label = '   After how many seconds', min = 2, max = 15, step = 1, default = 4 }) or 4
+  chef.on_change('idle_secs', function(v) cfg.idle_secs = v or 4 end)
+  cfg.mode_colors = chef.option('mode_colors', { type = 'toggle', label = 'Fire and weapon modes in their own colours', default = false }) == true
+  chef.on_change('mode_colors', function(v) cfg.mode_colors = v == true end)
   cfg.palette = chef.option('palette', { type = 'choice', label = 'Colours', choices = { 'Standard', 'Colourblind (blue / yellow / magenta)' }, default = 1 }) or 1
   chef.on_change('palette', function(v) cfg.palette = v or 1 if apply_palette then apply_palette() end end)
   -- (from Chef 1.1 on, every mod's text is Chef's, in the game's font; its own "Game font" row, under Chef Shared
@@ -333,14 +339,30 @@ end
 -- A weapon can have several hand poses (with a shield in the other hand: the Verdict at 1, 30 and 36): a set per type
 -- ("10,30"), next to the single pose older versions kept (learned.grip).
 local distrust = {}                                 -- types with an object that fired without your fire button
+-- A type learned for 4 or more hand poses that didn't ship with NarrowHUD isn't a weapon of yours: every real one
+-- has 1 to 3 (the Verdict's 3, with a shield). As host, SEAF soldiers' guns got learned for every pose you fired at
+-- (a 2026-10-25 log: five types, up to 7 poses each). Never in your hand from then on.
+local many_said = {}
+local function many_poses(id)
+  local l = learned.poses[id]
+  if not l or (SEED and ((SEED.poses and SEED.poses[id]) or (SEED.grip and SEED.grip[id]))) or SEED_GRIPS[id] then return false end
+  local n = 1
+  for _ in string.gmatch(l, ',') do n = n + 1 end
+  if n < 4 then return false end
+  if not many_said[id] then
+    many_said[id] = true
+    log('type %s: learned for %d hand poses (%s): not a weapon of yours (a SEAF soldier\'s?), never shown', id, n, l)
+  end
+  return true
+end
 local function has_pose(id, grip)
-  if not HANDHELD[id] then return false end
+  if not HANDHELD[id] or many_poses(id) then return false end
   if learned.grip[id] == grip then return true end
   local l = learned.poses[id]
   return l ~= nil and string.find(',' .. l .. ',', ',' .. grip .. ',', 1, true) ~= nil
 end
 local function add_pose(id, grip)
-  if has_pose(id, grip) or not HANDHELD[id] then return end
+  if has_pose(id, grip) or not HANDHELD[id] or many_poses(id) then return end
   local l = learned.poses[id]
   if learned.grip[id] and not l then l = tostring(learned.grip[id]) end
   learn('poses', id, l and (l .. ',' .. grip) or tostring(grip))
@@ -394,7 +416,20 @@ local function classify_list(s, list, order, budget, on_miss)
         local t = TYPES[order[o.next]]
         budget = budget - 1
         local r = not t.gone and call(t.id, 'GameSession.game_object_is_type', s, goid, t.name) or false
-        if r == true then o.t = order[o.next] blocked.yes = true break end
+        if r == true then
+          o.t = order[o.next] blocked.yes = true
+          -- (research: a weapon that turns up later in the mission: a pick-up, a resupply, or a SEAF reinforcement's)
+          local wt = TYPES[o.t]
+          if cfg.research and HANDHELD[wt.id] and not wt.pack and not wt.player and not wt.avatar and not wt.other and blocked.since
+             and o.seen_at and o.seen_at - blocked.since > 30 and (blocked.new_said or 0) < 300 then
+            blocked.new_said = (blocked.new_said or 0) + 1
+            log('research: new weapon object %s, type %s, %.0f s into the mission: carry=%s owner=%s held=%s%s', tostring(goid), wt.id,
+              o.seen_at - blocked.since, tostring(wt.has.carry and field(s, goid, wt, 'carry')),
+              tostring(wt.has.owner and field(s, goid, wt, 'owner')), tostring(wt.has.held and field(s, goid, wt, 'held')),
+              o.host and ' (the host\'s)' or '')
+          end
+          break
+        end
         if r == nil then blocked.types = (blocked.types or 0) + 1 end
         o.next = o.next + 1
       end
@@ -456,14 +491,14 @@ local function scan(s, peer)
   for _, goid in pairs(ids) do
     now[goid] = true
     session.mine = session.mine + 1
-    if objs[goid] == nil then objs[goid] = {}; queue[#queue + 1] = goid end
+    if objs[goid] == nil then objs[goid] = { seen_at = chef.time() }; queue[#queue + 1] = goid end
   end
   if type(hids) == 'table' then
     for _, goid in pairs(hids) do
       if not now[goid] then
         now[goid] = true
         session.hosts = session.hosts + 1
-        if objs[goid] == nil then objs[goid] = { host = true }; queue[#queue + 1] = goid end
+        if objs[goid] == nil then objs[goid] = { host = true, seen_at = chef.time() }; queue[#queue + 1] = goid end
       end
     end
   end
@@ -629,9 +664,9 @@ local function read_fire_button(now)
     return
   end
   if input.ok == nil then input.ok = true end
-  if type(v) == 'number' and v > 0.5 then input.last = now end
+  if type(v) == 'number' and v > 0.5 then input.last, input.ever = now, true end
   if type(pv) == 'number' and pv > 0.3 then
-    input.last = now
+    input.last, input.ever = now, true
     if not input.pad_said then input.pad_said = true log('fire button: a controller\'s right trigger seen') end
   end
 end
@@ -759,6 +794,27 @@ local function read_swap(now)
   if key ~= nil then swap.prev_at, swap.key, swap.at, swap.used, swap.from = swap.at, key, now, false, hand.goid end
 end
 local research_watch                                -- (defined with the research log, below)
+-- (research: the HUD going from one object to another on the same hand pose: both, to see how a soldier's gun gets in)
+local switch_said = 0
+local function research_switch(s, from, to, grip, now)
+  if switch_said >= 200 then return end
+  switch_said = switch_said + 1
+  local function about(goid)
+    local o = objs[goid]
+    local t = o and o.t and TYPES[o.t]
+    if not t then return tostring(goid) .. ' (gone)' end
+    local refs = {}
+    for id, v in pairs(av_refs) do if v == goid then refs[#refs + 1] = id end end
+    return string.format('%s (object %s, first seen %s s in%s): carry=%s owner=%s held=%s, %d / %d shots with / without your fire button, fired %.1f s ago, avatar fields: %s',
+      t.id, tostring(goid), o.seen_at and blocked.since and string.format('%.0f', o.seen_at - blocked.since) or '?', o.host and ', the host\'s' or '',
+      tostring(t.has.carry and field(s, goid, t, 'carry')), tostring(t.has.owner and field(s, goid, t, 'owner')),
+      tostring(t.has.held and field(s, goid, t, 'held')), o.pressed or 0, o.unpressed or 0, now - (o.fired_at or 0),
+      #refs > 0 and table.concat(refs, ',') or 'none')
+  end
+  log('research: hand pose %d switched from %s to %s (fire button %.1f s ago, swap %.1f s ago)', grip, about(from), about(to),
+    now - (input.last or -100), now - (swap.at or -100))
+end
+local HOLD_FIRST = { ['26acc614'] = true, ['314a1bf5'] = true }   -- (the Railgun, the Epoch: charged first)
 local function pick(s, grip, now)
   now = now or chef.time()
   if grip == nil or grip == 0 or THROWABLE[grip] then return nil end   -- grenades and stratagems: no weapon
@@ -866,7 +922,53 @@ local function pick(s, grip, now)
       for i = #same, 1, -1 do if same[i] == m.goid then table.remove(same, i) end end
     end
   end
-  if #same > 0 then return newest(same) end
+  -- Sticky: while you fire, the weapon in your hand fires (or its trigger reads held). Another object on the same pose
+  -- (as host: a SEAF soldier's gun of the same kind, firing as you fire) takes the HUD over only when the pose
+  -- changed, a swap key or the wheel was used, the shown one is gone, or it showed nothing for half a second of
+  -- your firing (a swap or pick-up NarrowHUD didn't see). Not while your fire button can't be read.
+  local cur = hand.goid
+  local co = cur and objs[cur]
+  local dtp = math.min(0.5, math.max(0, now - (hand.pick_t or now)))
+  hand.pick_t = now
+  if cur ~= hand.unlock_goid then hand.unlock, hand.unlock_goid = 0, cur end
+  -- (the shown one active: fired in the last 0.4 s, reloading, or for a weapon that's held before it fires (a charge,
+  -- a lock-on, the Arc Thrower) its trigger held)
+  local ct = co and co.t and TYPES[co.t]
+  local holds = ct and (HOLD_FIRST[ct.id] or CHARGE_WEAPONS[ct.id] or ct.has.charging or ct.has.lock)
+  local active = co and ((co.fired_at and now - co.fired_at <= 0.4) or (holds and co.held_t and now - co.held_t <= 0.4)
+    or (co.prev and (tonumber(co.prev.reload_stage) or 0) ~= 0))
+  if co and input.ok == true and not input.blind and now - input.last <= 0.15 then
+    hand.unlock = active and 0 or (hand.unlock or 0) + dtp
+  end
+  if #same > 0 then
+    local best = newest(same)
+    -- (or the other one fired twice with your fire button while the shown one did nothing)
+    local bo = best ~= cur and objs[best]
+    if bo and bo.fired_at and bo.fired_at ~= hand.ch_at then
+      hand.ch_at = bo.fired_at
+      if hand.ch_goid ~= best then hand.ch_goid, hand.ch_n = best, 0 end
+      if active or now - input.last > 0.5 then hand.ch_n = 0 else hand.ch_n = (hand.ch_n or 0) + 1 end
+    end
+    local proven = hand.ch_goid == best and (hand.ch_n or 0) >= 2
+    -- (not for a shown type with no ammo of its own or fed from the backpack: those ride along with other weapons)
+    if best ~= cur and co and ct and not ct.noammo and not ct.fed and grip == hand.grip and now - (swap.at or -100) >= 3
+       and input.ok == true and not input.blind
+       and (hand.unlock or 0) < 0.5 and not proven then
+      for _, g in ipairs(same) do
+        if g == cur then
+          if cfg.research and hand.kept_from ~= best and (hand.kept_n or 0) < 100 then
+            hand.kept_from, hand.kept_n = best, (hand.kept_n or 0) + 1
+            local bo = objs[best]
+            log('research: kept the weapon in hand %s (object %s) over %s (object %s, fired %.1f s ago, %d / %d shots with / without your fire button, first seen %s s into the mission): yours is firing',
+              TYPES[co.t].id, tostring(cur), TYPES[bo.t].id, tostring(best), now - (bo.fired_at or 0), bo.pressed or 0, bo.unpressed or 0,
+              bo.seen_at and blocked.since and string.format('%.0f', bo.seen_at - blocked.since) or '?')
+          end
+          return cur
+        end
+      end
+    end
+    return best
+  end
   return nil   -- not learned yet: shown from its first shot
 end
 
@@ -931,7 +1033,27 @@ end
 
 local pack_prev, pack_vals = nil, {}
 local recent = { reload_t = -100, reload_t_type = nil, pack_drop_t = -100 }
+local pending_learn = {}
+local busy_said = 0
 local function watch_fire(s, grip)
+  -- last read's learning (see below): dropped for an object that fired while the weapon shown in hand did too
+  if #pending_learn > 0 then
+    local so = hand.goid and objs[hand.goid]
+    local st = so and so.t and TYPES[so.t]
+    for _, e in ipairs(pending_learn) do
+      local busy = st and hand.goid ~= e.goid and so.fired_at and math.abs(so.fired_at - e.at) <= 0.4
+        and has_pose(st.id, e.grip) and objs[e.goid] ~= nil
+      if busy then
+        if cfg.research and busy_said < 200 then
+          busy_said = busy_said + 1
+          log('research: not learned from %s (object %s) at hand pose %d: it fired as the weapon in hand (%s) did', e.t.id, tostring(e.goid), e.grip, st.id)
+        end
+      elseif objs[e.goid] then
+        e.fn()
+      end
+    end
+    pending_learn = {}
+  end
   local any_fired = false
   local reloaded = {}
   for goid, o in pairs(objs) do
@@ -1028,7 +1150,9 @@ local function watch_fire(s, grip)
       -- weapon keeps them while a dog's fires)
       if fired(o.prev, w) then
         -- the weapon in hand firing with no fire input seen in the last 20 s, twice: the fire input can't be read
-        if goid == hand.goid and not pressed_recently(now) and now - input.last > 20 then
+        -- (never once a press was seen: then it can be read, and the weapon shown firing alone is someone else's: a
+        -- SEAF soldier's gun, shown by mistake, set this off in a 1.0.2 log)
+        if goid == hand.goid and not pressed_recently(now) and not input.ever and now - input.last > 20 then
           input.blind_shots = (input.blind_shots or 0) + 1
           if input.blind_shots >= 2 and not input.blind then
             input.blind = true
@@ -1064,25 +1188,29 @@ local function watch_fire(s, grip)
           learn('slot', t.id, hand.mask.key)
           hand.mask = nil
         end
-        -- a key's guess proved wrong (the other weapon on the pose fired just after): that key is this weapon's
-        if swap.chosen and swap.chosen ~= goid and objs[swap.chosen] and objs[swap.chosen].t
-           and now - (swap.chosen_at or -100) < 4 and type(swap.key) == 'number' then
-          local wrong = TYPES[objs[swap.chosen].t].id
-          if learned.slot[wrong] == swap.key then learn('slot', wrong, nil) end
-          if learned.slot[t.id] ~= swap.key then
-            log('learned: type %s is on swap key %s (it fired after the key; %s isn\'t)', t.id, SWAP_KEYS[swap.key], wrong)
-            learn('slot', t.id, swap.key)
+        -- (what's learned from this shot waits a moment: if the weapon shown in hand fired at the same time, this one
+        -- isn't in your hand: as host, a SEAF soldier's gun firing as you fire)
+        pending_learn[#pending_learn + 1] = { goid = goid, t = t, grip = grip, at = chef.time(), fn = function()
+          -- a key's guess proved wrong (the other weapon on the pose fired just after): that key is this weapon's
+          if swap.chosen and swap.chosen ~= goid and objs[swap.chosen] and objs[swap.chosen].t
+             and now - (swap.chosen_at or -100) < 4 and type(swap.key) == 'number' then
+            local wrong = TYPES[objs[swap.chosen].t].id
+            if learned.slot[wrong] == swap.key then learn('slot', wrong, nil) end
+            if learned.slot[t.id] ~= swap.key then
+              log('learned: type %s is on swap key %s (it fired after the key; %s isn\'t)', t.id, SWAP_KEYS[swap.key], wrong)
+              learn('slot', t.id, swap.key)
+            end
+            swap.chosen = nil
           end
-          swap.chosen = nil
-        end
-        if not has_pose(t.id, grip) then
-          log('learned: type %s goes with hand pose %d', t.id, grip)
-          add_pose(t.id, grip)
-        end
+          if (not has_pose(t.id, grip) and not many_poses(t.id)) then
+            log('learned: type %s goes with hand pose %d', t.id, grip)
+            add_pose(t.id, grip)
+          end
+        end }
       end
       -- a weapon with no ammo of its own (the Arc Thrower): learned when its trigger is held at a pose nothing else has
       if grip and grip ~= 0 and not THROWABLE[grip] and t.noammo and not o.ub and not o.notmine
-         and w.held == true and (o.prev == nil or o.prev.held ~= true) and HANDHELD[t.id] and not has_pose(t.id, grip) then
+         and w.held == true and (o.prev == nil or o.prev.held ~= true) and HANDHELD[t.id] and (not has_pose(t.id, grip) and not many_poses(t.id)) then
         -- (a pose another weapon of yours has is taken, unless that one's trigger field reads not held now: the
         -- Solo Silo's remote held like the Warrant)
         local taken = false
@@ -1146,7 +1274,7 @@ local function watch_fire(s, grip)
     if n == 1 then
       local t = TYPES[objs[only].t]
       objs[only].fired_at = chef.time()
-      if HANDHELD[t.id] and not has_pose(t.id, grip) then
+      if HANDHELD[t.id] and (not has_pose(t.id, grip) and not many_poses(t.id)) then
         log('learned: type %s (fed from the backpack) goes with hand pose %d', t.id, grip)
         add_pose(t.id, grip)
       end
@@ -1476,6 +1604,9 @@ local RED = { 225, 75, 60 }
 local YELLOW = { 236, 214, 96 }
 -- Colourblind: told apart by brightness as well as hue (the Okabe-Ito colours): white for normal, sky blue for the
 -- first mark, yellow for low or hot, magenta for empty or overheated.
+-- (MODE2, MODE3: the modes' own colours: the colourblind palette's sky blue and bluish green in both palettes, none
+-- of them a warning's colour)
+local MODE2, MODE3 = { 86, 180, 233 }, { 0, 175, 130 }
 local PALETTES = {
   { CREAM = { 236, 229, 206 }, YELLOW = { 236, 214, 96 }, WARN = { 240, 170, 90 }, RED = { 225, 75, 60 } },
   { CREAM = { 240, 240, 240 }, YELLOW = { 86, 180, 233 }, WARN = { 240, 228, 66 }, RED = { 230, 80, 200 } },
@@ -1519,6 +1650,26 @@ local function solid_bar(x, y, w, h, f, c, L, lw, vertical)
   else chef.rect(x + lw, y + lw, math.floor(iw * f + 0.5), ih, c, L + 1) end
 end
 local function txt_right(x, y, str, cap, c, layer) txt(x - txt_width(str, cap), y, str, cap, c, layer) end
+-- The mode labels ("HEAT  APHET  AUTO  750 RPM"), with the option each mode in its own colour: the same mode always
+-- the same, and a weapon's modes never sharing one (cream, blue, green). HEAT, UB and the rate of fire stay cream.
+local MODE_TONE = { SEMI = 1, AUTO = 2, BURST = 3, VOLLEY = 3, SAFE = 1, UNSAFE = 2, TOTAL = 3,
+  GUIDED = 1, UNGUIDED = 2, APHET = 1, FLAK = 2, CLUSTER = 3, HE = 2, DEPLOY = 1, DETONATE = 2, ARTILLERY = 2,
+  LASER = 2, ['NO LASER'] = 1 }
+local function txt_modes(x, y, str, cap, a, layer, right)
+  if not cfg.mode_colors then
+    if right then txt_right(x, y, str, cap, col(CREAM, a), layer) else txt(x, y, str, cap, col(CREAM, a), layer) end
+    return
+  end
+  local parts = {}
+  for w in string.gmatch(str .. '  ', '(.-)  ') do if w ~= '' then parts[#parts + 1] = w end end
+  local sep = txt_width('  ', cap)
+  if right then x = x - txt_width(str, cap) end
+  for _, w in ipairs(parts) do
+    local n = MODE_TONE[w] or (string.match(w, '^OPT (%d)$') and math.min(3, tonumber(string.match(w, '^OPT (%d)$')) + 1)) or 1
+    txt(x, y, w, cap, col(n == 3 and MODE3 or (n == 2 and MODE2 or CREAM), a), layer)
+    x = x + txt_width(w, cap) + sep
+  end
+end
 
 -- little icons, drawn in squares ('#' body, '+' detail, 'o' outline under them)
 local GRENADE = {
@@ -1687,7 +1838,7 @@ local function draw_side(d, items)
     local f = d.charge_frac or 0
     vbar(math.min(1, f), f >= 1 and WARN or CREAM, 230)
     local left = d.mode or d.fmode
-    if left then txt(nx, ny, left, small, col(CREAM, 200), L) end
+    if left then txt_modes(nx, ny, left, small, 200, L) end
     below = ny
   elseif d then
     local frac = 0
@@ -1770,7 +1921,7 @@ local function draw_side(d, items)
   end
   if #labels > 0 then
     below = below - math.floor(6 * k) - tiny
-    txt(nx, below, table.concat(labels, '  '), tiny, col(CREAM, 190), L)
+    txt_modes(nx, below, table.concat(labels, '  '), tiny, 190, L)
   end
   if items and (cfg.show_stims or cfg.show_grenades or cfg.pack) then
     -- (the icons at the Small size's scale, the text as is; closer together)
@@ -1797,7 +1948,7 @@ local function draw(d, items)
   local L = 905
   -- the mode labels, left of the bar
   local function label(str)
-    txt_right(x0 - math.floor(10 * k), y + math.floor((bh - small) / 2), str, small, col(CREAM, 200), L)
+    txt_modes(x0 - math.floor(10 * k), y + math.floor((bh - small) / 2), str, small, 200, L, true)
   end
 
   if d and d.kind == 'none' then
@@ -2042,6 +2193,30 @@ local function read_forget_keys(now)
     end
   end
 end
+-- Idle: what's on screen, as a string (the count in whole percent for heat, so cooling counts as a change); a
+-- different one, a press of fire or a swap is a change. Nothing changed for cfg.idle_secs: dimmed (a quarter) or
+-- hidden, over half a second; back at once.
+local idle = { sig = nil, at = -100 }
+local function idle_target(d, items, now)
+  local parts = { tostring(hand.goid), tostring(hand.grip) }
+  if d then
+    local v = d.kind == 'heat' and d.top and d.top > 0 and math.floor(d.value / d.top * 100 + 0.5) or d.value
+    parts[#parts + 1] = table.concat({ tostring(d.kind), tostring(v), tostring(d.top), tostring(d.reserve),
+      tostring(d.reloading), tostring(d.mode), tostring(d.fmode), tostring(d.setting), tostring(d.overheated),
+      tostring(d.locked), d.charge_frac and tostring(math.floor(d.charge_frac * 20)) or '-' }, ',')
+  end
+  if items then
+    parts[#parts + 1] = table.concat({ tostring(items.s), tostring(items.g), tostring(items.pack),
+      items.warp and tostring(math.floor(items.warp)) or '-', items.recharge and tostring(math.floor(items.recharge * 20)) or '-',
+      tostring(items.draining) }, ',')
+  end
+  local sig = table.concat(parts, '|')
+  if sig ~= idle.sig then idle.sig, idle.at = sig, now end
+  local last = math.max(idle.at, input.last or -100, swap.at or -100)
+  if (cfg.idle or 1) == 1 or now - last <= (cfg.idle_secs or 4) then return 1 end
+  return cfg.idle == 3 and 0 or 0.25
+end
+
 function M.update(dt)
   frame = frame + 1
   local now = chef.time()
@@ -2073,7 +2248,7 @@ function M.update(dt)
     hand.goid, hand.grip, hand.said, hand.held_t, hand.bar_pack = nil, nil, nil, nil, nil
     swap.used, swap.from = true, nil
     hand.mask = nil
-    blocked.n, blocked.types, blocked.yes, blocked.since = 0, 0, false, now
+    blocked.n, blocked.types, blocked.yes, blocked.since, blocked.new_said = 0, 0, false, now, 0
     me.player, me.avatar = nil, nil
     shown_now, items_now, pack_prev = nil, nil, nil
     next_scan = now
@@ -2138,6 +2313,7 @@ function M.update(dt)
     watch_fire(s, grip)
     local goid = pick(s, grip, now)
     if goid ~= hand.goid or grip ~= hand.grip then
+      if cfg.research and goid and hand.goid and goid ~= hand.goid and grip == hand.grip then research_switch(s, hand.goid, goid, grip, now) end
       local o = goid and objs[goid]
       local said = string.format('hand pose %s: %s', tostring(grip), o and TYPES[o.t].id or 'no weapon shown')
       if said ~= hand.said then log('%s', said) hand.said = said end
@@ -2272,20 +2448,12 @@ function M.update(dt)
   elseif d then
     hand.held_t = nil
   end
-  -- fading: full (or cool), nothing fired for 4 s, no swap: down to a quarter over half a second; back at once
-  local target = 1
-  if cfg.fade and d then
-    local o = d.o or (hand.goid and objs[hand.goid])
-    local last = math.max(o and o.fired_at or 0, swap.at or 0, hand.shown_at or 0)
-    local full = (d.kind == 'ammo' and d.top and d.value >= d.top) or (d.kind == 'heat' and d.top and d.value <= d.top * 0.02)
-      or d.kind == 'none'
-    if full and not d.reloading and now - last > 4 then target = 0.25 end
-  end
-  if hand.goid ~= hand.fade_goid then hand.fade_goid, hand.shown_at = hand.goid, now end
+  -- idle: dimmed or hidden when nothing changed for a while (idle_target)
+  local target = idle_target(d, items_now, now)
   hand.fade = hand.fade or 1
   if target < hand.fade then hand.fade = math.max(target, hand.fade - (dt or 0.016) * 1.5) else hand.fade = target end
   alpha_k = cfg.opacity * hand.fade
-  if shown_now or (items_now and hand.grip and hand.grip ~= 0) then
+  if (shown_now or (items_now and hand.grip and hand.grip ~= 0)) and hand.fade > 0.01 then
     local dd = shown_now
     if dd and not (cfg.show_rpm and cfg.show_fmode and cfg.show_mode and cfg.show_mags and cfg.show_charge) then
       dd = setmetatable({}, { __index = shown_now })
