@@ -726,6 +726,18 @@ def main():
     logs = list(r.eval('logs').values())
     check('4 poses learned (not shipped): never shown, said once [%s]' % r.eval('texts()'), not r.eval('texts()').startswith('2')
           and sum(1 for l in logs if 'learned for 4 hand poses' in l) == 1 and not any('learned: type aca39ec2' in l for l in logs))
+    # someone else's game: the host's own player and Helldiver are in the list too: your grenades and stims shown,
+    # never theirs (a 2026-10-25 log: they flicked between 3 and 5)
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''HOST = '1111111111111111' OBJ[90] = { name = NAMES.player, fields = { u4d1h9a = 91 } }
+      OBJ[91] = { name = NAMES.avatar, fields = { du7kbt = 9, ei6_t2 = 8 } } HOSTS[90] = true HOSTS[91] = true run(3)''')
+    seen = set()
+    for i in range(12):
+        r.execute('run(0.5)')
+        t = r.eval('texts()')
+        seen.add(t.split(' | ')[-2:].__str__())
+    check('joined: your grenades and stims, never the host\'s %s' % sorted(seen), seen == {str(['5', '4'])})
     # a controller that isn't the first one the engine has (Pad3)
     rt7b = lua51.LuaRuntime()
     setup(rt7b)

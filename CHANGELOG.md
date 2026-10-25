@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5
+
+- Joining someone else's game: your grenades and stims could show the host's counts instead, flicking between theirs
+  and yours. NarrowHUD sometimes took the host's player for yours; now it always takes your own.
+
 ## 1.0.4
 
 - Hosting with SEAF: a soldier's gun of the same kind as yours, firing as you fired, could take the HUD over. Now

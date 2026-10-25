@@ -2,9 +2,9 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 1.0.4
+Version: 1.0.5
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v1.0.4.zip
+Main file: NarrowHUD-v1.0.5.zip
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2 and newer"
 
 Summary (the short line under the title, at most 350 characters):

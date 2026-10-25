@@ -14,7 +14,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '1.0.4' }
+local M = { version = '1.0.5' }
 if type(chef.own_log) == 'function' then chef.own_log('narrowhud') end
 local log = function(fmt, ...) chef.log(fmt, ...) end
 
@@ -503,10 +503,17 @@ local function scan(s, peer)
     end
   end
   for goid in pairs(objs) do if not now[goid] then objs[goid] = nil end end
+  -- your player: the one you own. In someone else's game the host's objects are in the list too, the host's own
+  -- player among them; taking that one showed the host's grenades and stims, flicking between theirs and yours (a
+  -- 2026-10-25 log). One of the host's only when no player of yours is there and it's the only one.
   me.player = nil
+  local host_player, host_players = nil, 0
   for goid, o in pairs(objs) do
-    if o.t == 1 then me.player = goid end
+    if o.t == 1 then
+      if o.host then host_player, host_players = goid, host_players + 1 else me.player = goid end
+    end
   end
+  if me.player == nil and host_players == 1 then me.player = host_player end
   if me.player and alive(s, me.player, TYPES[1]) then
     local a = call('player.avatar', 'GameSession.game_object_field', s, me.player, DATA.player.avatar)
     me.avatar = (type(a) == 'number' and a ~= NO_OBJECT) and a or nil
