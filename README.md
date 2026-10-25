@@ -30,17 +30,20 @@ reads it needs).
 - **Lock-on** (Spear, WASP ...) and **charge meters** (Railgun, Epoch).
 - **Stims, grenades** and how full your **backpack** is; the warp pack's heat and the jump pack's recharge.
 
-Two layouts: **under the crosshair** (a wide bar), or **beside it** (a short vertical bar, the count, your magazines as
-small squares).
+Three layouts: **under the crosshair** (a wide bar), **beside it** (a short vertical bar, the count, your magazines as
+small squares), or **a screen corner** by the game's weapon panel (best with the bar and items turned off).
 
 ## Settings (F9, NarrowHUD)
 
-- Size; position (under or beside) with a distance for each, and an up / down offset beside.
-- Spare magazines beside: squares or a number.
+- Size; position (under or beside the crosshair, or a screen corner by the game's weapon panel); one offset left /
+  right and down / up that moves any of them anywhere.
+- Every part shown or hidden on its own: the bar, the count, the spare magazines, the HEAT label, weapon modes, the
+  fire mode, the rate of fire, the charge meter, stims, grenades, the backpack bar.
+- Spare magazines beside and in the corner: squares or a number; the empty squares shown or hidden.
+- Empty parts (of the ammo bar, the magazine squares, the backpack bar) faint, or as outlines.
 - Opacity, and fading out when full and not firing.
 - Colours: standard, or colourblind (white, sky blue, yellow, magenta: told apart by brightness too).
-- The rate of fire, fire mode and weapon modes on or off; stims and grenades, and the backpack bar, on or off; the
-  game's font or a pixel font (Chef 1.0.x; from 1.1 on, Chef's own "Game font" setting does that for every mod).
+- The game's font or a pixel font (Chef 1.0.x; from 1.1 on, Chef's own "Game font" setting does that for every mod).
 - Your fire button and swap keys, as you've bound them in the game (left mouse and 1 / 2 / 3 by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.
 - A research log for bug reports, and running on a game version NarrowHUD wasn't made for.

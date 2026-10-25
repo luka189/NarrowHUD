@@ -14,7 +14,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '1.0.2' }
+local M = { version = '1.0.3' }
 if type(chef.own_log) == 'function' then chef.own_log('narrowhud') end
 local log = function(fmt, ...) chef.log(fmt, ...) end
 
@@ -121,7 +121,9 @@ do
 end
 
 ------------------------------------------------------------------------------------------------ settings, learned
-local cfg = { size = 1, side_size = 1.25, height = 9, side = 3, side_up = 0, right = false, mags_number = false, items = true, pack = true, font = true,
+local cfg = { size = 1, side_size = 1.25, off_x = 0, off_y = 0, right = false, corner = false, mags_number = false,
+              show_bar = true, show_count = true, show_mags = true, show_heat = true, show_charge = true,
+              show_stims = true, show_grenades = true, pack = true, font = true,
               research = false, any_build = false, opacity = 1, fade = false, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1 }
 local apply_palette                                  -- (set with the colours, below)
@@ -135,20 +137,46 @@ if chef.has and chef.has('menu') then
   local function size_of(i) cfg.side_size = SIDE_SIZES[i] or 1.25 return SIZES[i] or 1 end
   cfg.size = size_of(chef.option('size', { type = 'choice', label = 'Size', choices = { 'Small', 'Medium', 'Large', 'Huge' }, default = 2 }))
   chef.on_change('size', function(v) cfg.size = size_of(v) end)
-  cfg.right = chef.option('position', { type = 'choice', label = 'Position', choices = { 'Under the crosshair', 'Beside the crosshair (compact)' }, default = 1 }) == 2
-  chef.on_change('position', function(v) cfg.right = v == 2 end)
-  cfg.height = chef.option('height', { type = 'slider', label = 'Under: distance below the crosshair (% of the screen)', min = 3, max = 30, step = 1, default = 9 })
-  cfg.side = chef.option('side', { type = 'slider', label = 'Beside: distance right of the crosshair (% of the screen)', min = 1, max = 20, step = 1, default = 3 })
-  chef.on_change('side', function(v) cfg.side = v end)
-  cfg.side_up = chef.option('side_up', { type = 'slider', label = 'Beside: up (+) or down (-) from the crosshair (% of the screen)', min = -15, max = 15, step = 1, default = 0 })
-  chef.on_change('side_up', function(v) cfg.side_up = v end)
-  cfg.mags_number = chef.option('mags', { type = 'choice', label = 'Beside: spare magazines as', choices = { 'Squares', 'A number' }, default = 1 }) == 2
+  -- three places, each with its own spot at offset 0 / 0: just under the crosshair, just right of it (compact), or
+  -- by the game's weapon panel (bottom left). One X / Y offset moves any of them anywhere on the screen.
+  local function position(v) cfg.right, cfg.corner = v == 2 or v == 3, v == 3 end
+  position(chef.option('position', { type = 'choice', label = 'Position', choices = { 'Under the crosshair', 'Beside the crosshair (compact)', 'Screen corner, by the game\'s weapon panel (best with the bar and items off)' }, default = 1 }))
+  chef.on_change('position', position)
+  cfg.off_x = chef.option('off_x', { type = 'slider', label = 'Offset left (-) or right (+) (% of the screen)', min = -50, max = 50, step = 0.5, default = 0 }) or 0
+  chef.on_change('off_x', function(v) cfg.off_x = v or 0 end)
+  cfg.off_y = chef.option('off_y', { type = 'slider', label = 'Offset down (-) or up (+) (% of the screen)', min = -50, max = 50, step = 0.5, default = 0 }) or 0
+  chef.on_change('off_y', function(v) cfg.off_y = v or 0 end)
+  -- what's shown, in the order it's on the screen; all off: nothing
+  local function toggle(id, label)
+    cfg[id] = chef.option(id, { type = 'toggle', label = label, default = true }) ~= false
+    chef.on_change(id, function(v) cfg[id] = v ~= false end)
+  end
+  toggle('show_bar', 'Show the ammo / heat bar (with its heat marks)')
+  toggle('show_count', 'Show the count (rounds, or heat %)')
+  toggle('show_mags', 'Show the spare magazines')
+  toggle('show_heat', 'Show the HEAT label')
+  toggle('show_mode', 'Show weapon modes (UNGUIDED, APHET ..., UB)')
+  toggle('show_fmode', 'Show the fire mode (AUTO, SEMI ...)')
+  toggle('show_rpm', 'Show the rate of fire')
+  toggle('show_charge', 'Show the charge and lock-on meter (Railgun, Epoch, Spear ...)')
+  toggle('show_stims', 'Show stims')
+  toggle('show_grenades', 'Show grenades')
+  toggle('pack', 'Show the backpack bar (and the warp and jump packs)')
+  -- the look
+  cfg.mags_number = chef.option('mags', { type = 'choice', label = 'Beside and corner: spare magazines as', choices = { 'Squares', 'A number' }, default = 1 }) == 2
   chef.on_change('mags', function(v) cfg.mags_number = v == 2 end)
-  chef.on_change('height', function(v) cfg.height = v end)
-  cfg.items = chef.option('items', { type = 'toggle', label = 'Grenades and stims', default = true }) ~= false
-  chef.on_change('items', function(v) cfg.items = v ~= false end)
-  cfg.pack = chef.option('pack', { type = 'toggle', label = 'Backpack bar (and the warp and jump packs)', default = true }) ~= false
-  chef.on_change('pack', function(v) cfg.pack = v ~= false end)
+  -- the empty ones (up to the most this weapon has carried): drawn or not
+  cfg.mags_hide = chef.option('mags_empty', { type = 'choice', label = 'Beside and corner: empty magazine squares', choices = { 'Shown', 'Hidden' }, default = 1 }) == 2
+  chef.on_change('mags_empty', function(v) cfg.mags_hide = v == 2 end)
+  -- what's empty (the ammo bar's, the backpack bar's, the magazine squares): faint, or an outline
+  cfg.outline = chef.option('outline', { type = 'toggle', label = 'Empty parts as outlines (ammo bar, magazines, backpack)', default = false }) == true
+  chef.on_change('outline', function(v) cfg.outline = v == true end)
+  cfg.opacity = (chef.option('opacity', { type = 'slider', label = 'Opacity (%)', min = 20, max = 100, step = 5, default = 100 }) or 100) / 100
+  chef.on_change('opacity', function(v) cfg.opacity = (v or 100) / 100 end)
+  cfg.fade = chef.option('fade', { type = 'toggle', label = 'Fade out when full and not firing', default = false }) == true
+  chef.on_change('fade', function(v) cfg.fade = v == true end)
+  cfg.palette = chef.option('palette', { type = 'choice', label = 'Colours', choices = { 'Standard', 'Colourblind (blue / yellow / magenta)' }, default = 1 }) or 1
+  chef.on_change('palette', function(v) cfg.palette = v or 1 if apply_palette then apply_palette() end end)
   -- (from Chef 1.1 on, every mod's text is Chef's, in the game's font; its own "Game font" row, under Chef Shared
   -- Loader, switches all of them to the pixel font. Ours is only for Chef 1.0.x)
   if chef.text_fit == nil then
@@ -157,18 +185,6 @@ if chef.has and chef.has('menu') then
   end
   cfg.research = chef.option('research', { type = 'toggle', label = 'Research log (for bug reports; from the next start)', default = false }) == true
   chef.on_change('research', function(v) cfg.research = v == true end)
-  cfg.opacity = (chef.option('opacity', { type = 'slider', label = 'Opacity (%)', min = 20, max = 100, step = 5, default = 100 }) or 100) / 100
-  chef.on_change('opacity', function(v) cfg.opacity = (v or 100) / 100 end)
-  cfg.fade = chef.option('fade', { type = 'toggle', label = 'Fade out when full and not firing', default = false }) == true
-  chef.on_change('fade', function(v) cfg.fade = v == true end)
-  cfg.palette = chef.option('palette', { type = 'choice', label = 'Colours', choices = { 'Standard', 'Colourblind (blue / yellow / magenta)' }, default = 1 }) or 1
-  chef.on_change('palette', function(v) cfg.palette = v or 1 if apply_palette then apply_palette() end end)
-  cfg.show_rpm = chef.option('show_rpm', { type = 'toggle', label = 'Show the rate of fire', default = true }) ~= false
-  chef.on_change('show_rpm', function(v) cfg.show_rpm = v ~= false end)
-  cfg.show_fmode = chef.option('show_fmode', { type = 'toggle', label = 'Show the fire mode (AUTO, SEMI ...)', default = true }) ~= false
-  chef.on_change('show_fmode', function(v) cfg.show_fmode = v ~= false end)
-  cfg.show_mode = chef.option('show_mode', { type = 'toggle', label = 'Show weapon modes (UNGUIDED, APHET ...)', default = true }) ~= false
-  chef.on_change('show_mode', function(v) cfg.show_mode = v ~= false end)
   cfg.any_build = chef.option('any_build', { type = 'toggle', label = 'Run on a game version it wasn\'t made for (may crash the game)', default = false }) == true
   chef.on_change('any_build', function(v) cfg.any_build = v == true end)
 end
@@ -1473,6 +1489,35 @@ end
 apply_palette()
 local alpha_k = 1                                    -- the opacity option times the fade, this frame
 local function col(c, a) return chef.color(c[1], c[2], c[3], math.floor((a or 235) * alpha_k + 0.5)) end
+-- an empty part (of the ammo bar, a magazine square, the backpack bar): a faint fill, or (the option) its outline,
+-- lw thick; one too thin for a hole stays a faint fill
+local function empty_rect(x, y, w, h, faint, L, lw)
+  if w <= 0 or h <= 0 then return end
+  lw = math.max(1, lw or 1)
+  if not cfg.outline or w <= 2 * lw or h <= 2 * lw then chef.rect(x, y, w, h, col(CREAM, faint), L) return end
+  local c = col(CREAM, 190)
+  chef.rect(x, y, w, lw, c, L)
+  chef.rect(x, y + h - lw, w, lw, c, L)
+  chef.rect(x, y + lw, lw, h - 2 * lw, c, L)
+  chef.rect(x + w - lw, y + lw, lw, h - 2 * lw, c, L)
+end
+-- a solid bar f full (0 to 1), its fill colour c: on a faint background, or (outlines) inside an outline of the whole
+-- bar that stays put, the fill within it (a bar cooling down from red: only the inside changes). One too thin for a
+-- hole: faint, as without outlines. Vertical: filling from the bottom up.
+local function solid_bar(x, y, w, h, f, c, L, lw, vertical)
+  f = math.max(0, math.min(1, f))
+  lw = math.max(1, lw or 1)
+  if not cfg.outline or w <= 2 * lw + 1 or h <= 2 * lw + 1 then
+    chef.rect(x, y, w, h, col(CREAM, 45), L)
+    if vertical then chef.rect(x, y, w, math.floor(h * f + 0.5), c, L + 1)
+    else chef.rect(x, y, math.floor(w * f + 0.5), h, c, L + 1) end
+    return
+  end
+  empty_rect(x, y, w, h, 45, L, lw)
+  local iw, ih = w - 2 * lw, h - 2 * lw
+  if vertical then chef.rect(x + lw, y + lw, iw, math.floor(ih * f + 0.5), c, L + 1)
+  else chef.rect(x + lw, y + lw, math.floor(iw * f + 0.5), ih, c, L + 1) end
+end
 local function txt_right(x, y, str, cap, c, layer) txt(x - txt_width(str, cap), y, str, cap, c, layer) end
 
 -- little icons, drawn in squares ('#' body, '+' detail, 'o' outline under them)
@@ -1538,6 +1583,7 @@ end
 
 local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, bar)
   local L = 905
+  local lw = math.max(1, math.floor(k * 0.8 + 0.5))
   local cell = math.max(1, math.floor(1.6 * (icon_k or k) + 0.5))
   gap = gap or math.floor(22 * k)
   local S = #GRENADE * cell                                -- the line's height: the grenade with its outline
@@ -1553,10 +1599,8 @@ local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, ba
     return x + txt_width(tostring(n), small)
   end
   local x = x0 - gap
-  if cfg.items then
-    x = icon_count(x0, STIM, items.s)
-    x = icon_count(x + gap, GRENADE, items.g)
-  end
+  if cfg.show_stims then x = icon_count(x0, STIM, items.s) end
+  if cfg.show_grenades then x = icon_count(cfg.show_stims and x + gap or x0, GRENADE, items.g) end
   if not cfg.pack then return end
   -- how full your backpack is: a thin bar from there to the main bar's right end
   if items.warp then
@@ -1567,8 +1611,7 @@ local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, ba
     if pw > 10 then
       local h = items.warp
       local pc = h > 45 and RED or (h > 15 and WARN or CREAM)
-      chef.rect(px0, py, pw, ph, col(CREAM, 45), L)
-      chef.rect(px0, py, math.floor(pw * math.max(0, math.min(1, h / 78)) + 0.5), ph, col(pc, 215), L + 1)
+      solid_bar(px0, py, pw, ph, h / 78, col(pc, 215), L, lw)
       for _, m in ipairs({ { 15, WARN }, { 45, RED } }) do
         chef.rect(px0 + math.floor(pw * m[1] / 78), py - 1, math.max(1, math.floor(2 * k)), ph + 2, col(m[2], 220), L + 2)
       end
@@ -1579,9 +1622,8 @@ local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, ba
     if bar then px0, pw, py = bar.x, bar.w, bar.y end            -- (beside the crosshair: over the count)
     if pw > 10 then
       local f = items.recharge
-      chef.rect(px0, py, pw, ph, col(CREAM, 45), L)
       local c = (f >= 1 or items.draining) and CREAM or WARN
-      chef.rect(px0, py, math.floor(pw * f + 0.5), ph, col(c, (f >= 1 or items.draining) and 215 or 180), L + 1)
+      solid_bar(px0, py, pw, ph, f, col(c, (f >= 1 or items.draining) and 215 or 180), L, lw)
     end
   elseif items.pack and items.pack_top and items.pack_top > 0 and not (d and d.fed) then
     local px0, pw, py = x + gap, xend - (x + gap), iy + math.floor((S - ph) / 2)
@@ -1589,8 +1631,7 @@ local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, ba
     if pw > 10 then
       local f = math.max(0, math.min(1, items.pack / items.pack_top))
       local pc = items.pack == 0 and RED or (f <= 0.25 and WARN or CREAM)
-      chef.rect(px0, py, pw, ph, col(CREAM, 45), L)
-      chef.rect(px0, py, math.floor(pw * f + 0.5), ph, col(pc, 215), L + 1)
+      solid_bar(px0, py, pw, ph, f, col(pc, 215), L, lw)
     end
   end
 end
@@ -1610,24 +1651,33 @@ local function draw_side(d, items)
   local small = math.max(7, math.floor(16 * k + 0.5))
   local tiny = math.max(6, math.floor(12 * k + 0.5))
   local vw, vh = math.max(2, math.floor(4 * k + 0.5)), math.floor(big * 1.7 + 0.5)
-  local x0 = math.floor(w / 2 + h * cfg.side / 100)
-  local yb = math.floor(h / 2 - vh / 2 + h * (cfg.side_up or 0) / 100)   -- the bar's bottom (bottom-left origin)
-  local nx = x0 + vw + math.floor(8 * k)
+  -- the bar's left edge and bottom (bottom-left origin): just right of the crosshair, or (the corner) by the game's
+  -- weapon panel, bottom left; then the offsets; kept on the screen
+  local x0, yb
+  if cfg.corner then x0, yb = w * 0.02, h * 0.16
+  else x0, yb = w / 2 + h * 0.03, h / 2 - vh / 2 end
+  x0 = math.floor(x0 + w * (cfg.off_x or 0) / 100)
+  yb = math.floor(yb + h * (cfg.off_y or 0) / 100)
+  x0 = math.max(0, math.min(x0, w - math.floor(140 * k)))
+  yb = math.max(math.floor(30 * k), math.min(yb, h - vh))
+  local nx = cfg.show_bar and (x0 + vw + math.floor(8 * k)) or x0
   local ny = yb + vh - big                                   -- the count's baseline: its top level with the bar's
   local L = 905
   local below = ny                                           -- where the next line goes (top of it)
+  local lw = math.max(1, math.floor(k * 0.8 + 0.5))           -- (an outline's width)
 
   local function vbar(frac, tone, alpha, n)
+    if not cfg.show_bar then return end
     if n then
       local gap = math.max(1, math.min(vh / n * 0.3, 3 * k))
       local step = (vh + gap) / n
       for i = 0, n - 1 do
         local ya, yz = math.floor(yb + i * step + 0.5), math.floor(yb + i * step + step - gap + 0.5)
-        chef.rect(x0, ya, vw, math.max(1, yz - ya), i < frac and col(tone, alpha) or col(CREAM, 55), L)
+        if i < frac then chef.rect(x0, ya, vw, math.max(1, yz - ya), col(tone, alpha), L)
+        else empty_rect(x0, ya, vw, math.max(1, yz - ya), 55, L, lw) end
       end
     else
-      chef.rect(x0, yb, vw, vh, col(CREAM, 45), L)
-      chef.rect(x0, yb, vw, math.floor(vh * frac + 0.5), col(tone, alpha), L + 1)
+      solid_bar(x0, yb, vw, vh, frac, col(tone, alpha), L, lw, true)
     end
   end
 
@@ -1656,15 +1706,18 @@ local function draw_side(d, items)
       vbar(d.value, tone, alpha, n)
     else
       vbar(frac, tone, alpha)
-      if d.kind == 'heat' and not learned.charge2[d.tid] then
+      if d.kind == 'heat' and not learned.charge2[d.tid] and cfg.show_bar then
         for _, m in ipairs(d.heat_marks or { { 0.75, 3 } }) do
           chef.rect(x0 - 2, yb + math.floor(vh * m[1]), vw + 4, math.max(1, math.floor(2 * k)), col(MARK_COLORS[m[2]], 220), L + 2)
         end
       end
     end
     local str = d.kind == 'heat' and string.format('%d%%', math.floor(frac * (d.pct_top or 100) + 0.5)) or tostring(d.value)
-    txt(nx, ny, str, big, col(tone, 245), L)
-    count_w = txt_width(str, big)
+    count_w = 0
+    if cfg.show_count then
+      txt(nx, ny, str, big, col(tone, 245), L)
+      count_w = txt_width(str, big)
+    end
     -- a charge meter (the Railgun, the Epoch, a lock-on): a thin vertical line just inside the bar (on the
     -- crosshair's side), filling from the bottom up
     if d.charge_frac then
@@ -1687,15 +1740,19 @@ local function draw_side(d, items)
       if id and d.reserve > (learned.resmax[id] or 0) then learn('resmax', id, d.reserve) end
       local top = math.max(d.reserve, o.res_top or 0, id and learned.resmax[id] or 0)
       if cfg.mags_number then
-        local rx = nx + (count_w or 0) + math.floor(8 * k)
+        local rx = nx + (count_w > 0 and count_w + math.floor(8 * k) or 0)
         chef.rect(rx, ny, math.max(1, math.floor(2 * k)), big, col(CREAM, 150), L)
         txt(rx + math.floor(7 * k), ny, 'x' .. tostring(d.reserve), small, col(CREAM, 220), L)
       else
         local ps, pg = math.max(2, math.floor(6 * k + 0.5)), math.max(1, math.floor(3 * k + 0.5))
         local py = ny - math.floor(7 * k) - ps
+        if cfg.mags_hide then top = d.reserve end
         if top <= 12 then
           for i = 0, top - 1 do
-            chef.rect(nx + i * (ps + pg), py, ps, ps, i < d.reserve and col(CREAM, 220) or col({ 150, 150, 150 }, 120), L)
+            local x = nx + i * (ps + pg)
+            if i < d.reserve then chef.rect(x, py, ps, ps, col(CREAM, 220), L)
+            elseif cfg.outline then empty_rect(x, py, ps, ps, 55, L, lw)
+            else chef.rect(x, py, ps, ps, col({ 150, 150, 150 }, 120), L) end
           end
           below = py
         else
@@ -1704,16 +1761,18 @@ local function draw_side(d, items)
         end
       end
     end
-    if d.underbarrel then labels[#labels + 1] = 'UB' elseif d.mode then labels[#labels + 1] = d.mode end
+    if d.underbarrel then
+      if cfg.show_mode then labels[#labels + 1] = 'UB' end
+    elseif d.mode then labels[#labels + 1] = d.mode end
     if d.fmode and not d.underbarrel then labels[#labels + 1] = d.fmode end
-    if d.kind == 'heat' then table.insert(labels, 1, 'HEAT') end
+    if d.kind == 'heat' and cfg.show_heat then table.insert(labels, 1, 'HEAT') end
     if d.setting then labels[#labels + 1] = d.setting end
   end
   if #labels > 0 then
     below = below - math.floor(6 * k) - tiny
     txt(nx, below, table.concat(labels, '  '), tiny, col(CREAM, 190), L)
   end
-  if items and (cfg.items or cfg.pack) then
+  if items and (cfg.show_stims or cfg.show_grenades or cfg.pack) then
     -- (the icons at the Small size's scale, the text as is; closer together)
     -- (the backpack's bar over the count, as wide as the count's line)
     local ph = math.max(2, math.floor(4 * k))
@@ -1730,9 +1789,11 @@ local function draw(d, items)
   local big = math.floor(28 * k + 0.5)                       -- the count's cap height
   local small = math.max(7, math.floor(16 * k + 0.5))        -- labels and the reserve
   local bw, bh = math.floor(260 * k), math.max(3, math.floor(14 * k))
-  local cx = math.floor(w / 2)
-  local y = math.floor(h / 2 - h * cfg.height / 100)         -- the bar's bottom (bottom-left origin)
-  local x0 = cx - math.floor(bw / 2)
+  -- the bar's bottom (bottom-left origin) and left edge: under the crosshair, then the offsets; kept on the screen
+  local y = math.floor(h / 2 - h * 0.09 + h * (cfg.off_y or 0) / 100)
+  local x0 = math.floor(w / 2 - bw / 2 + w * (cfg.off_x or 0) / 100)
+  y = math.max(math.floor(40 * k), math.min(y, h - math.floor(60 * k)))
+  x0 = math.max(math.floor(160 * k), math.min(x0, w - bw - math.floor(130 * k)))
   local L = 905
   -- the mode labels, left of the bar
   local function label(str)
@@ -1761,18 +1822,20 @@ local function draw(d, items)
     end
     local alpha = d.reloading and 120 or 235
 
-    if d.kind == 'ammo' and d.top and d.top <= seg_max() and d.top >= 1 then
+    if not cfg.show_bar then
+      -- (no bar: the rest stays where it was)
+    elseif d.kind == 'ammo' and d.top and d.top <= seg_max() and d.top >= 1 then
       local n = math.max(d.top, math.min(d.value, d.top + 3))  -- a tactical reload's chambered round: a tick more
       -- one tick a round, the gaps narrow (at most 4 px at 1440p): few rounds make long ticks, end to end over the bar
       local gap = math.max(1, math.min(bw / n * 0.45, 4 * k))
       local step = (bw + gap) / n
       for i = 0, n - 1 do
         local xa, xb = math.floor(x0 + i * step + 0.5), math.floor(x0 + i * step + step - gap + 0.5)
-        chef.rect(xa, y, math.max(1, xb - xa), bh, i < d.value and col(tone, alpha) or col(CREAM, 55), L)
+        if i < d.value then chef.rect(xa, y, math.max(1, xb - xa), bh, col(tone, alpha), L)
+        else empty_rect(xa, y, math.max(1, xb - xa), bh, 55, L, math.max(1, math.floor(k * 0.8 + 0.5))) end
       end
     else
-      chef.rect(x0, y, bw, bh, col(CREAM, 45), L)
-      chef.rect(x0, y, math.floor(bw * frac + 0.5), bh, col(tone, alpha), L + 1)
+      solid_bar(x0, y, bw, bh, frac, col(tone, alpha), L, math.max(1, math.floor(k * 0.8 + 0.5)))
       if d.kind == 'heat' and not learned.charge2[d.tid] then
         for _, m in ipairs(d.heat_marks or { { 0.75, 3 } }) do
           chef.rect(x0 + math.floor(bw * m[1]), y - 2, math.max(2, math.floor(2 * k)), bh + 4, col(MARK_COLORS[m[2]], 220), L + 2)
@@ -1784,17 +1847,20 @@ local function draw(d, items)
     local str = d.kind == 'heat' and string.format('%d%%', math.floor(frac * (d.pct_top or 100) + 0.5)) or tostring(d.value)
     local nx = x0 + bw + math.floor(12 * k)
     local ny = y + math.floor((bh - big) / 2)
-    txt(nx, ny, str, big, col(tone, 245), L)
-    local rx = nx + txt_width(str, big) + math.floor(8 * k)
+    local rx = nx
+    if cfg.show_count then
+      txt(nx, ny, str, big, col(tone, 245), L)
+      rx = nx + txt_width(str, big) + math.floor(8 * k)
+    end
     local ex = rx                                            -- where the line ends
     if d.reserve then
       chef.rect(rx, ny, math.max(1, math.floor(2 * k)), big, col(CREAM, 150), L)
       txt(rx + math.floor(7 * k), ny, 'x' .. tostring(d.reserve), small, col(CREAM, 220), L)
       ex = rx + math.floor(7 * k) + txt_width('x' .. tostring(d.reserve), small)
     end
-    local left = d.underbarrel and 'UB' or d.mode
+    local left = (d.underbarrel and (cfg.show_mode and 'UB' or nil)) or (not d.underbarrel and d.mode) or nil
     if d.fmode and not d.underbarrel then left = left and (left .. '  ' .. d.fmode) or d.fmode end
-    if d.kind == 'heat' then left = left and ('HEAT  ' .. left) or 'HEAT' end
+    if d.kind == 'heat' and cfg.show_heat then left = left and ('HEAT  ' .. left) or 'HEAT' end
     if left then label(left) end
     -- a charge meter (the Railgun, the Epoch): a thin line over the bar while the trigger is held
     if d.charge_frac then
@@ -1814,7 +1880,7 @@ local function draw(d, items)
     end
   end
 
-  if items and (cfg.items or cfg.pack) then draw_items(items, d, k, small, x0, y - math.floor(8 * k), x0 + bw, math.max(2, math.floor(bh * 0.5))) end
+  if items and (cfg.show_stims or cfg.show_grenades or cfg.pack) then draw_items(items, d, k, small, x0, y - math.floor(8 * k), x0 + bw, math.max(2, math.floor(bh * 0.5))) end
 end
 
 ------------------------------------------------------------------------------------------------ research
@@ -2221,11 +2287,13 @@ function M.update(dt)
   alpha_k = cfg.opacity * hand.fade
   if shown_now or (items_now and hand.grip and hand.grip ~= 0) then
     local dd = shown_now
-    if dd and (not cfg.show_rpm or not cfg.show_fmode or not cfg.show_mode) then
+    if dd and not (cfg.show_rpm and cfg.show_fmode and cfg.show_mode and cfg.show_mags and cfg.show_charge) then
       dd = setmetatable({}, { __index = shown_now })
       if not cfg.show_rpm then dd.setting = false end
       if not cfg.show_fmode then dd.fmode = false end
       if not cfg.show_mode then dd.mode = false end
+      if not cfg.show_mags then dd.reserve = false end
+      if not cfg.show_charge then dd.charge_frac = false end
     end
     draw(dd, items_now)
   end

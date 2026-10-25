@@ -394,6 +394,14 @@ def main():
     check('released: no sudden drop (%d%% -> %d%%)' % (pb, pc), abs(pc - pb) <= 2)
     rt.execute('run(1)'); pd = pct()
     check('then cooling at 5/s (%d%% -> %d%%) %s' % (pc, pd, [l for l in rt.eval('logs').values() if 'planet' in l]), 3 <= pc - pd <= 7)
+    # outlines on, cooling: the outline stays put, only the fill inside shrinks
+    def outline_rects():
+        return sorted(tuple(d[i] for i in range(2, 6)) for d in rt.eval('draws').values() if d[1] == 'rect' and d[9] == 190)
+    rt.execute('CHANGE.outline(true) run(0.1)')
+    oa = outline_rects(); rt.execute('run(1)'); ob = outline_rects()
+    check('outlines, cooling: the outline stays put (%d rects)' % len(oa), len(oa) >= 4 and oa == ob)
+    rt.execute('CHANGE.outline(false) run(0.1)')
+    pd = pct()
     # a new field value close to the model: folded in, no jump
     rt.execute('OBJ[13].fields[ROLE.heat] = %d run(0.05)' % (pd - 3))
     pe = pct()
@@ -714,9 +722,51 @@ def main():
     check('beside: a vertical bar (%s)' % bar[:2], len(bar) >= 1)
     squares = [d for d in rects if d[4] == d[5] and d[4] == 8]
     check('beside: 7 magazines as squares (%d)' % len(squares), len(squares) == 7)
+    # the empty ones as an outline, or hidden
+    rt7.execute('for _, o in pairs(OBJ) do if o.fields[ROLE.magazines] == 7 then o.fields[ROLE.magazines] = 4 end end CHANGE.mags_empty(2) run(0.3)')
+    full = len([d for d in rt7.eval('draws').values() if d[1] == 'rect' and d[4] == d[5] and d[4] == 8])
+    check('beside, empty hidden: only the full ones (%d of 7)' % full, 0 < full < 7)
+    rt7.execute('CHANGE.mags_empty(1) CHANGE.outline(true) run(0.3)')
+    rs = [d for d in rt7.eval('draws').values() if d[1] == 'rect']
+    sq = len([d for d in rs if d[4] == d[5] and d[4] == 8])
+    edges = len([d for d in rs if (d[4] == 8 and d[5] == 1) or (d[4] == 1 and d[5] == 6)])
+    check('beside, empty as outlines: %d full, %d edges' % (sq, edges), sq == full and edges == 4 * (7 - full))
+    rt7.execute('CHANGE.outline(false) for _, o in pairs(OBJ) do if o.fields[ROLE.magazines] == 4 then o.fields[ROLE.magazines] = 7 end end run(0.3)')
     rt7.execute('GRIP = 52 run(1)')
     tx = {d[4]: (d[2], d[3]) for d in rt7.eval('draws').values() if d[1] == 'text'}
     check('beside: the Nova\'s HEAT label under its count %s' % tx, 'HEAT' in tx and '0%' in tx and tx['HEAT'][1] < tx['0%'][1])
+    # in a screen corner, with the bar, items and backpack off and the magazines as a number: the count, xN and modes
+    rt7.execute('CHANGE.position(3) CHANGE.show_bar(false) CHANGE.show_stims(false) CHANGE.show_grenades(false) CHANGE.pack(false) CHANGE.mags(2) GRIP = 10 run(1)')
+    dr = list(rt7.eval('draws').values())
+    xs = [d[2] for d in dr]
+    t = rt7.eval('texts()')
+    check('corner: drawn by the left edge (%s..%s)' % (min(xs), max(xs)), min(xs) == int(3440 * 0.02) and max(xs) < 600)
+    check('corner: no icons, one rect (the | before xN) [%s]' % t, not any(d[1] == 'sprite' for d in dr)
+          and sum(1 for d in dr if d[1] == 'rect') == 1 and 'x7' in t)
+    rt7.execute('CHANGE.off_x(78) CHANGE.off_y(30) run(0.3)')
+    xs = [d[2] for d in rt7.eval('draws').values()]
+    check('corner: moved by the offsets (%s)' % min(xs), min(xs) == int(3440 * 0.8))
+    # with the bar back on: drawn in the corner too (the toggles apply everywhere)
+    rt7.execute('CHANGE.off_x(0) CHANGE.off_y(0) CHANGE.show_bar(true) run(0.3)')
+    bars = [d for d in rt7.eval('draws').values() if d[1] == 'rect' and d[5] > d[4] * 5]
+    check('corner, the bar on: its vertical bar at the corner (%s)' % [b[2] for b in bars[:1]], bars and bars[0][2] == int(3440 * 0.02))
+    # everything off: nothing drawn
+    rt7.execute('''for _, id in ipairs({ 'show_bar', 'show_count', 'show_mags', 'show_heat', 'show_mode', 'show_fmode', 'show_rpm',
+      'show_charge', 'show_stims', 'show_grenades', 'pack' }) do CHANGE[id](false) end''')
+    for pos in (1, 2, 3):
+        rt7.execute('CHANGE.position(%d) GRIP = 10 run(0.3)' % pos)
+        n10 = len(rt7.eval('draws'))
+        rt7.execute('GRIP = 52 run(0.3)')
+        check('everything off, position %d: nothing drawn (%d, %d)' % (pos, n10, len(rt7.eval('draws'))), n10 == 0 and len(rt7.eval('draws')) == 0)
+    rt7.execute('''for _, id in ipairs({ 'show_bar', 'show_count', 'show_mags', 'show_heat', 'show_mode', 'show_fmode', 'show_rpm',
+      'show_charge', 'show_stims', 'show_grenades', 'pack' }) do CHANGE[id](true) end CHANGE.mags(1)''')
+    # under the crosshair, 10 % right and 5 % up: 344 px right, 72 px higher at 3440 x 1440
+    rt7.execute('CHANGE.position(1) GRIP = 10 run(0.3)')
+    b0 = [d for d in rt7.eval('draws').values() if d[1] == 'rect'][0]
+    rt7.execute('CHANGE.off_x(10) CHANGE.off_y(5) run(0.3)')
+    b1 = [d for d in rt7.eval('draws').values() if d[1] == 'rect'][0]
+    check('under, offset 10 / 5: moved %s, %s px' % (b1[2] - b0[2], b1[3] - b0[3]), b1[2] - b0[2] == 344 and b1[3] - b0[3] == 72)
+    rt7.execute('CHANGE.off_x(0) CHANGE.off_y(0) CHANGE.position(2) GRIP = 52 run(1)')
     rt7.execute('CHANGE.position(1) run(1)')
     tx = {d[4]: (d[2], d[3]) for d in rt7.eval('draws').values() if d[1] == 'text'}
     check('under the crosshair again: HEAT left of the bar %s' % tx, 'HEAT' in tx and tx['HEAT'][0] < 1720 - 130)
@@ -752,11 +802,13 @@ def main():
     rt10.execute('''OBJ[50] = nil run(25) OBJ[51] = { name = NAMES.pack2, fields = {} } OBJ[51].fields[ROLE.remaining] = 4
       OBJ[51].fields[ROLE.carry] = 0 OBJ[51].fields[ROLE.owner] = '0b99cf5492296d6e' run(3)''')
     check('a backpack first seen worn later in the mission: its bar shown', rt10.eval(packbar) is not None)
-    rt10.execute('CHANGE.items(false) run(0.5)')
+    rt10.execute('CHANGE.show_stims(false) CHANGE.show_grenades(false) run(0.5)')
     check('grenades and stims off: the backpack bar still shown, no icons', rt10.eval(packbar) is not None and rt10.eval('count("sprite")') == 0)
     rt10.execute('CHANGE.pack(false) run(0.5)')
     check('the backpack bar off too: none', rt10.eval(packbar) is None)
-    rt10.execute('CHANGE.items(true) CHANGE.pack(true) run(0.5)')
+    rt10.execute('CHANGE.show_grenades(true) CHANGE.pack(true) run(0.5)')
+    check('grenades on, stims off: one icon', rt10.eval('count("sprite")') == 1)
+    rt10.execute('CHANGE.show_stims(true) run(0.5)')
 
     # two weapons on one pose at a mission's start, none fired yet: the one on swap key 1 (the primary)
     rt11 = lua51.LuaRuntime()
@@ -890,7 +942,7 @@ def main():
     # beside, 5 % up: the bar 72 px higher at 1440
     rt18.execute('CHANGE.position(2) run(0.3)')
     y0 = [d[3] for d in rt18.eval('draws').values() if d[1] == 'rect' and d[5] > d[4] * 5][0]
-    rt18.execute('CHANGE.side_up(5) run(0.3)')
+    rt18.execute('CHANGE.off_y(5) run(0.3)')
     y1 = [d[3] for d in rt18.eval('draws').values() if d[1] == 'rect' and d[5] > d[4] * 5][0]
     check('beside 5 %% up: 72 px higher (%s to %s)' % (y0, y1), y1 - y0 == 72)
     # fire on a keyboard key: shots with it are yours, the mouse doesn't count

@@ -2,15 +2,15 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 1.0.2
+Version: 1.0.3
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v1.0.2.zip
+Main file: NarrowHUD-v1.0.3.zip
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2 and newer"
 
 Summary (the short line under the title, at most 350 characters):
 --------------------------------------------------------------------
 A narrow ammo and heat readout by your crosshair: the magazine as a bar, the count, your spare magazines, stims,
-grenades and backpack. Two layouts, a colourblind palette, fade when idle. Reads only, never writes. Needs Chef
+grenades and backpack. Three layouts, a colourblind palette, fade when idle. Reads only, never writes. Needs Chef
 Shared Loader 1.0.x or 1.2+.
 
 Description (paste into the BBCode editor):
@@ -37,20 +37,23 @@ the [b]rate of fire[/b] setting.
 [*][b]Stims, grenades[/b], your [b]backpack[/b]'s fill, the warp pack's heat and the jump pack's recharge.
 [/list]
 
-[size=4][b]Two layouts[/b][/size]
+[size=4][b]Three layouts[/b][/size]
 [list]
 [*][b]Under the crosshair[/b]: a wide narrow bar, the count and magazines to its right, stims and grenades below.
 [*][b]Beside the crosshair[/b] (compact): a short vertical bar, the count, your magazines as small squares (or a
 number), the modes, stims and grenades.
+[*][b]A screen corner[/b]: by the game's own weapon panel; turn off the bar and items for just the count, magazines and modes (or anywhere
+you put it).
 [/list]
 
 [size=4][b]Settings[/b][/size] (F9 menu > NarrowHUD)
 [list]
-[*]Size, layout, distance from the crosshair, up / down offset
-[*]Magazines as squares or a number
+[*]Size, layout (under or beside the crosshair, or a screen corner by the game's weapon panel), and one offset that moves it anywhere
+[*]Every part shown or hidden on its own: bar, count, magazines, HEAT label, modes, fire mode, rate of fire, charge meter, stims, grenades, backpack bar
+[*]Magazines as squares or a number; the empty squares shown or hidden
+[*]Empty parts of the ammo bar, magazines and backpack bar faint, or as outlines
 [*]Opacity, and fading out when full and not firing
 [*]Colours: standard, or colourblind (white, sky blue, yellow, magenta)
-[*]Show or hide the rate of fire, fire mode and weapon modes; stims and grenades; the backpack bar
 [*]Your fire button and swap keys, if you've changed them in the game
 [*]Keys to forget what NarrowHUD learned (about the weapon in hand, or everything)
 [/list]

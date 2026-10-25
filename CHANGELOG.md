@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.3
+
+**The settings, reorganised.** Your position and distance settings go back to the default once (they're new rows);
+everything else is kept.
+
+- Every part can be shown or hidden on its own: the ammo / heat bar, the count, the spare magazines, the HEAT label,
+  weapon modes, the fire mode, the rate of fire, the charge and lock-on meter, stims, grenades, the backpack bar.
+  With all of them off, nothing is shown. (Stims and grenades used to be one setting.)
+- One offset, left / right and down / up (% of the screen, -50 to +50), moves any position anywhere. It replaces
+  Under's distance, Beside's distance and up / down, and the corner's two sliders.
+- New position "Screen corner": by the game's own weapon panel (bottom left, just above it). Best with the bar,
+  stims, grenades and backpack turned off, and the magazines as a number: the game's panel shows those already.
+- The menu in order: placement, what's shown (in the order it's on the screen), the look, then the keys.
+- New setting "Empty parts as outlines": what's empty in the ammo bar (the ticks and the solid bar), the magazine
+  squares and the backpack bar is drawn as an outline instead of faint. The faint squares were hard to tell from the
+  full ones. Off by default. A solid bar keeps its outline in place around the whole bar and fills inside it, so a
+  weapon cooling down from overheated only changes the inside.
+- New setting "Beside and corner: empty magazine squares": shown (as before) or hidden.
+
 ## 1.0.2
 
 **Fixes**
