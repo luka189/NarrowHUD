@@ -64,7 +64,13 @@ def source():
         n += 1
     head, rest = '\n'.join(lines[:n]), '\n'.join(lines[n:])
     seed = (ROOT / 'src' / 'learned_seed.lua').read_text(encoding='utf-8')
-    return f'{head}\nlocal DATA = (function()\n{data}\nend)()\nlocal SEED = (function()\n{seed}\nend)()\n{rest}'
+    # the modules (src/modules/NN_name.lua, in order), each in a function of its own (each gets Lua's 200 locals),
+    # sharing through N; the head (src/narrowhud.lua) first, return M last
+    rest = rest.replace('-- the modules (src/modules, in order) go here, then: return M\n', '')
+    mods = sorted((ROOT / 'src' / 'modules').glob('[0-9][0-9]_*.lua'))
+    body = ''.join(f';(function() -- {m.stem}\n{m.read_text(encoding="utf-8")}end)()\n' for m in mods)
+    return (f'{head}\nlocal DATA = (function()\n{data}\nend)()\nlocal SEED = (function()\n{seed}\nend)()\n'
+            f'{rest}local N = {{}}\n{body}return M\n')
 
 
 def main():
@@ -79,7 +85,7 @@ def main():
     lua = src.encode('utf-8')
     manifest = {'Version': 1, 'Guid': GUID, 'Name': f'NarrowHUD {version}',
                 'Description': 'Ammo and heat as a narrow bar by the crosshair, plus stims, grenades and your backpack. '
-                               'Needs Chef Shared Loader 1.0.x or 1.2 and newer. Settings: F9 menu, NarrowHUD.',
+                               'Needs Chef Shared Loader 1.0.x or 1.2.3 and newer. Settings: F9 menu, NarrowHUD.',
                 'IconPath': 'thumbnail.png'}
     files = {f'core/{ARCHIVE}': make_archive({resource_hash(NAME): struct.pack('<II', len(lua), 2) + lua}),
              f'core/{ARCHIVE}.stream': b'', f'core/{ARCHIVE}.gpu_resources': b'',
@@ -97,6 +103,18 @@ def main():
             info.external_attr = 0o100644 << 16
             zf.writestr(info, content)
     print(f'Built {z}')
+    # the layout editor as a whole page for GitHub Pages (editor/editor.html is the page's content, as published as an
+    # artifact; this adds the document around it)
+    page = (ROOT / 'editor' / 'editor.html').read_text(encoding='utf-8')
+    head = ('<!doctype html>\n<!-- Made by tools/build.py from editor/editor.html: edit that one. -->\n'
+            '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}'
+            'body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>\n</head>\n<body>\n')
+    (ROOT / 'editor' / 'index.html').write_text(
+        head + page + '\n</body>\n</html>\n',
+        encoding='utf-8')
+    print('Built editor/index.html')
 
 
 if __name__ == '__main__':

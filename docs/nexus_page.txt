@@ -2,16 +2,16 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 1.0.5
+Version: 1.0.6
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v1.0.5.zip
-Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2 and newer"
+Main file: NarrowHUD-v1.0.6.zip
+Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2.3 and newer"
 
 Summary (the short line under the title, at most 350 characters):
 --------------------------------------------------------------------
 A narrow ammo and heat readout by your crosshair: the magazine as a bar, the count, your spare magazines, stims,
-grenades and backpack. Three layouts, a colourblind palette, dims or hides when idle. Reads only, never writes. Needs Chef
-Shared Loader 1.0.x or 1.2+.
+grenades and backpack. Three layouts, or make your own in the online layout editor (curved bars too). Colourblind
+palette, dims when idle. Reads only, never writes. Needs Chef Shared Loader 1.0.x or 1.2.3+.
 
 Description (paste into the BBCode editor):
 -------------------------------------------
@@ -20,6 +20,20 @@ Description (paste into the BBCode editor):
 
 A small ammo and heat readout right by your crosshair, so you never have to look at the corner of the screen
 mid-fight.
+
+[size=4][b]NEW: make your own layout[/b][/size]
+[b][url=https://luka189.github.io/NarrowHUD/editor/]>> Open the NarrowHUD layout editor <<[/url][/b]
+Drag every part of the HUD anywhere on a game screen: the bar, the count, the magazines, the modes, stims, grenades
+and the backpack bar. Make bars vertical or curved, resize or fade any part, and see how each kind of weapon will
+look. Then:
+[list=1]
+[*]Download (or copy) your layout file from the editor.
+[*]In the game, F9 > NarrowHUD > [b]Position: Custom[/b] (this creates the layout file the first time).
+[*]Put your file in [b]%APPDATA%\Arrowhead\Helldivers2[/b] as [b]chef_data_luka189_2fnarrowhud__layout.lua[/b]
+(replace the one there).
+[*]Press the key set in F9 under "Read the layout file again", or start a mission.
+[/list]
+Under, Beside and a curved pair are in the editor to start from.
 
 [size=4][b]What it shows[/b][/size]
 [list]
@@ -37,30 +51,31 @@ the [b]rate of fire[/b] setting. Optionally each mode in its own colour, so a sw
 [*][b]Stims, grenades[/b], your [b]backpack[/b]'s fill, the warp pack's heat and the jump pack's recharge.
 [/list]
 
-[size=4][b]Three layouts[/b][/size]
+[size=4][b]Three built-in layouts (or your own)[/b][/size]
 [list]
 [*][b]Under the crosshair[/b]: a wide narrow bar, the count and magazines to its right, stims and grenades below.
 [*][b]Beside the crosshair[/b] (compact): a short vertical bar, the count, your magazines as small squares (or a
 number), the modes, stims and grenades.
 [*][b]A screen corner[/b]: by the game's own weapon panel; turn off the bar and items for just the count, magazines and modes (or anywhere
 you put it).
+[*][b]Custom[/b]: your own, from the [url=https://luka189.github.io/NarrowHUD/editor/]layout editor[/url].
 [/list]
 
 [size=4][b]Settings[/b][/size] (F9 menu > NarrowHUD)
 [list]
-[*]Size, layout (under or beside the crosshair, or a screen corner by the game's weapon panel), and one offset that moves it anywhere
+[*]Size, layout (under or beside the crosshair, a screen corner by the game's weapon panel, or Custom from the layout editor), and one offset that moves the built-in layouts anywhere
 [*]Every part shown or hidden on its own: bar, count, magazines, HEAT label, modes, fire mode, rate of fire, charge meter, stims, grenades, backpack bar
 [*]Magazines as squares or a number; the empty squares shown or hidden
 [*]Empty parts of the ammo bar, magazines and backpack bar faint, or as outlines
 [*]Opacity, and dimming or hiding when nothing has changed for a few seconds
 [*]Colours: standard, or colourblind (white, sky blue, yellow, magenta)
-[*]Your fire button and swap keys, if you've changed them in the game
+[*]Your fire button, swap keys, the mouse wheel and the weapon options key, if you've changed them in the game
 [*]Keys to forget what NarrowHUD learned (about the weapon in hand, or everything)
 [/list]
 
 [size=4][b]Install[/b][/size]
 [list=1]
-[*]Install [b]Chef Shared Loader[/b] (1.0.x, or 1.2 or newer; 1.1 doesn't allow the reads NarrowHUD needs).
+[*]Install [b]Chef Shared Loader[/b] (1.0.x, or 1.2.3 or newer; 1.1 doesn't allow the reads NarrowHUD needs, and 1.2.0 to 1.2.2 take some smaller missions for the ship, where NarrowHUD stays off).
 [*]Add the NarrowHUD zip in your mod manager and enable it.
 [*]Play. Settings are in F9.
 [/list]
@@ -86,7 +101,10 @@ update, or turn on "Run on a game version it wasn't made for" at your own risk.
 [b]Where does it keep what it learned?[/b] chef_data_luka189_2fnarrowhud__learned.lua in
 %APPDATA%\Arrowhead\Helldivers2. Its log is narrowhud.log in the same folder.
 [b]Does it work in multiplayer?[/b] Yes, hosting and joining. It only shows your own weapons and backpack.
-[b]Performance?[/b] About 0.3 ms a frame.
+[b]My Custom layout sits somewhere else than in the editor.[/b] Check the two Offset sliders in F9: they move a Custom
+layout only when the editor's "F9's offsets move this layout" box was ticked. Also pick your screen's shape in the
+editor (16:9, 21:9 ...).
+[b]Performance?[/b] About 0.2 ms a frame; up to about 0.5 ms as host in a big mission with SEAF.
 
 [size=4][b]Known issues[/b][/size]
 [list]
@@ -103,6 +121,20 @@ Bug reports: turn on "Research log" in F9 (from the next start), play until it h
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
+
+Changelog for the Nexus "Changelogs" tab (1.0.6)
+------------------------------------------------
+- NEW: Custom position and an online layout editor (https://luka189.github.io/NarrowHUD/editor/): put every part of
+  the HUD wherever you like, curved bars included.
+- Hosting with SEAF: soldiers' guns no longer take over the HUD.
+- No more blinking off while walking, vaulting or using a stim.
+- Swapping to your support weapon no longer flashes another weapon first.
+- Scrolling the zoom or flashlight (holding R) no longer counts as a weapon swap.
+- Railgun and heat weapons no longer show a Guard Dog's or other backpack's ammo.
+- The Scythe's heat sink attachments show the right heat.
+- Weapons without a rate of fire setting no longer show RPM after a cold planet.
+- The Halt shows FLECHETTE / STUN, each with its own count.
+- New settings: mouse wheel swapping, and your weapon options key.
 
 Permissions (the Permissions tab)
 ---------------------------------

@@ -3,6 +3,7 @@ game (your player, Helldiver and weapons as network objects, a hand pose). Not a
 
     python3 tools/build.py && python3 tests/run_tests.py [--png out.png]
 """
+import math
 import re
 import sys
 from pathlib import Path
@@ -66,9 +67,7 @@ OPTS, CHANGE, BINDS = { research = true }, {}, {}   -- the F9 menu's values (the
 OBJINFO = nil           -- Network.object_info, when a test gives one
 PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
 KEYS, WHEEL = {}, 0   -- keys pressed this frame, the mouse wheel
-function press(k) if k == 'wheel' then WHEEL = 1 else KEYS[k] = true end run(1 / 60) OPTS, CHANGE = { research = true }, {}   -- the F9 menu's values (the tests run with the research log on)
-PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
-KEYS, WHEEL = {}, 0 run(0.3) end
+function press(k) if k == 'wheel' then WHEEL = 1 else KEYS[k] = true end run(1 / 60) KEYS, WHEEL = {}, 0 run(0.6) end
 OBJ = {}
 OBJ[1] = { name = NAMES.player, fields = { u4d1h9a = 2 } }
 OBJ[2] = { name = NAMES.avatar, fields = { du7kbt = 4, ei6_t2 = 5 } }
@@ -95,6 +94,9 @@ chef = {
   end,
   color = function(r, g, b, a) return { r, g, b, a } end,
   rect = function(x, y, w, h, c, l) rec({ 'rect', x, y, w, h, c[1], c[2], c[3], c[4] }) end,
+  triangle = function(x1, y1, x2, y2, x3, y3, c, l)
+    if TRI_ROWS then return false end
+    rec({ 'tri', x1, y1, x2, y2, c[1], c[2], c[3], c[4], x3 = x3, y3 = y3 }) return true end,
   text = function(x, y, s, px, c, l) rec({ 'text', x, y, s, px, c[1], c[2], c[3], c[4] }) end,
   text_width = function(s, px) return #s * 6 * px - px end,
   sprite = function(x, y, rows, cell, colors, l)
@@ -113,7 +115,8 @@ chef = {
   option = function(id, spec) if OPTS[id] ~= nil then return OPTS[id] end return spec.default end,
   on_change = function(id, f) CHANGE[id] = f end,
   key_pressed = function(k) return KEYS[k] == true end, wheel = function() return WHEEL end,
-  load_table = function() return saved end, save_table = function(n, t) saved = t end,
+  load_table = function(n) if n == 'layout' then if LAYOUT_ERR then return nil, LAYOUT_ERR end if LAYOUT == nil then return nil, 'none saved' end return LAYOUT end return saved end,
+  save_table = function(n, t) if n == 'layout' then LAYOUT = t else saved = t end end,
   watch = function() return { items = { { unit = 'U', x = 0, y = 0, z = 0 } } } end,
   camera = function() return { x = 0, y = 0, z = 1 } end,
   unit_alive = function() return true end,
@@ -134,7 +137,7 @@ chef = {
     if name == 'GameSession.game_object_field' then
       if OBJ[a] == nil then error('read of a gone object ' .. tostring(a)) end   -- in the game: may end it
       local v = OBJ[a].fields[b]
-      if v == nil and b == ROLE.held then return true end   -- (the player's own weapons: trigger held unless a test says)
+      if v == nil and b == ROLE.held then return FIRE == true end   -- (the player's own weapons: held as you fire, unless a test says)
       return v
     end
     if name == 'Unit.has_animation_state_machine' or name == 'Unit.animation_has_variable' then return true end
@@ -205,6 +208,11 @@ def main():
         if not ok:
             fails.append(what)
 
+    # every name the modules use is theirs, imported, or Lua's (tools/lint_globals.py)
+    import subprocess
+    lint = subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / 'tools' / 'lint_globals.py')],
+                          capture_output=True, text=True)
+    check('modules: no stray globals %s' % lint.stdout.split('\n')[:3], lint.returncode == 0)
     check('Keep-On-Crash header within the first 400 characters', '\n-- HD2-Keep-On-Crash: yes' in SRC[:400])
     rt.execute('run(3)')
     t = rt.eval('texts()')
@@ -423,7 +431,7 @@ def main():
     rt.execute('OBJ[14] = nil GRIP = 10 run(1.5)')
 
     # something in hand NarrowHUD doesn't show (the C4 before it's learned): the stim and grenade line still
-    rt.execute('GRIP = 42 run(0.5)')
+    rt.execute('GRIP = 42 run(2.5)')
     check('unknown thing in hand: the stim and grenade line [%s]' % rt.eval('texts()'), rt.eval('texts()') == '5 | 4')
 
     # the C4: one charge in the hand, the spare ones in its backpack
@@ -593,10 +601,21 @@ def main():
     check('shield: the last fired shown [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('19 | x2'))
     rt.execute("press('1')")
     check('shield, key 1 (not learned): the other one out [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('9 | x6'))
-    rt.execute("PADY = true run(1 / 60) PADY = false run(0.3)")
+    rt.execute("PADY = true run(1 / 60) PADY = false run(0.6)")
     check('shield, a controller\'s Y: the other one [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('19 | x2'))
     rt.execute("press('wheel')")
     check('shield, the wheel: the other one again [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('9 | x6'))
+    # the wheel with the weapon options key held (R): the scope's zoom or the light, no swap (the AMR, a player's report)
+    rt.execute("BINDS.weapon_menu = true press('wheel') BINDS.weapon_menu = false run(0.3)")
+    check('the wheel with R held: no swap [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('9 | x6'))
+    # the wheel set to not swap (bound to something else in the game): nothing changes; up only: down does nothing
+    rt.execute("CHANGE.swap_wheel(4) press('wheel')")
+    check('the wheel off: no swap [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('9 | x6'))
+    rt.execute("CHANGE.swap_wheel(2) WHEEL = -1 run(1 / 60) WHEEL = 0 run(0.3)")
+    check('the wheel up only, scrolled down: no swap [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('9 | x6'))
+    rt.execute("CHANGE.swap_wheel(1) press('wheel')")
+    check('the wheel both ways again: swaps [%s]' % rt.eval('texts()'), rt.eval('texts()').startswith('19 | x2'))
+    rt.execute("press('wheel')")
     # without the shield their poses differ: the keys are learned there
     rt.execute('''GRIP = 71 run(0.5) OBJ[62].fields[ROLE.rounds] = 18 run(0.5) GRIP = 1 run(0.5) OBJ[61].fields[ROLE.rounds] = 8 run(0.5)
       press('2') GRIP = 71 run(1.5) press('1') GRIP = 1 run(0.5)''')
@@ -658,6 +677,43 @@ def main():
     check('cold planet measured: x1.5 %s' % [l for l in rt5.eval('logs').values() if 'planet' in l],
           any('planet cooling x1.50 (cold)' in l for l in rt5.eval('logs').values()))
 
+    # the Scythe's heat sinks move where it overheats (60, 100, 150; a player's report): taken from each overheat, per
+    # weapon, and kept for the type
+    r = lua51.LuaRuntime()
+    setup(r, seeded=True)
+    r.execute('''OBJ[3] = nil OBJ[20] = { name = NAMES.scythe, fields = {} } local f = OBJ[20].fields f[ROLE.heat] = 0
+      f[ROLE.overheated] = false f[ROLE.charging] = false f[ROLE.held] = false f[ROLE.carry] = 0 GRIP = 10 run(3)
+      f[ROLE.heat] = 60 f[ROLE.overheated] = true run(1)''')
+    r.execute('''local f = OBJ[20].fields f[ROLE.overheated] = false f[ROLE.heat] = 30 run(0.3)''')
+    r.execute('''local f = OBJ[20].fields f[ROLE.heat] = 0 run(8) f[ROLE.heat] = 150 f[ROLE.overheated] = true run(0.3)
+      f[ROLE.overheated] = false f[ROLE.heat] = 75 run(0.3)''')
+    r.execute('run(6)')
+    s150 = r.eval('saved and saved.heat and saved.heat["42a6b5ba"]')
+    logs = [l for l in r.eval('logs').values() if 'overheats at' in l]
+    check('Scythe overheating at 60, then at 150: each taken, the last kept (%s) %s' % (s150, logs),
+          len(logs) == 2 and 'at 60 (was 100' in logs[0] and 'at 150 (was 60' in logs[1] and s150 == 150)
+    # a heat weapon with a backpack on (a supply pack): no magazines shown (the Nova showed the pack's 7 as x7)
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil OBJ[50] = { name = NAMES.pack2, fields = {} } OBJ[50].fields[ROLE.remaining] = 7
+      OBJ[50].fields[ROLE.carry] = 0 GRIP = 52 run(3)''')
+    t = r.eval('texts()')
+    check('the Nova with a supply pack on: no x7 [%s]' % t, 'HEAT' in t and 'x7' not in t)
+    # a weapon reloading from its own magazines as a backpack goes down (a supply pack used): never a backpack weapon,
+    # and one learned so wrongly before is unlearned (the Railgun showed a supply pack's 6-8)
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''saved = { packres = { ["8fcdd35c"] = true } } M = (function(...) ''' + SRC + ''' end)(chef)
+      OBJ[50] = { name = NAMES.pack2, fields = {} } OBJ[50].fields[ROLE.remaining] = 8 OBJ[50].fields[ROLE.carry] = 0
+      run(3) OBJ[3].fields[ROLE.rounds] = 40 run(0.5)
+      OBJ[3].fields[ROLE.rounds] = 44 OBJ[3].fields[ROLE.magazines] = 6 OBJ[50].fields[ROLE.remaining] = 7 run(0.5)
+      OBJ[3].fields[ROLE.rounds] = 40 run(0.5)
+      OBJ[3].fields[ROLE.rounds] = 44 OBJ[3].fields[ROLE.magazines] = 5 OBJ[50].fields[ROLE.remaining] = 6 run(2)''')
+    logs = list(r.eval('logs').values())
+    t = r.eval('texts()')
+    check('reloading from its own magazines as a pack goes down: unlearned, not learned again, x5 [%s]' % t,
+          any('8fcdd35c reloads from its own magazines' in l for l in logs)
+          and not any('8fcdd35c reloads from the backpack' in l for l in logs) and 'x5' in t)
     # the shipped seed: a weapon it knows (the Verdict, at pose 36) shows before its first shot
     rt6 = lua51.LuaRuntime()
     setup(rt6, seeded=True)
@@ -726,6 +782,103 @@ def main():
     logs = list(r.eval('logs').values())
     check('4 poses learned (not shipped): never shown, said once [%s]' % r.eval('texts()'), not r.eval('texts()').startswith('2')
           and sum(1 for l in logs if 'learned for 4 hand poses' in l) == 1 and not any('learned: type aca39ec2' in l for l in logs))
+    # a SEAF gun holding its trigger while you don't fire (a 2026-10-26 log: held=true with no input): not yours, and
+    # the hand pose it taught taken back
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''run(3) OBJ[83] = { name = NAMES.seaf, fields = {} } local f = OBJ[83].fields f[ROLE.rounds] = 30
+      f[ROLE.magazines] = 5 f[ROLE.chamber] = true f[ROLE.carry] = 0 f[ROLE.held] = true GRIP = 20 run(3)
+      for i = 1, 2 do f[ROLE.rounds] = 30 - i run(0.3) end''')
+    taught = any('learned: type aca39ec2 goes with hand pose 20' in l for l in r.eval('logs').values())
+    r.execute('FIRE = false run(1.5)')
+    logs = list(r.eval('logs').values())
+    check('SEAF gun holding its trigger alone: not yours, its pose taken back (taught first: %s)' % taught,
+          taught and any('aca39ec2 holds its trigger without your fire button: not yours' in l for l in logs)
+          and any('aca39ec2: hand pose 20 forgotten' in l for l in logs) and r.eval('saved.poses.aca39ec2') is None)
+    r.execute('FIRE = true GRIP = 20 run(2.5) OBJ[83].fields[ROLE.rounds] = 20 run(0.5)')
+    check('then never shown [%s]' % r.eval('texts()'), not r.eval('texts()').startswith('20'))
+    # one firing with yours a lot and without it now and then (10 with, 6 without took the HUD in that log): not yours
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''run(3) OBJ[84] = { name = NAMES.seaf, fields = {} } local f = OBJ[84].fields f[ROLE.rounds] = 30
+      f[ROLE.magazines] = 5 f[ROLE.chamber] = true f[ROLE.carry] = 0 f[ROLE.held] = false run(1)
+      for i = 1, 8 do f[ROLE.rounds] = 30 - i run(0.3) end FIRE = false run(0.6)
+      for i = 1, 3 do f[ROLE.rounds] = 22 - i run(0.6) end''')
+    check('8 shots with your fire button, 3 without: not yours',
+          any('aca39ec2 fires without your fire button: not yours' in l for l in r.eval('logs').values()))
+    # a charge weapon shown charging (the Quasar, here the Nova): a gun firing then on its pose isn't learned for it
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil GRIP = 52 run(3) OBJ[85] = { name = NAMES.seaf, fields = {} } local f = OBJ[85].fields
+      f[ROLE.rounds] = 30 f[ROLE.magazines] = 5 f[ROLE.chamber] = true f[ROLE.carry] = 0 f[ROLE.held] = true run(1)
+      OBJ[5].fields[ROLE.charging] = true run(0.2) for i = 1, 3 do f[ROLE.rounds] = 30 - i run(0.3) end''')
+    logs = list(r.eval('logs').values())
+    check('Nova charging: a gun firing on its pose not learned', not any('learned: type aca39ec2' in l for l in logs)
+          and any('not learned from aca39ec2' in l for l in logs))
+    # key 3 pressed while the primary's pose is still up, a Stalwart (lying on the map, yours as host) on the same pose
+    # and learned on key 3: never shown on the way to the support weapon (the AMR, a 2026-10-26 log)
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''saved = { slot = { ["521229d8"] = 3, ["8fcdd35c"] = 1 }, grip = { ["521229d8"] = 10 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      OBJ[41] = { name = NAMES.stalwart, fields = {} } OBJ[41].fields[ROLE.rounds] = 250 OBJ[41].fields[ROLE.magazines] = 3
+      OBJ[41].fields[ROLE.carry] = 0 GRIP = 10 run(3) OBJ[3].fields[ROLE.rounds] = 43 run(0.5)
+      seen = {} KEYS['3'] = true run(1 / 60) KEYS = {}
+      for i = 1, 4 do run(0.1) seen[#seen + 1] = texts() end GRIP = 52 for i = 1, 6 do run(0.1) seen[#seen + 1] = texts() end''')
+    seen = list(r.eval('seen').values())
+    check('key 3 on a shared pose before the pose changes: no Stalwart on the way %s' % seen[:5],
+          not any(t.startswith('250') for t in seen) and seen[-1].endswith('| 5 | 4') and 'HEAT' in seen[-1])
+    # a rate that's 0.9 of the last (Extreme Cold), or in another mission: not a rate of fire setting (the Sightliner's
+    # 40 and 36); one learned so before is dropped at the start
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''saved = { rpmadj = { ["30294946"] = true }, rpmbase = { ["30294946"] = "40" } } M = (function(...) ''' + SRC + ''' end)(chef)
+      OBJ[3].fields[ROLE.rpm] = 40 run(3) WORLD = 2 run(1) OBJ[3].fields[ROLE.rpm] = 36 run(3)''')
+    t = r.eval('texts()')
+    check('rates 40 then 36 (cold, another mission): no RPM shown, no setting learned [%s]' % t,
+          'RPM' not in t and not any('has a rate of fire setting' in l for l in r.eval('logs').values()))
+    # a part placed after another: the magazines right after the count, however wide it grows ("100%" ran over them)
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''run(3) CHANGE.position(4) run(0.5)''')
+    def after_gap():
+        tx = {d[4]: (d[2], d[5]) for d in r.eval('draws').values() if d[1] == 'text'}
+        cnt = [k for k in tx if k not in ('x7',) and k[0].isdigit() and k not in ('5', '4')]
+        return tx, cnt
+    tx, cnt = after_gap()
+    rect_x = [d[2] for d in r.eval('draws').values() if d[1] == 'rect' and d[4] <= 3 and d[5] >= 20]
+    cx = tx[cnt[0]][0]
+    w = r.eval("chef.text_width('%s', 4)" % cnt[0]) if False else None
+    r.execute('OBJ[3].fields[ROLE.rounds] = 4 run(0.5)')
+    rect_x2 = [d[2] for d in r.eval('draws').values() if d[1] == 'rect' and d[4] <= 3 and d[5] >= 20]
+    check('Under\'s look in Custom: the magazines follow the count (divider at %s for 45, %s for 5)' % (rect_x, rect_x2),
+          rect_x and rect_x2 and rect_x[0] > cx and rect_x2[0] < rect_x[0])
+    # F9's offsets move a Custom layout only when its file says use_offsets = true
+    def bar_xy(r):
+        b = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[4] == 260 and d[5] == 14]
+        return (b[0][2], b[0][3]) if b else None
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute("OPTS.off_x = 10 OPTS.off_y = 10 M = (function(...) " + SRC + " end)(chef) run(3) CHANGE.position(4) run(0.5)")
+    plain = bar_xy(r)
+    r.execute("LAYOUT.use_offsets = true BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)")
+    moved = bar_xy(r)
+    check('Custom: the offsets ignored (%s), then used with use_offsets (%s)' % (plain, moved),
+          plain == (1590, 590) and moved == (1590 + 344, 590 + 144))
+    # a pose with no weapon on it that isn't a grenade's or stratagem's (vaulting, a stim): the weapon shown stays 2 s
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('run(3) GRIP = 15 run(1)')
+    t1 = r.eval('texts()')
+    r.execute('run(1.5)')
+    t2 = r.eval('texts()')
+    r.execute('GRIP = 10 run(0.5) press("2") GRIP = 15 run(0.5)')
+    t3 = r.eval('texts()')
+    check('pose 15 for 1 s: still shown [%s]; after 2 s: not [%s]; after a swap key: not at once [%s]' % (t1, t2, t3),
+          t1.startswith('45 |') and not t2.startswith('45') and not t3.startswith('45'))
+    # research log: where the time goes, once a minute
+    r.execute('GRIP = 10 run(61)')
+    tl = [l for l in r.eval('logs').values() if l.startswith('time a frame')]
+    check('research: a timing line a minute %s' % tl[:1], len(tl) == 1 and 'weapons' in tl[0] and 'fields' in tl[0])
     # someone else's game: the host's own player and Helldiver are in the list too: your grenades and stims shown,
     # never theirs (a 2026-10-25 log: they flicked between 3 and 5)
     r = lua51.LuaRuntime()
@@ -738,6 +891,101 @@ def main():
         t = r.eval('texts()')
         seen.add(t.split(' | ')[-2:].__str__())
     check('joined: your grenades and stims, never the host\'s %s' % sorted(seen), seen == {str(['5', '4'])})
+    # Position: Custom, no layout file yet: one with Under's look written, and drawn from it
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('run(3) CHANGE.position(4) run(0.5)')
+    logs = list(r.eval('logs').values())
+    rects = [d for d in r.eval('draws').values() if d[1] == 'rect']
+    bar = [d for d in rects if d[4] == 260 and d[5] == 14]
+    check('custom, no file: Under\'s look written and read %s' % [l for l in logs if 'layout' in l],
+          any('none yet' in l for l in logs) and r.eval('LAYOUT and LAYOUT.elements and LAYOUT.elements.bar.y') == -9)
+    check('custom, no file: the bar under the crosshair (%s)' % [(b[2], b[3]) for b in bar], bar and bar[0][2] == 1590 and bar[0][3] == 590)
+    t = r.eval('texts()')
+    check('custom, no file: count, magazines, items [%s]' % t, '45' in t and 'x7' in t and r.eval('count("sprite")') == 2)
+    # a layout of your own: a vertical bar bottom left, the count top right, the magazines as squares, no stims;
+    # read with the reload key
+    r.execute('''LAYOUT = { _v = 1, elements = {
+        bar = { anchor = 'bottom_left', x = 2, y = 10, align = 'bottom_left', style = 'vertical', length = 100, thickness = 6 },
+        count = { anchor = 'top_right', x = -5, y = -5, align = 'top_right', size = 2 },
+        mags = { anchor = 'top_right', x = -5, y = -10, align = 'top_right', style = 'squares' },
+        stims = { on = false }, grenades = { anchor = 'center', x = 0, y = 0, opacity = 50 } } }
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    dr = list(r.eval('draws').values())
+    vbar = [d for d in dr if d[1] == 'rect' and d[4] == 6 and d[5] >= 90]
+    check('custom: a vertical bar bottom left (%s)' % [(b[2], b[3], b[4], b[5]) for b in vbar[:2]],
+          vbar and vbar[0][2] == 29 and vbar[0][3] == 144)
+    cnt = [d for d in dr if d[1] == 'text' and d[4] == '45']
+    check('custom: the count, twice the size, by the top right (%s)' % [(c[2], c[3], c.size) for c in cnt],
+          cnt and cnt[0][2] > 3000 and cnt[0][3] > 1200 and cnt[0].size == 80)
+    sq = [d for d in dr if d[1] == 'rect' and d[4] == d[5] == 6]
+    check('custom: 7 magazine squares (%d)' % len(sq), len(sq) == 7)
+    spr = [d for d in dr if d[1] == 'sprite']
+    check('custom: no stims, the grenade at the middle (%s)' % [(s_[2], s_[3]) for s_ in spr], len(spr) == 1 and abs(spr[0][2] - 1720) < 5)
+    check('custom: read again with the key', any('layout file: read (the reload key)' in l for l in r.eval('logs').values()))
+    # values that don't fit: left at their defaults, counted
+    r.execute('''LAYOUT = { _v = 1, elements = { bar = { length = 'long', size = 99, anchor = 'middle', thickness = 10 }, count = 5 } }
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    logs = list(r.eval('logs').values())
+    bar = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[4] == 260 and d[5] == 10]
+    check('custom: 4 values that didn\'t fit dropped, the rest used %s' % [l for l in logs if 'didn' in l][-1:],
+          any('4 values that didn\'t fit' in l for l in logs) and len(bar) >= 1)
+    # a file that can't be read (a typo in a hand edit): never written over, Under's look meanwhile, said on screen
+    r.execute('''LAYOUT_ERR = '[string "layout"]:3: unexpected symbol' LAYOUT = 'kept'
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    t = r.eval('texts()')
+    check('custom, a broken file: kept, Under\'s look, said [%s]' % t, r.eval('LAYOUT') == 'kept' and "can't be read" in t)
+    r.execute("LAYOUT_ERR = nil LAYOUT = { _v = 1, elements = {} } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)")
+    # every part off in F9: nothing drawn here either
+    r.execute('''for _, id in ipairs({ 'show_bar', 'show_count', 'show_mags', 'show_heat', 'show_mode', 'show_fmode', 'show_rpm',
+      'show_charge', 'show_stims', 'show_grenades', 'pack' }) do CHANGE[id](false) end run(3.5)''')
+    check('custom, everything off in F9: nothing drawn (%s)' % [list(d.values()) for d in r.eval('draws').values()][:2], len(r.eval('draws')) == 0)
+    # custom, a heat weapon (the Nova): its bar vertical with the heat marks, HEAT in the modes, stacked
+    r.execute('''for _, id in ipairs({ 'show_bar', 'show_count', 'show_mags', 'show_heat', 'show_mode', 'show_fmode', 'show_rpm',
+      'show_charge', 'show_stims', 'show_grenades', 'pack' }) do CHANGE[id](true) end
+      LAYOUT = { _v = 1, elements = { bar = { style = 'vertical', length = 80 }, modes = { style = 'stacked', x = 10 } } }
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false GRIP = 52 run(3)''')
+    tx = {d[4]: (d[2], d[3]) for d in r.eval('draws').values() if d[1] == 'text'}
+    check('custom, the Nova: 0%% and HEAT shown %s' % tx, '0%' in tx and 'HEAT' in tx)
+    # curved bars: the Nova's heat bar as a ")", then a "("; where Chef draws triangles as rows of rects: vertical
+    def tri_pts():
+        pts = []
+        for d in r.eval('draws').values():
+            if d[1] == 'tri': pts += [(d[2], d[3]), (d[4], d[5]), (d.x3, d.y3)]
+        return pts
+    def bulge(pts):   # how far the middle sticks out right of the ends (+ a ")", - a "(")
+        ys = [p[1] for p in pts]; y0, y1 = min(ys), max(ys); mid = (y0 + y1) / 2
+        ends = [p[0] for p in pts if p[1] < y0 + 3 or p[1] > y1 - 3]
+        middle = [p[0] for p in pts if abs(p[1] - mid) < (y1 - y0) / 4]
+        return (max(middle) - max(ends)) if middle and ends else 0, y1 - y0
+    r.execute('''LAYOUT = { _v = 1, elements = { bar = { style = 'curved_right', length = 260, radius = 150, thickness = 14 } } }
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false OBJ[5].fields[ROLE.heat] = 50 run(0.5)''')
+    b_, hgt = bulge(tri_pts())
+    # 260 along a 150 radius: 99 degrees, so the ends are 150 * (1 - cos 49.7) = 53 left of the middle, 2 * 157 * sin 49.7 tall
+    check('custom, curved right: a ")" (bulge %.0f, height %.0f)' % (b_, hgt), 45 < b_ < 62 and 225 < hgt < 250)
+    ntri = sum(1 for d in r.eval('draws').values() if d[1] == 'tri')
+    check('custom, curved right: few triangles (%d a frame; each costs in game)' % ntri, 0 < ntri <= 30)
+    r.execute('''LAYOUT.elements.bar.style = 'curved_left' BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    pts = tri_pts()
+    b_, hgt = bulge([(-x_, y_) for x_, y_ in pts])
+    check('custom, curved left: a "(" (bulge %.0f)' % b_, 45 < b_ < 62)
+    r.execute('TRI_ROWS = true BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)')
+    dr = list(r.eval('draws').values())
+    check('custom, curved where Chef draws triangles as rects: vertical, logged',
+          not tri_pts() and [d for d in dr if d[1] == 'rect' and d[4] == 14 and d[5] >= 200] and
+          any('curved bars' in l for l in r.eval('logs').values()))
+    # the Halt: two loaded ammo types (slot0 flechette, slot1 stun), chosen by the selected field: each named, each its
+    # own magazine (a switch isn't a reload)
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil OBJ[95] = { name = '%s', fields = {} } local f = OBJ[95].fields
+      f[ROLE.slot0] = 6 f[ROLE.slot1] = 6 f[ROLE.selected] = 0 f[ROLE.spare] = 20 f[ROLE.chamber] = true f[ROLE.carry] = 0
+      GRIP = 80 run(3) f[ROLE.slot0] = 5 run(0.5)''' % type_name('9c06f074'))
+    t = r.eval('texts()')
+    check('the Halt on flechette: learned, FLECHETTE shown [%s]' % t, 'FLECHETTE' in t and t.startswith('5 |'))
+    r.execute('OBJ[95].fields[ROLE.selected] = 1 run(0.3) OBJ[95].fields[ROLE.slot1] = 5 run(0.3)')
+    t = r.eval('texts()')
+    check('the Halt on stun: STUN, its own count [%s]' % t, 'STUN' in t and t.startswith('5 |') and 'FLECHETTE' not in t)
     # a controller that isn't the first one the engine has (Pad3)
     rt7b = lua51.LuaRuntime()
     setup(rt7b)

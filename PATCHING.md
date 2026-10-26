@@ -2,7 +2,7 @@
 
 NarrowHUD reads game objects by hashed type and field names taken from one game build's network config. A patch can
 rename, add or move fields, and reading a field a type doesn't declare can end the game. So on a game version it doesn't
-know (`BUILDS` in `src/narrowhud.lua`), NarrowHUD checks its data first: with Chef 1.2 and later, `Network.object_info`
+know (`BUILDS` in `src/modules/01_core.lua`), NarrowHUD checks its data first: with Chef 1.2 and later, `Network.object_info`
 gives each type's declared fields, and a type that's gone or no longer declares a field NarrowHUD reads is left out
 (the log: "game version check: done: N types as NarrowHUD's data, M left out"). Only when the player's or the
 Helldiver's fields moved, or on Chef 1.1 (which refuses object_info), it stays off and says so for the first 25 s of each
@@ -44,7 +44,7 @@ Note the string and the Steam build number (SteamDB, or the game's properties in
   `src/data_generated.lua` against the previous one; a weapon that lost its `r` (rounds) or `h` (heat) letter needs
   a look in a research-log mission.
 - The avatar's grenades and stims, the player's avatar field: `AVATAR_FIELDS`, `PLAYER_FIELDS`.
-- Special packs (`SPECIAL` in `src/narrowhud.lua`): their field ids by hand.
+- Special packs (`SPECIAL` in `src/modules/02_settings.lua`): their field ids by hand.
 - New weapons: they're learned on their first shot; ship them in the next seed (`tools/make_seed.py`).
 
 ## 5. Build, test, release

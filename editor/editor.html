@@ -1,0 +1,1304 @@
+<title>NarrowHUD Layout Editor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field workbench. The game screen is the work surface, the element list and its fields sit in a rail
+   beside it, the file at the bottom. One committed dark look: the HUD is judged against a game screen. */
+:root {
+  --bg: #12171c;          /* the bench */
+  --panel: #1a2128;       /* the rail and the file */
+  --raise: #222b33;       /* inputs, hovered rows */
+  --line: #2f3a44;
+  --fg: #e9e2cb;          /* the HUD's own cream */
+  --muted: #8f9ba5;
+  --accent: #f0aa5a;      /* the HUD's warning orange */
+  --accent-ink: #1a1206;
+  --good: #7fc39a;
+  --bad: #e8735f;
+  --font-display: "Saira Semi Condensed", "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r: 6px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--fg); }
+body {
+  font: 15px/1.45 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 40px;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top {
+  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: baseline; justify-content: space-between;
+  border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px;
+}
+.brand { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.brand h1 { font: 600 26px/1 var(--font-display); letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+.brand .tag { font: 500 12px var(--font-mono); color: var(--muted); letter-spacing: 0.04em; }
+.top .lead { color: var(--muted); margin: 0; max-width: 62ch; }
+
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 980px) { .work { grid-template-columns: minmax(0, 1fr); } }
+
+/* the screen */
+.stage { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.screenbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.screenbar label, .rowlabel { font: 500 12px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.frame { position: relative; width: 100%; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: #0b0e10; touch-action: none; }
+.frame canvas { display: block; width: 100%; height: auto; cursor: default; }
+.frame canvas.grab { cursor: grab; }
+.frame canvas.grabbing { cursor: grabbing; }
+.readout { font: 12px var(--font-mono); color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+
+.seg { display: inline-grid; grid-auto-flow: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg.wide { display: grid; grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+.seg button { background: var(--panel); border: 0; padding: 5px 10px; cursor: pointer; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--fg); }
+.seg button:hover { color: var(--fg); }
+
+select, input[type="number"], input[type="text"] {
+  background: var(--raise); border: 1px solid var(--line); border-radius: var(--r); padding: 5px 8px; min-width: 0;
+}
+input[type="number"] { width: 84px; font-variant-numeric: tabular-nums; }
+input[type="range"] { accent-color: var(--accent); width: 100%; min-width: 0; }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+.preview-opts { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.preview-opts .note { color: var(--muted); font-size: 13px; flex-basis: 100%; margin: 0; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+
+/* the rail */
+.rail { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; min-width: 0; }
+.card h2 { font: 600 15px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 10px; color: var(--fg); }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn { background: var(--raise); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 11px; cursor: pointer; font-size: 14px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+
+.els { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.els li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+.els li:hover { background: var(--raise); }
+.els li[aria-selected="true"] { background: var(--raise); box-shadow: inset 3px 0 0 var(--accent); }
+.els li .nm { font-size: 14px; }
+.els li .st { font: 11px var(--font-mono); color: var(--muted); }
+.els li.off .nm { color: var(--muted); text-decoration: line-through; }
+
+.fields { display: flex; flex-direction: column; gap: 10px; }
+.f { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; align-items: center; }
+.f > .rowlabel { line-height: 1.2; }
+.f .pair { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; }
+.f .help { grid-column: 2; color: var(--muted); font-size: 12.5px; margin-top: -4px; }
+.pad9 { display: grid; grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(3, 20px); gap: 3px; }
+.pad9 button { border: 1px solid var(--line); background: var(--raise); border-radius: 3px; cursor: pointer; padding: 0; position: relative; }
+.pad9 button::after { content: ""; position: absolute; inset: 0; margin: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); opacity: 0.5; }
+.pad9 button[aria-pressed="true"] { border-color: var(--accent); }
+.pad9 button[aria-pressed="true"]::after { background: var(--accent); opacity: 1; }
+.padwrap { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.padwrap .cap { font-size: 12.5px; color: var(--muted); }
+.keep { font-size: 13px; color: var(--muted); }
+
+/* the file */
+.file { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 980px) { .file { grid-template-columns: minmax(0, 1fr); } }
+.file pre {
+  margin: 0; background: #0d1114; border: 1px solid var(--line); border-radius: var(--r); padding: 12px; overflow: auto;
+  max-height: 340px; font: 12.5px/1.5 var(--font-mono); color: #d7d1bd; white-space: pre;
+}
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.steps code, .card code { font: 12.5px var(--font-mono); background: var(--raise); padding: 1px 5px; border-radius: 3px; word-break: break-all; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.status { font-size: 13px; color: var(--muted); }
+.status.ok { color: var(--good); }
+.status.err { color: var(--bad); }
+textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font: 12px var(--font-mono); resize: vertical; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="brand">
+    <h1>NarrowHUD Layout Editor</h1>
+    <span class="tag">LAYOUT FILE v1 · NARROWHUD 1.0.6+</span>
+  </div>
+  <p class="lead">Place each part of the HUD on the screen, then copy the file into the game's folder. Drag a part to move it; arrow keys nudge the selected one.</p>
+</header>
+
+<div class="work">
+  <section class="stage" aria-label="Screen preview">
+    <div class="screenbar">
+      <label for="aspect">Screen</label>
+      <select id="aspect">
+        <option value="1.7778" selected>16:9 (1920 × 1080, 2560 × 1440, 3840 × 2160)</option>
+        <option value="2.3889">21:9 (2560 × 1080, 3440 × 1440)</option>
+        <option value="3.5556">32:9 (3840 × 1080, 5120 × 1440)</option>
+        <option value="1.6">16:10 (1920 × 1200, 2560 × 1600)</option>
+        <option value="1.3333">4:3 (1600 × 1200)</option>
+      </select>
+      <label for="sample">Weapon</label>
+      <select id="sample"></select>
+      <span class="rowlabel" id="zoomlbl">Zoom</span>
+      <div class="seg" id="zoom" role="group" aria-labelledby="zoomlbl">
+        <button type="button" data-z="1" aria-pressed="true">Whole screen</button>
+        <button type="button" data-z="2" aria-pressed="false">2×</button>
+        <button type="button" data-z="4" aria-pressed="false">4×</button>
+      </div>
+      <label for="fillr">Left</label>
+      <input id="fillr" type="range" min="0" max="100" value="70" style="width:120px" aria-label="Ammo, heat or charge left">
+    </div>
+    <div class="frame" id="frame"><canvas id="cv" width="1280" height="720" aria-label="The game screen with the HUD parts"></canvas></div>
+    <div class="readout" id="readout">&nbsp;</div>
+    <div class="preview-opts">
+      <span class="rowlabel">F9 settings</span>
+      <label class="chk" for="o-size">Size
+        <select id="o-size"><option value="0.8">Small</option><option value="1" selected>Medium</option><option value="1.25">Large</option><option value="1.5">Huge</option></select>
+      </label>
+      <label class="chk"><input type="checkbox" id="o-useoff"> F9's offsets move this layout <span class="muted">(saved in the file)</span></label>
+      <label class="chk" for="o-offx">Offset ←→ <input type="number" id="o-offx" min="-50" max="50" step="0.5" value="0" style="width:64px"> %</label>
+      <label class="chk" for="o-offy">Offset ↓↑ <input type="number" id="o-offy" min="-50" max="50" step="0.5" value="0" style="width:64px"> %</label>
+      <label class="chk"><input type="checkbox" id="o-outline"> Empty parts as outlines</label>
+      <label class="chk"><input type="checkbox" id="o-modecol"> Modes in their own colours</label>
+      <label class="chk"><input type="checkbox" id="o-cb"> Colourblind colours</label>
+      <label class="chk"><input type="checkbox" id="o-guides" checked> Anchor points</label>
+      <p class="note">These are the mod's own settings, shown here only so the preview matches your game. They aren't saved in the layout file, except whether F9's offsets move this layout at all (off unless you turn it on).</p>
+    </div>
+  </section>
+
+  <aside class="rail">
+    <div class="card">
+      <h2>Start from</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:baseline">Parts <button class="btn" type="button" id="selall" style="font-size:12px;padding:3px 8px">Select all</button></h2>
+      <p class="muted small" style="margin:0 0 8px">Shift+click to pick several and move them together; or drag a box around them on the screen.</p>
+      <ul class="els" id="els" role="listbox" aria-label="HUD parts"></ul>
+    </div>
+    <div class="card" id="fieldcard">
+      <h2 id="fieldtitle">Bar</h2>
+      <div class="fields" id="fields"></div>
+    </div>
+  </aside>
+</div>
+
+<section class="file" aria-label="The layout file">
+  <div class="card">
+    <h2>Your layout file</h2>
+    <div class="actions">
+      <button class="btn primary" id="copy">Copy the file</button>
+      <button class="btn" id="download" hidden>Download</button>
+      <span class="status" id="copystat"></span>
+    </div>
+    <pre id="out" tabindex="0" aria-label="The layout file's text"></pre>
+  </div>
+  <div class="card">
+    <h2>Put it in the game</h2>
+    <ol class="steps">
+      <li>In the game, press <b>F9</b> › NarrowHUD › <b>Position: Custom</b>. NarrowHUD writes a layout file the first time.</li>
+      <li>Open <code>%APPDATA%\Arrowhead\Helldivers2</code> (paste it into File Explorer's address bar) and open <code>chef_data_luka189_2fnarrowhud__layout.lua</code> in Notepad.</li>
+      <li>Replace everything in it with the copied file and save.</li>
+      <li>Back in the game, press the key set in F9 under <b>Read the layout file again</b>, or start a mission.</li>
+    </ol>
+    <h2 style="margin-top:16px">Edit a file you have</h2>
+    <div class="actions">
+      <label class="btn" for="openfile">Open a file…</label>
+      <input type="file" id="openfile" accept=".lua,.txt,text/plain" hidden>
+      <span class="status" id="loadstat"></span>
+    </div>
+    <textarea id="paste" placeholder="…or paste a layout file's text here" aria-label="Paste a layout file"></textarea>
+  </div>
+</section>
+
+<script>
+'use strict';
+// ------------------------------------------------------------------------------------------------- the layout format
+// (as src/modules/10_custom.lua in NarrowHUD: the same fields, ranges, defaults and drawing)
+const ANCHORS = { center: [0.5, 0.5], top: [0.5, 1], bottom: [0.5, 0], left: [0, 0.5], right: [1, 0.5],
+  top_left: [0, 1], top_right: [1, 1], bottom_left: [0, 0], bottom_right: [1, 0] };
+const ALIGNS = ANCHORS;
+const GRID9 = ['top_left', 'top', 'top_right', 'left', 'center', 'right', 'bottom_left', 'bottom', 'bottom_right'];
+const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right'];
+const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
+  y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
+  opacity: ['number', 100, 0, 100],
+  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'modes', 'rpm', 'stims', 'grenades', 'pack']],
+  gap: ['number', 8, -500, 500] };
+const ELEMENTS = [
+  { id: 'bar', name: 'Ammo / heat bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], fill: ['choice', 'auto', ['auto', 'ticks', 'solid']],
+      length: ['number', 260, 10, 2000], radius: ['number', 150, 10, 2000], thickness: ['number', 14, 1, 200], ticks_max: ['number', 30, 1, 200] } },
+  { id: 'charge', name: 'Charge meter', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
+      thickness: ['number', 4, 1, 200], radius: ['number', 150, 10, 2000] } },
+  { id: 'count', name: 'Count', fields: {} },
+  { id: 'mags', name: 'Spare magazines', fields: { style: ['choice', 'number', ['number', 'squares']], empty: ['choice', 'shown', ['shown', 'hidden']],
+      divider: ['boolean', false] } },
+  { id: 'modes', name: 'Modes', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
+  { id: 'rpm', name: 'Rate of fire', fields: {} },
+  { id: 'stims', name: 'Stims', fields: {} },
+  { id: 'grenades', name: 'Grenades', fields: {} },
+  { id: 'pack', name: 'Backpack bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 120, 10, 2000],
+      thickness: ['number', 7, 1, 200], radius: ['number', 150, 10, 2000] } },
+];
+const BY_ID = Object.fromEntries(ELEMENTS.map(e => [e.id, e]));
+const UNDER = { _v: 1, elements: {
+  bar: { anchor: 'center', x: 0, y: -9, align: 'bottom' },
+  charge: { anchor: 'center', x: 0, y: -7.75, align: 'bottom' },
+  count: { anchor: 'center', x: 9.9, y: -8.5, align: 'left' },
+  mags: { anchor: 'center', x: 13.3, y: -9.47, align: 'bottom_left', divider: true, after: 'count', gap: 8 },
+  modes: { anchor: 'center', x: -9.7, y: -8.5, align: 'right' },
+  rpm: { anchor: 'center', x: 9.9, y: -9.9, align: 'top_left' },
+  stims: { anchor: 'center', x: -9, y: -9.6, align: 'top_left' },
+  grenades: { anchor: 'center', x: -4.6, y: -9.6, align: 'top_left' },
+  pack: { anchor: 'center', x: -0.4, y: -10.6, align: 'left', length: 135 } } };
+const PRESETS = [
+  { name: 'Under the crosshair', note: 'The mod\'s default look', t: UNDER },
+  { name: 'Beside the crosshair', note: 'A vertical bar right of the middle', t: { _v: 1, elements: {
+    bar: { anchor: 'center', x: 8.5, y: -6.5, align: 'bottom_left', style: 'vertical', length: 190, thickness: 11 },
+    charge: { anchor: 'center', x: 7.8, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 4 },
+    count: { anchor: 'center', x: 9.9, y: -6.5, align: 'bottom_left' },
+    mags: { anchor: 'center', x: 9.9, y: -8.2, align: 'top_left', style: 'squares', after: 'none' },
+    modes: { anchor: 'center', x: 9.9, y: 6.7, align: 'top_left', style: 'stacked' },
+    rpm: { anchor: 'center', x: 9.9, y: -4, align: 'bottom_left' },
+    stims: { anchor: 'center', x: 8.5, y: -9.4, align: 'top_left' },
+    grenades: { anchor: 'center', x: 12.9, y: -9.4, align: 'top_left' },
+    pack: { anchor: 'center', x: 8.5, y: -12.6, align: 'top_left', length: 150 } } } },
+  { name: 'Curved pair', note: 'A ( bar left of the crosshair, the backpack as a ) on the right', t: { _v: 1, elements: {
+    bar: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 300, radius: 160, thickness: 10 },
+    charge: { anchor: 'center', x: -6.78, y: 0, align: 'right', style: 'curved_left', length: 330, radius: 176, thickness: 4 },
+    count: { anchor: 'center', x: -6.4, y: -10.2, align: 'top_right' },
+    mags: { anchor: 'center', x: -6.4, y: -12.4, align: 'top_right', divider: false, after: 'none' },
+    modes: { anchor: 'center', x: -6.4, y: 10.2, align: 'bottom_right', style: 'stacked' },
+    rpm: { anchor: 'center', x: -6.4, y: 13.6, align: 'bottom_right' },
+    stims: { anchor: 'center', x: 6.4, y: -10.2, align: 'top_left' },
+    grenades: { anchor: 'center', x: 10.4, y: -10.2, align: 'top_left' },
+    pack: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', length: 240, radius: 160, thickness: 8 } } } },
+];
+
+function fieldOk(f, v) {
+  if (v === undefined || v === null) return false;
+  if (f[0] === 'boolean') return typeof v === 'boolean';
+  if (f[0] === 'number') return typeof v === 'number' && v === v && v >= f[2] && v <= f[3];
+  if (f[0] === 'choice') return typeof v === 'string' && f[2].includes(v);
+  return false;
+}
+// a layout table as the mod reads it: each field checked, what doesn't fit dropped (named), Under's values for the rest
+function readLayout(t) {
+  const out = {}, dropped = [];
+  const src = (t && typeof t === 'object' && t.elements && typeof t.elements === 'object') ? t.elements : {};
+  for (const el of ELEMENTS) {
+    let given = src[el.id];
+    if (given !== undefined && (typeof given !== 'object' || given === null || Array.isArray(given))) { dropped.push(el.id); given = undefined; }
+    const e = {};
+    for (const set of [COMMON, el.fields]) {
+      for (const [name, f] of Object.entries(set)) {
+        const v = given ? given[name] : undefined;
+        const ok = fieldOk(f, v);
+        if (v !== undefined && !ok) dropped.push(el.id + '.' + name);
+        // (after not given: on its own, as files from before it were made)
+        const dv = name !== 'after' && UNDER.elements[el.id] ? UNDER.elements[el.id][name] : undefined;
+        e[name] = ok ? v : (dv !== undefined ? dv : f[1]);
+      }
+    }
+    out[el.id] = e;
+  }
+  return { els: out, dropped };
+}
+
+// ------------------------------------------------------------------------------------------------- a Lua table reader
+// Only data: tables, strings, numbers, booleans, comments. Nothing in the file is run.
+function parseLua(text) {
+  let i = 0;
+  const n = text.length;
+  const err = (m) => { throw new Error(m + ' (line ' + (text.slice(0, i).split('\n').length) + ')'); };
+  function skip() {
+    for (;;) {
+      while (i < n && /\s/.test(text[i])) i++;
+      if (text.startsWith('--', i)) {
+        const lb = text.slice(i + 2).match(/^\[(=*)\[/);
+        if (lb) {
+          const close = ']' + lb[1] + ']';
+          const end = text.indexOf(close, i + 2 + lb[0].length);
+          if (end < 0) err('a comment is never closed');
+          i = end + close.length;
+        } else {
+          while (i < n && text[i] !== '\n') i++;
+        }
+        continue;
+      }
+      break;
+    }
+  }
+  function str() {
+    const q = text[i++];
+    let s = '';
+    while (i < n && text[i] !== q) {
+      if (text[i] === '\n') err('a text runs past the end of its line');
+      if (text[i] === '\\') {
+        i++;
+        const c = text[i++];
+        const map = { n: '\n', t: '\t', r: '\r', '\\': '\\', '"': '"', "'": "'" };
+        if (c in map) s += map[c];
+        else if (/\d/.test(c)) { let d = c; while (/\d/.test(text[i]) && d.length < 3) d += text[i++]; s += String.fromCharCode(+d); }
+        else s += c;
+      } else s += text[i++];
+    }
+    if (i >= n) err('a text is never closed');
+    i++;
+    return s;
+  }
+  function value() {
+    skip();
+    const c = text[i];
+    if (c === '{') return table();
+    if (c === '"' || c === "'") return str();
+    const m = text.slice(i).match(/^-?(?:0[xX][0-9a-fA-F]+|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/);
+    if (m) { i += m[0].length; return Number(m[0]); }
+    const w = text.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+    if (w) {
+      i += w[0].length;
+      if (w[0] === 'true') return true;
+      if (w[0] === 'false') return false;
+      if (w[0] === 'nil') return undefined;
+      err('"' + w[0] + '" isn\'t a value');
+    }
+    err('expected a value');
+  }
+  function table() {
+    i++;
+    const t = {};
+    let idx = 1;
+    for (;;) {
+      skip();
+      if (text[i] === '}') { i++; return t; }
+      let key;
+      if (text[i] === '[') {
+        i++; key = value(); skip();
+        if (text[i] !== ']') err('expected ]');
+        i++; skip();
+        if (text[i] !== '=') err('expected =');
+        i++;
+        t[key] = value();
+      } else {
+        const save = i;
+        const w = text.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+        let named = false;
+        if (w && !['true', 'false', 'nil'].includes(w[0])) {
+          i += w[0].length; skip();
+          if (text[i] === '=' && text[i + 1] !== '=') { i++; t[w[0]] = value(); named = true; }
+          else i = save;
+        }
+        if (!named) t[idx++] = value();
+      }
+      skip();
+      if (text[i] === ',' || text[i] === ';') { i++; continue; }
+      skip();
+      if (text[i] === '}') { i++; return t; }
+      err('expected , or }');
+    }
+  }
+  skip();
+  if (text.startsWith('return', i)) i += 6;
+  const v = value();
+  skip();
+  if (i < n) err('more text after the table');
+  if (!v || typeof v !== 'object') err('the file isn\'t a table');
+  return v;
+}
+
+// ------------------------------------------------------------------------------------------------- the file written
+function num(v) { return String(Math.round(v * 100) / 100); }
+function luaValue(v) { return typeof v === 'string' ? "'" + v + "'" : (typeof v === 'number' ? num(v) : String(v)); }
+function writeLayout(els) {
+  const lines = [
+    '-- NarrowHUD layout (F9 > NarrowHUD > Position: Custom), made with the NarrowHUD layout editor.',
+    '-- The fields are in NarrowHUD\'s docs/LAYOUT.md. x and y: % of the screen\'s height from the anchor (+ right / up).',
+    'return {',
+    '  _v = 1,',
+    '  use_offsets = ' + (useOffsets ? 'true' : 'false') + ',   -- true: F9\'s two Offset sliders move every part too',
+    '  elements = {',
+  ];
+  for (const el of ELEMENTS) {
+    const e = els[el.id];
+    const parts = [];
+    for (const name of Object.keys(COMMON)) parts.push(name + ' = ' + luaValue(e[name]));
+    for (const name of Object.keys(el.fields)) parts.push(name + ' = ' + luaValue(e[name]));
+    lines.push('    ' + el.id + ' = { ' + parts.join(', ') + ' },');
+  }
+  lines.push('  },', '}', '');
+  return lines.join('\n');
+}
+
+// ------------------------------------------------------------------------------------------------- drawing (the mod's, ported)
+const cv = document.getElementById('cv');
+const g = cv.getContext('2d');
+const SCR = { W: 2560, H: 1440 };
+// what the canvas shows: the whole screen, or a part of it zoomed in (its middle at vx, vy, screen pixels, y down)
+const view = { z: 1, vx: 1280, vy: 720 };
+function viewRect() {
+  const w = SCR.W / view.z, h = SCR.H / view.z;
+  const l = Math.max(0, Math.min(SCR.W - w, view.vx - w / 2)), t = Math.max(0, Math.min(SCR.H - h, view.vy - h / 2));
+  return { l, t, w, h };
+}
+const cfg = { size: 1, outline: false, mode_colors: false, palette: 1, opacity: 1, off_x: 0, off_y: 0 };
+const PALETTES = { 1: { CREAM: [236, 229, 206], YELLOW: [236, 214, 96], WARN: [240, 170, 90], RED: [225, 75, 60] },
+  2: { CREAM: [240, 240, 240], YELLOW: [86, 180, 233], WARN: [240, 228, 66], RED: [230, 80, 200] } };
+let P = PALETTES[1];
+const MODE2 = [86, 180, 233], MODE3 = [0, 175, 130];
+let alphaK = 1;
+const fl = Math.floor;
+function col(c, a = 235) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (fl(a * alphaK + 0.5) / 255) + ')'; }
+function rect(x, y, w, h, c) { if (w <= 0 || h <= 0) return; g.fillStyle = c; g.fillRect(x, SCR.H - y - h, w, h); }
+const HUDFONT = '"Saira Semi Condensed", "Barlow Semi Condensed", "Arial Narrow", sans-serif';
+let cap100 = 70;
+function measureCap() {
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  g.font = '500 100px ' + HUDFONT;
+  const m = g.measureText('H');
+  if (m.actualBoundingBoxAscent > 10) cap100 = m.actualBoundingBoxAscent;
+  g.restore();
+}
+function fontAt(cap) { return '500 ' + (cap * 100 / cap100) + 'px ' + HUDFONT; }
+function txtWidth(s, cap) { g.font = fontAt(cap); return g.measureText(String(s).toUpperCase()).width; }
+function txt(x, y, s, cap, c) { g.font = fontAt(cap); g.fillStyle = c; g.textBaseline = 'alphabetic'; g.fillText(String(s).toUpperCase(), x, SCR.H - y); }
+function emptyRect(x, y, w, h, faint, lw) {
+  if (w <= 0 || h <= 0) return;
+  lw = Math.max(1, lw || 1);
+  if (!cfg.outline || w <= 2 * lw || h <= 2 * lw) { rect(x, y, w, h, col(P.CREAM, faint)); return; }
+  const c = col(P.CREAM, 190);
+  rect(x, y, w, lw, c); rect(x, y + h - lw, w, lw, c); rect(x, y + lw, lw, h - 2 * lw, c); rect(x + w - lw, y + lw, lw, h - 2 * lw, c);
+}
+function solidBar(x, y, w, h, f, c, lw, vertical) {
+  f = Math.max(0, Math.min(1, f)); lw = Math.max(1, lw || 1);
+  if (!cfg.outline || w <= 2 * lw + 1 || h <= 2 * lw + 1) {
+    rect(x, y, w, h, col(P.CREAM, 45));
+    if (vertical) rect(x, y, w, fl(h * f + 0.5), c); else rect(x, y, fl(w * f + 0.5), h, c);
+    return;
+  }
+  emptyRect(x, y, w, h, 45, lw);
+  const iw = w - 2 * lw, ih = h - 2 * lw;
+  if (vertical) rect(x + lw, y + lw, iw, fl(ih * f + 0.5), c); else rect(x + lw, y + lw, fl(iw * f + 0.5), ih, c);
+}
+const MODE_TONE = { SEMI: 1, AUTO: 2, BURST: 3, VOLLEY: 3, SAFE: 1, UNSAFE: 2, TOTAL: 3, GUIDED: 1, UNGUIDED: 2, APHET: 1, FLAK: 2,
+  CLUSTER: 3, HE: 2, DEPLOY: 1, DETONATE: 2, ARTILLERY: 2, LASER: 2, 'NO LASER': 1, FLECHETTE: 1, STUN: 2 };
+function txtModes(x, y, s, cap, a) {
+  if (!cfg.mode_colors) { txt(x, y, s, cap, col(P.CREAM, a)); return; }
+  const parts = s.split('  ').filter(Boolean);
+  const sep = txtWidth('  ', cap);
+  for (const w of parts) {
+    const n = MODE_TONE[w] || 1;
+    txt(x, y, w, cap, col(n === 3 ? MODE3 : (n === 2 ? MODE2 : P.CREAM), a));
+    x += txtWidth(w, cap) + sep;
+  }
+}
+function outlined(rows) {
+  const h = rows.length, w = rows[0].length;
+  const at = (r, c) => r >= 0 && r < h && c >= 0 && c < w && rows[r][c] !== '.';
+  const out = [];
+  for (let r = -1; r <= h; r++) {
+    let line = '';
+    for (let c = -1; c <= w; c++) {
+      let ch = (r >= 0 && r < h && c >= 0 && c < w) ? rows[r][c] : '.';
+      if (ch === '.') { for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (at(r + dr, c + dc)) ch = 'o'; }
+      line += ch;
+    }
+    out.push(line);
+  }
+  return out;
+}
+const GRENADE = outlined(['.##.......', '#..#......', '.######...', '...####...', '...####.#.', '..+++++++.', '.########.',
+  '##########', '##########', '##########', '.########.', '..######..']);
+const STIM = outlined(['#..#........', '#..#######..', '####+++++###', '#..#######..', '#..#........']);
+function sprite(x, y, rows, cell, colors) {
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      const k = colors[rows[r][c]];
+      if (k) rect(x + c * cell, y + (rows.length - 1 - r) * cell, cell, cell, k);
+    }
+  }
+}
+function weaponTone(d) {
+  let frac = 0;
+  if (d.top && d.top > 0) frac = Math.max(0, Math.min(1, d.value / d.top));
+  let tone = P.CREAM;
+  if (d.kind === 'ammo') { if (d.value === 0) tone = P.RED; else if (frac <= 0.25) tone = P.WARN; }
+  else { if (d.overheated) tone = P.RED; else if (frac >= 0.75 && !d.charge_weapon) tone = P.WARN; }
+  return [frac, tone, d.reloading ? 120 : 235];
+}
+const MARK_COLORS = () => [P.YELLOW, P.WARN, P.RED];
+
+// curved bars
+function curved(e) { return e.style === 'curved_left' || e.style === 'curved_right'; }
+function arcGeom(e, k) {
+  const th = Math.max(1, fl(e.thickness * k + 0.5));
+  const R = Math.max(th, e.radius * k);
+  const len = e.length * k;
+  const span = Math.min(300, (len / R) * 180 / Math.PI);
+  const right = e.style === 'curved_right';
+  const mid = right ? 90 : 270;
+  const gm = { r_in: R - th / 2, r_out: R + th / 2, span, len, th, bot: right ? mid + span / 2 : mid - span / 2, dir: right ? -1 : 1 };
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  const angs = [];
+  for (let i = 0; i <= 24; i++) angs.push(gm.bot + gm.dir * span * i / 24);
+  for (let q = 0; q <= 360; q += 90) if ((q - gm.bot) * gm.dir >= 0 && (q - gm.bot) * gm.dir <= span) angs.push(q);
+  for (const deg of angs) {
+    const a = deg * Math.PI / 180;
+    for (const r of [gm.r_in, gm.r_out]) {
+      const px = r * Math.sin(a), py = r * Math.cos(a);
+      x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+    }
+  }
+  gm.cx = -x0; gm.cy = -y0;
+  return [gm, Math.ceil(x1 - x0), Math.ceil(y1 - y0)];
+}
+function arcPiece(gm, x, y, f0, f1, r0, r1, c) {
+  if (f1 <= f0 || r1 <= r0) return;
+  const cx = x + gm.cx, cy = SCR.H - (y + gm.cy);
+  const a0 = gm.bot + gm.dir * gm.span * f0, a1 = gm.bot + gm.dir * gm.span * f1;
+  const lo = (Math.min(a0, a1) - 90) * Math.PI / 180, hi = (Math.max(a0, a1) - 90) * Math.PI / 180;
+  g.beginPath();
+  g.arc(cx, cy, r1, lo, hi, false);
+  g.arc(cx, cy, r0, hi, lo, true);
+  g.closePath();
+  g.fillStyle = c; g.fill();
+}
+function arcEmpty(gm, x, y, f0, f1, faint, lw) {
+  if (!cfg.outline || gm.th <= 2 * lw + 1 || (f1 - f0) * gm.len <= 4 * lw) { arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_out, col(P.CREAM, faint)); return; }
+  const c = col(P.CREAM, 190), cap = lw / Math.max(1, gm.len);
+  arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_in + lw, c);
+  arcPiece(gm, x, y, f0, f1, gm.r_out - lw, gm.r_out, c);
+  arcPiece(gm, x, y, f0, Math.min(f1, f0 + cap), gm.r_in, gm.r_out, c);
+  arcPiece(gm, x, y, Math.max(f0, f1 - cap), f1, gm.r_in, gm.r_out, c);
+}
+function arcSolid(gm, x, y, f, c, lw, faint) {
+  f = Math.max(0, Math.min(1, f));
+  if (cfg.outline && gm.th > 2 * lw + 1) {
+    arcEmpty(gm, x, y, 0, 1, faint, lw);
+    const cap = lw / Math.max(1, gm.len);
+    arcPiece(gm, x, y, cap, cap + (1 - 2 * cap) * f, gm.r_in + lw, gm.r_out - lw, c);
+  } else {
+    arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.CREAM, faint));
+    arcPiece(gm, x, y, 0, f, gm.r_in, gm.r_out, c);
+  }
+}
+function arcMark(gm, x, y, f, mw, c) {
+  const hw = mw / 2 / Math.max(1, gm.len);
+  arcPiece(gm, x, y, f - hw, f + hw, gm.r_in - 2, gm.r_out + 2, c);
+}
+
+const EL_DRAW = {
+  bar(e, k, d, x, y, dry) {
+    if (!d || d.kind === 'none') return null;
+    const [frac, tone, alpha] = weaponTone(d);
+    const lw = Math.max(1, fl(k * 0.8 + 0.5));
+    const ticks = d.kind === 'ammo' && d.top >= 1 && (e.fill === 'ticks' || (e.fill === 'auto' && d.top <= e.ticks_max));
+    const marks = d.heat_marks || [[0.75, 3]];
+    if (curved(e)) {
+      const [gm, w, h] = arcGeom(e, k);
+      if (dry) return [w, h];
+      if (ticks) {
+        const n = Math.max(d.top, Math.min(d.value, d.top + 3));
+        const gapf = Math.max(1, Math.min(gm.len / n * 0.45, 4 * k)) / Math.max(1, gm.len);
+        const segf = (1 + gapf) / n - gapf;
+        for (let i = 0; i < n; i++) {
+          const f0 = i * (segf + gapf);
+          if (i < d.value) arcPiece(gm, x, y, f0, f0 + segf, gm.r_in, gm.r_out, col(tone, alpha));
+          else arcEmpty(gm, x, y, f0, f0 + segf, 55, lw);
+        }
+      } else {
+        arcSolid(gm, x, y, frac, col(tone, alpha), lw, 45);
+        if (d.kind === 'heat' && !d.charge_weapon) for (const m of marks) arcMark(gm, x, y, m[0], Math.max(2, fl(2 * k)), col(MARK_COLORS()[m[1] - 1], 220));
+      }
+      return [w, h];
+    }
+    const vert = e.style !== 'horizontal';
+    const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
+    const w = vert ? th : len, h = vert ? len : th;
+    if (dry) return [w, h];
+    if (ticks) {
+      const n = Math.max(d.top, Math.min(d.value, d.top + 3));
+      const gap = Math.max(1, Math.min(len / n * 0.45, 4 * k));
+      const step = (len + gap) / n;
+      for (let i = 0; i < n; i++) {
+        const a = fl(i * step + 0.5), z = fl(i * step + step - gap + 0.5);
+        let tx = x + a, ty = y, tw = Math.max(1, z - a), tt = th;
+        if (vert) { tx = x; ty = y + a; tw = th; tt = Math.max(1, z - a); }
+        if (i < d.value) rect(tx, ty, tw, tt, col(tone, alpha)); else emptyRect(tx, ty, tw, tt, 55, lw);
+      }
+    } else {
+      solidBar(x, y, w, h, frac, col(tone, alpha), lw, vert);
+      if (d.kind === 'heat' && !d.charge_weapon) {
+        for (const m of marks) {
+          const mw = Math.max(2, fl(2 * k));
+          if (vert) rect(x - 2, y + fl(h * m[0]), w + 4, mw, col(MARK_COLORS()[m[1] - 1], 220));
+          else rect(x + fl(w * m[0]), y - 2, mw, h + 4, col(MARK_COLORS()[m[1] - 1], 220));
+        }
+      }
+    }
+    return [w, h];
+  },
+  charge(e, k, d, x, y, dry) {
+    if (!d || d.charge_frac === undefined) return null;
+    let f = d.charge_frac;
+    let cc = d.locked ? P.WARN : (f >= 0.95 && !d.lock ? P.RED : (f >= (d.charge_mark || 2) ? P.WARN : P.CREAM));
+    if (curved(e)) {
+      const [gm, w, h] = arcGeom(e, k);
+      if (dry) return [w, h];
+      f = Math.max(0, Math.min(1, f));
+      arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.CREAM, 40));
+      arcPiece(gm, x, y, 0, f, gm.r_in, gm.r_out, col(cc, 230));
+      if (d.charge_mark) arcMark(gm, x, y, d.charge_mark, Math.max(1, fl(2 * k)), col(P.WARN, 220));
+      return [w, h];
+    }
+    const vert = e.style !== 'horizontal';
+    const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
+    const w = vert ? th : len, h = vert ? len : th;
+    if (dry) return [w, h];
+    rect(x, y, w, h, col(P.CREAM, 40));
+    if (vert) rect(x, y, w, fl(h * Math.min(1, f) + 0.5), col(cc, 230)); else rect(x, y, fl(w * Math.min(1, f) + 0.5), h, col(cc, 230));
+    if (d.charge_mark) {
+      const mw = Math.max(1, fl(2 * k));
+      if (vert) rect(x - 1, y + fl(h * d.charge_mark), w + 2, mw, col(P.WARN, 220)); else rect(x + fl(w * d.charge_mark), y - 1, mw, h + 2, col(P.WARN, 220));
+    }
+    return [w, h];
+  },
+  count(e, k, d, x, y, dry) {
+    if (!d || d.kind === 'none') return null;
+    const [frac, tone] = weaponTone(d);
+    const s = d.kind === 'heat' ? fl(frac * 100 + 0.5) + '%' : String(d.value);
+    const big = fl(28 * k + 0.5);
+    if (!dry) txt(x, y, s, big, col(tone, 245));
+    return [txtWidth(s, big), big];
+  },
+  mags(e, k, d, x, y, dry) {
+    if (!d || d.reserve === undefined) return null;
+    if (e.style === 'squares') {
+      let top = Math.max(d.reserve, d.resmax || 0);
+      if (e.empty === 'hidden') top = d.reserve;
+      const ps = Math.max(2, fl(6 * k + 0.5)), pg = Math.max(1, fl(3 * k + 0.5));
+      if (top <= 12) {
+        if (top === 0) return null;
+        if (!dry) {
+          const lw = Math.max(1, fl(k * 0.8 + 0.5));
+          for (let i = 0; i < top; i++) {
+            const sx = x + i * (ps + pg);
+            if (i < d.reserve) rect(sx, y, ps, ps, col(P.CREAM, 220));
+            else if (cfg.outline) emptyRect(sx, y, ps, ps, 55, lw);
+            else rect(sx, y, ps, ps, col([150, 150, 150], 120));
+          }
+        }
+        return [top * ps + (top - 1) * pg, ps];
+      }
+    }
+    const small = Math.max(7, fl(16 * k + 0.5));
+    const s = 'x' + d.reserve;
+    if (e.divider) {
+      const big = fl(28 * k + 0.5), dx = fl(7 * k);
+      if (!dry) { rect(x, y, Math.max(1, fl(2 * k)), big, col(P.CREAM, 150)); txt(x + dx, y, s, small, col(P.CREAM, 220)); }
+      return [dx + txtWidth(s, small), big];
+    }
+    if (!dry) txt(x, y, s, small, col(P.CREAM, 220));
+    return [txtWidth(s, small), small];
+  },
+  modes(e, k, d, x, y, dry) {
+    if (!d) return null;
+    const parts = [];
+    if (d.kind === 'heat') parts.push('HEAT');
+    if (d.mode) parts.push(d.mode);
+    if (d.fmode) parts.push(d.fmode);
+    if (!parts.length) return null;
+    const small = Math.max(7, fl(16 * k + 0.5)), gap = fl(4 * k);
+    if (e.style === 'stacked') {
+      let w = 0;
+      for (const p of parts) w = Math.max(w, txtWidth(p, small));
+      const h = parts.length * small + (parts.length - 1) * gap;
+      if (!dry) parts.forEach((p, i) => txtModes(x, y + (parts.length - 1 - i) * (small + gap), p, small, 200));
+      return [w, h];
+    }
+    const s = parts.join('  ');
+    if (!dry) txtModes(x, y, s, small, 200);
+    return [txtWidth(s, small), small];
+  },
+  rpm(e, k, d, x, y, dry) {
+    if (!d || !d.setting) return null;
+    const tiny = Math.max(6, fl(12 * k + 0.5));
+    if (!dry) txt(x, y, d.setting, tiny, col(P.CREAM, 190));
+    return [txtWidth(d.setting, tiny), tiny];
+  },
+  stims(e, k, d, x, y, dry, items) { return items ? iconEl(STIM, items.s, k, x, y, dry) : null; },
+  grenades(e, k, d, x, y, dry, items) { return items ? iconEl(GRENADE, items.g, k, x, y, dry) : null; },
+  pack(e, k, d, x, y, dry, items) {
+    const st = items && packState(items, d);
+    if (!st) return null;
+    if (curved(e)) {
+      const [gm, w, h] = arcGeom(e, k);
+      if (dry) return [w, h];
+      arcSolid(gm, x, y, st.f, col(st.c, st.a), Math.max(1, fl(k * 0.8 + 0.5)), 45);
+      for (const m of st.marks) arcMark(gm, x, y, m[0], Math.max(1, fl(2 * k)), col(m[1], 220));
+      return [w, h];
+    }
+    const vert = e.style !== 'horizontal';
+    const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
+    const w = vert ? th : len, h = vert ? len : th;
+    if (dry) return [w, h];
+    solidBar(x, y, w, h, st.f, col(st.c, st.a), Math.max(1, fl(k * 0.8 + 0.5)), vert);
+    for (const m of st.marks) {
+      const mw = Math.max(1, fl(2 * k));
+      if (vert) rect(x - 1, y + fl(h * m[0]), w + 2, mw, col(m[1], 220)); else rect(x + fl(w * m[0]), y - 1, mw, h + 2, col(m[1], 220));
+    }
+    return [w, h];
+  },
+};
+function iconEl(rows, n, k, x, y, dry) {
+  const cell = Math.max(1, fl(1.6 * k + 0.5)), small = Math.max(7, fl(16 * k + 0.5));
+  const S = GRENADE.length * cell, iw = rows[0].length * cell, s = String(n);
+  const w = iw + fl(4 * k) + txtWidth(s, small);
+  if (dry) return [w, S];
+  const c = n === 0 ? P.RED : P.CREAM;
+  sprite(x, y + fl((S - rows.length * cell) / 2), rows, cell, { '#': col(c, 220), '+': col([40, 40, 40], 210), o: col([0, 0, 0], 110) });
+  txt(x + iw + fl(4 * k), y + fl((S - small) / 2), s, small, col(c, 220));
+  return [w, S];
+}
+function packState(items, d) {
+  if (items.warp !== undefined) {
+    const h = items.warp;
+    return { f: h / 78, c: h > 45 ? P.RED : (h > 15 ? P.WARN : P.CREAM), a: 215, marks: [[15 / 78, P.WARN], [45 / 78, P.RED]] };
+  }
+  if (items.pack !== undefined && items.pack_top > 0) {
+    const f = Math.max(0, Math.min(1, items.pack / items.pack_top));
+    return { f, c: items.pack === 0 ? P.RED : (f <= 0.25 ? P.WARN : P.CREAM), a: 215, marks: [] };
+  }
+  return null;
+}
+
+// what's in hand (examples)
+const SAMPLES = [
+  { id: 'all', name: 'Every part at once', make: (f) => ({ d: { kind: 'ammo', top: 30, value: Math.round(30 * f), reserve: 5, resmax: 8, mode: 'APHET', fmode: 'AUTO', setting: '640 RPM', charge_frac: f, charge_mark: 0.83 }, items: { s: 4, g: 3, pack: Math.round(8 * f), pack_top: 8 } }) },
+  { id: 'lib', name: 'Liberator (45 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 45, value: Math.round(45 * f), reserve: 6, resmax: 8, fmode: 'AUTO', setting: '640 RPM' }, items: { s: 4, g: 4 } }) },
+  { id: 'sen', name: 'Senator (6 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 6, value: Math.round(6 * f), reserve: 4, resmax: 6 }, items: { s: 4, g: 4 } }) },
+  { id: 'scy', name: 'Scythe (heat)', make: (f) => ({ d: { kind: 'heat', top: 100, value: Math.round(100 * f) }, items: { s: 4, g: 4 } }) },
+  { id: 'lc', name: 'Laser Cannon (heat, 2 heat sinks)', make: (f) => ({ d: { kind: 'heat', top: 100, value: Math.round(100 * f), reserve: 2, resmax: 3 }, items: { s: 4, g: 4 } }) },
+  { id: 'rail', name: 'Railgun (charging)', make: (f) => ({ d: { kind: 'ammo', top: 1, value: 1, reserve: 14, resmax: 20, fmode: 'UNSAFE', charge_frac: f * 1.0, charge_mark: 2.5 / 3 }, items: { s: 4, g: 4, pack: 5, pack_top: 8 } }) },
+  { id: 'warp', name: 'With a warp pack', make: (f) => ({ d: { kind: 'ammo', top: 30, value: Math.round(30 * f), reserve: 5, fmode: 'SEMI' }, items: { s: 4, g: 4, warp: Math.round(78 * (1 - f)) } }) },
+];
+
+// ------------------------------------------------------------------------------------------------- state
+const STORE = 'narrowhud-layout-draft';
+let els = readLayout(UNDER).els;
+let sel = 'bar';
+const selSet = new Set(['bar']);         // (the parts moved together; sel is the one whose fields show)
+let boxes = {};
+let keepPlace = true;
+let useOffsets = false;                 // (the file's use_offsets: F9's offsets move a Custom layout only when it's on)
+try { const s = localStorage.getItem(STORE); if (s) { const t = JSON.parse(s); const r = readLayout(t); els = r.els; useOffsets = t.use_offsets === true; } } catch (e) { /* (a draft is a convenience only) */ }
+function saveDraft() { try { localStorage.setItem(STORE, JSON.stringify({ _v: 1, use_offsets: useOffsets, elements: els })); } catch (e) { /* ignore */ } }
+
+const $ = (id) => document.getElementById(id);
+const sampleSel = $('sample');
+for (const s of SAMPLES) { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sampleSel.append(o); }
+
+function state() {
+  const s = SAMPLES.find(x => x.id === sampleSel.value) || SAMPLES[0];
+  return s.make(Math.max(0, Math.min(1, $('fillr').value / 100)));
+}
+
+// the screen behind the HUD: dusk sky, a ridge line, the crosshair
+function backdrop() {
+  const W = SCR.W, H = SCR.H;
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#1f2a33'); sky.addColorStop(0.5, '#3a3f3c'); sky.addColorStop(0.56, '#4b4637'); sky.addColorStop(1, '#262420');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(15,16,15,0.55)';
+  g.beginPath(); g.moveTo(0, H * 0.6);
+  const peaks = [0.58, 0.55, 0.59, 0.52, 0.57, 0.54, 0.6, 0.56, 0.58];
+  peaks.forEach((p, i) => g.lineTo(W * (i + 1) / peaks.length, H * p));
+  g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill();
+  // the crosshair
+  g.strokeStyle = 'rgba(240,240,235,0.85)'; g.lineWidth = 3;
+  const cx = W / 2, cy = H / 2;
+  g.beginPath(); g.arc(cx, cy, 14, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = 'rgba(240,240,235,0.9)'; g.fillRect(cx - 2, cy - 2, 4, 4);
+}
+
+function layoutBox(e, k, d, items, drawn) {
+  const r = EL_DRAW[e.id](e, k, d, 0, 0, true, items);
+  if (!r) return null;
+  const [ew, eh] = r;
+  const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
+  const ox = useOffsets ? SCR.W * cfg.off_x / 100 : 0, oy = useOffsets ? SCR.H * cfg.off_y / 100 : 0;
+  const px = SCR.W * an[0] + SCR.H * e.x / 100 + ox;
+  const py = SCR.H * an[1] + SCR.H * e.y / 100 + oy;
+  let x = fl(px - ew * al[0] + 0.5), y = fl(py - eh * al[1] + 0.5);
+  const prev = e.after !== 'none' && drawn && drawn[e.after];
+  if (prev) x = prev.x + prev.w + fl(e.gap * k + 0.5);
+  x = Math.max(0, Math.min(x, SCR.W - ew)); y = Math.max(0, Math.min(y, SCR.H - eh));
+  return { x, y, w: ew, h: eh, px, py, k, follows: prev ? e.after : null };
+}
+
+function render() {
+  const rectc = cv.getBoundingClientRect();
+  const cssW = Math.max(200, rectc.width || cv.parentElement.clientWidth);
+  const dpr = window.devicePixelRatio || 1;
+  const cssH = cssW * SCR.H / SCR.W;
+  if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); }
+  const vr = viewRect();
+  const s = cssW / vr.w * dpr;
+  g.setTransform(s, 0, 0, s, -vr.l * s, -vr.t * s);
+  backdrop();
+  const { d, items } = state();
+  boxes = {};
+  for (const el of ELEMENTS) {
+    const e = Object.assign({ id: el.id }, els[el.id]);
+    if (!e.on || e.opacity <= 0) continue;
+    const k = (SCR.H / 1440) * cfg.size * e.size;
+    const b = layoutBox(e, k, d, items, boxes);
+    if (!b) continue;
+    boxes[el.id] = b;
+    alphaK = cfg.opacity * e.opacity / 100;
+    EL_DRAW[el.id](e, k, d, b.x, b.y, false, items);
+  }
+  alphaK = 1;
+  overlay();
+  renderList();
+}
+
+// the selected part: its box, its anchor and the line to the point of it placed there; the nine anchor points
+function overlay() {
+  const H = SCR.H, W = SCR.W, unit = viewRect().w / (cv.width / (window.devicePixelRatio || 1));
+  if ($('o-guides').checked) {
+    for (const [name, an] of Object.entries(ANCHORS)) {
+      const ax = Math.min(W - 10 * unit, Math.max(10 * unit, W * an[0])), ay = Math.min(H - 10 * unit, Math.max(10 * unit, H - H * an[1]));
+      const on = els[sel] && els[sel].anchor === name;
+      g.save(); g.translate(ax, ay); g.rotate(Math.PI / 4);
+      g.fillStyle = on ? '#f0aa5a' : 'rgba(233,226,203,0.35)';
+      const sz = (on ? 7 : 5) * unit;
+      g.fillRect(-sz, -sz, sz * 2, sz * 2);
+      g.restore();
+    }
+  }
+  if (marquee) {
+    g.strokeStyle = 'rgba(240,170,90,0.9)'; g.lineWidth = 1.2 * unit; g.setLineDash([4 * unit, 4 * unit]);
+    g.fillStyle = 'rgba(240,170,90,0.08)';
+    const x0 = Math.min(marquee.x0, marquee.x1), y0 = Math.max(marquee.y0, marquee.y1);
+    const mw = Math.abs(marquee.x1 - marquee.x0), mh = Math.abs(marquee.y1 - marquee.y0);
+    g.fillRect(x0, H - y0, mw, mh); g.strokeRect(x0, H - y0, mw, mh); g.setLineDash([]);
+  }
+  for (const id of selSet) {
+    const ob = boxes[id];
+    if (!ob || id === sel) continue;
+    g.strokeStyle = 'rgba(240,170,90,0.6)'; g.lineWidth = 1.2 * unit; g.setLineDash([4 * unit, 4 * unit]);
+    g.strokeRect(ob.x - 4 * unit, H - ob.y - ob.h - 4 * unit, ob.w + 8 * unit, ob.h + 8 * unit);
+    g.setLineDash([]);
+  }
+  const b = boxes[sel];
+  if (!b) return;
+  const e = els[sel];
+  const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
+  const ax = W * an[0], ay = H - H * an[1];
+  const tx = b.x + b.w * al[0], ty = H - (b.y + b.h * al[1]);
+  g.strokeStyle = 'rgba(240,170,90,0.9)'; g.lineWidth = 1.5 * unit;
+  g.setLineDash([6 * unit, 5 * unit]);
+  g.strokeRect(b.x - 4 * unit, H - b.y - b.h - 4 * unit, b.w + 8 * unit, b.h + 8 * unit);
+  g.beginPath(); g.moveTo(Math.min(W, Math.max(0, ax)), Math.min(H, Math.max(0, ay))); g.lineTo(tx, ty); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle = '#f0aa5a';
+  g.beginPath(); g.arc(tx, ty, 4.5 * unit, 0, Math.PI * 2); g.fill();
+}
+
+// ------------------------------------------------------------------------------------------------- the rail
+const STYLE_NAMES = { horizontal: 'Horizontal', vertical: 'Vertical', curved_left: '( Curved', curved_right: 'Curved )', auto: 'Auto', ticks: 'Ticks',
+  solid: 'Solid', number: 'Number (x7)', squares: 'Squares', shown: 'Shown', hidden: 'Hidden', line: 'In a line', stacked: 'Stacked' };
+const FIELD_NAMES = { style: 'Style', fill: 'Fill', length: 'Length', thickness: 'Thickness', radius: 'Radius', ticks_max: 'Ticks up to', empty: 'Empty squares',
+  divider: 'Divider', size: 'Size', opacity: 'Opacity', x: 'X', y: 'Y', after: 'After', gap: 'Gap' };
+const FIELD_HELP = {
+  fill: 'Auto: a tick a round up to the number below, solid above it.',
+  length: 'Pixels at 1440p, Medium size (any other resolution scales it). Along the curve for a curved style.',
+  radius: 'Of the curve\'s middle line: smaller curves more.',
+  ticks_max: 'Rounds in a magazine.',
+  empty: 'Squares for magazines you\'ve used.',
+  divider: 'A thin line before the number, as tall as the count.',
+  x: '% of the screen\'s height from the anchor, + right.',
+  y: '% of the screen\'s height from the anchor, + up.',
+  size: 'Times the F9 Size.',
+  after: 'Right after another part, moving along as that one grows ("100%"). Its x isn\'t used then.',
+  gap: 'Pixels from that part\'s right edge (at 1440p, Medium). Dragging sets it too.',
+};
+
+function renderList() {
+  const ul = $('els');
+  if (!ul.children.length) {
+    for (const el of ELEMENTS) {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option'); li.dataset.id = el.id; li.tabIndex = 0;
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'on-' + el.id; cb.setAttribute('aria-label', 'Show ' + el.name);
+      cb.addEventListener('click', (ev) => { ev.stopPropagation(); els[el.id].on = cb.checked; changed(); });
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = el.name;
+      const st = document.createElement('span'); st.className = 'st';
+      li.append(cb, nm, st);
+      li.addEventListener('click', (ev) => select(el.id, ev.shiftKey || ev.ctrlKey || ev.metaKey));
+      li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(el.id, ev.shiftKey); } });
+      ul.append(li);
+    }
+  }
+  for (const li of ul.children) {
+    const id = li.dataset.id, e = els[id];
+    li.setAttribute('aria-selected', String(selSet.has(id)));
+    li.classList.toggle('off', !e.on);
+    li.querySelector('input').checked = e.on;
+    li.querySelector('.st').textContent = !e.on ? 'off' : (!boxes[id] ? 'not with this weapon' : (boxes[id].follows ? 'after ' + boxes[id].follows : num(e.x) + ', ' + num(e.y)));
+  }
+}
+
+function select(id, add) {
+  if (add) { if (selSet.has(id) && selSet.size > 1) { selSet.delete(id); if (sel === id) sel = [...selSet][0]; } else { selSet.add(id); sel = id; } }
+  else { selSet.clear(); selSet.add(id); sel = id; }
+  buildFields(); render();
+}
+
+function numberField(wrap, name, f, e) {
+  const pair = document.createElement('div'); pair.className = 'pair';
+  const r = document.createElement('input'); r.type = 'range';
+  const lim = { x: [-50, 50], y: [-50, 50], size: [0.3, 4], opacity: [0, 100], length: [10, 900], thickness: [1, 60], radius: [20, 900], ticks_max: [1, 120], gap: [-60, 120] }[name] || [f[2], f[3]];
+  r.min = lim[0]; r.max = lim[1]; r.step = (name === 'x' || name === 'y') ? 0.1 : (name === 'size' ? 0.05 : 1);
+  r.value = e[name]; r.setAttribute('aria-label', FIELD_NAMES[name] || name);
+  const n = document.createElement('input'); n.type = 'number'; n.min = f[2]; n.max = f[3]; n.step = r.step; n.value = num(e[name]); n.id = 'f-' + name;
+  const set = (v, from) => {
+    v = Number(v);
+    if (!(v >= f[2] && v <= f[3])) return;
+    els[sel][name] = v;
+    if (from !== r) r.value = v;
+    if (from !== n) n.value = num(v);
+    changed();
+  };
+  r.addEventListener('input', () => set(r.value, r));
+  n.addEventListener('change', () => set(n.value, n));
+  pair.append(r, n);
+  wrap.append(pair);
+}
+function choiceField(wrap, name, f, e) {
+  const seg = document.createElement('div'); seg.className = f[2].length > 3 ? 'seg wide' : 'seg'; seg.setAttribute('role', 'group');
+  for (const v of f[2]) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = STYLE_NAMES[v] || v;
+    b.setAttribute('aria-pressed', String(e[name] === v));
+    b.addEventListener('click', () => { els[sel][name] = v; buildFields(); changed(); });
+    seg.append(b);
+  }
+  wrap.append(seg);
+}
+function pad9(label, name, map, e) {
+  const box = document.createElement('div');
+  const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = label;
+  const pad = document.createElement('div'); pad.className = 'pad9'; pad.setAttribute('role', 'group'); pad.setAttribute('aria-label', label);
+  for (const v of GRID9) {
+    const b = document.createElement('button'); b.type = 'button'; b.title = v.replace('_', ' ');
+    b.setAttribute('aria-label', label + ': ' + v.replace('_', ' '));
+    b.setAttribute('aria-pressed', String(e[name] === v));
+    b.addEventListener('click', () => { setPlace(name, v); });
+    pad.append(b);
+  }
+  box.append(cap, pad);
+  return box;
+}
+// a new anchor or align point: x and y worked out again so the part stays where it is (unless that's turned off)
+function setPlace(name, v) {
+  const e = els[sel], b = boxes[sel];
+  e[name] = v;
+  if (keepPlace && b) {
+    const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
+    const tx = b.x + b.w * al[0], ty = b.y + b.h * al[1];
+    e.x = Math.round((tx - SCR.W * an[0]) / SCR.H * 10000) / 100;
+    e.y = Math.round((ty - SCR.H * an[1]) / SCR.H * 10000) / 100;
+    e.x = Math.max(-100, Math.min(100, e.x)); e.y = Math.max(-100, Math.min(100, e.y));
+  }
+  buildFields(); changed();
+}
+
+function buildFields() {
+  const el = BY_ID[sel], e = els[sel];
+  $('fieldtitle').textContent = el.name;
+  const box = $('fields'); box.replaceChildren();
+  const row = (name, build, help) => {
+    const f = document.createElement('div'); f.className = 'f';
+    const l = document.createElement('label'); l.className = 'rowlabel'; l.textContent = FIELD_NAMES[name] || name; l.htmlFor = 'f-' + name;
+    const w = document.createElement('div'); w.style.minWidth = '0';
+    build(w);
+    f.append(l, w);
+    if (help) { const h = document.createElement('div'); h.className = 'help'; h.textContent = help; f.append(h); }
+    box.append(f);
+  };
+  // place
+  const pw = document.createElement('div'); pw.className = 'padwrap';
+  pw.append(pad9('Screen point', 'anchor', ANCHORS, e), pad9('The part\'s point on it', 'align', ALIGNS, e));
+  const kp = document.createElement('label'); kp.className = 'keep chk';
+  const kc = document.createElement('input'); kc.type = 'checkbox'; kc.checked = keepPlace; kc.id = 'keepplace';
+  kc.addEventListener('change', () => { keepPlace = kc.checked; });
+  kp.append(kc, document.createTextNode(' Keep it in place'));
+  pw.append(kp);
+  box.append(pw);
+  if (selSet.size > 1) {
+    const p = document.createElement('p'); p.className = 'small'; p.style.margin = '0';
+    p.textContent = selSet.size + ' parts picked: dragging any of them or the arrow keys move them all. These fields are the ' + el.name.toLowerCase() + '\'s.';
+    box.prepend(p);
+  }
+  row('after', (w) => {
+    const sl = document.createElement('select'); sl.id = 'f-after';
+    const order = ELEMENTS.map(x => x.id);
+    for (const v of COMMON.after[2]) {
+      if (v === sel) continue;
+      if (v !== 'none' && order.indexOf(v) > order.indexOf(sel)) continue;   // (only a part drawn before it)
+      const o = document.createElement('option'); o.value = v; o.textContent = v === 'none' ? 'Nothing: placed on its own' : BY_ID[v].name;
+      o.selected = e.after === v; sl.append(o);
+    }
+    sl.addEventListener('change', () => { els[sel].after = sl.value; buildFields(); changed(); });
+    w.append(sl);
+  }, FIELD_HELP.after);
+  if (e.after !== 'none') row('gap', (w) => numberField(w, 'gap', COMMON.gap, e), FIELD_HELP.gap);
+  if (e.after === 'none') row('x', (w) => numberField(w, 'x', COMMON.x, e), FIELD_HELP.x);
+  row('y', (w) => numberField(w, 'y', COMMON.y, e), FIELD_HELP.y);
+  row('size', (w) => numberField(w, 'size', COMMON.size, e), FIELD_HELP.size);
+  row('opacity', (w) => numberField(w, 'opacity', COMMON.opacity, e));
+  for (const [name, f] of Object.entries(el.fields)) {
+    if (name === 'radius' && !curved(e)) continue;
+    if (name === 'ticks_max' && e.fill !== 'auto') continue;
+    if (name === 'empty' && e.style !== 'squares') continue;
+    if (name === 'divider' && e.style === 'squares') continue;
+    let help = FIELD_HELP[name];
+    if (name === 'length' && sel === 'bar' && e.style === 'horizontal' && e.length === 260) help = FIELD_HELP.length;
+    if (f[0] === 'number') row(name, (w) => numberField(w, name, f, e), help);
+    else if (f[0] === 'choice') row(name, (w) => choiceField(w, name, f, e), help);
+    else if (f[0] === 'boolean') row(name, (w) => {
+      const c = document.createElement('input'); c.type = 'checkbox'; c.id = 'f-' + name; c.checked = e[name];
+      c.addEventListener('change', () => { els[sel][name] = c.checked; changed(); });
+      w.append(c);
+    }, help);
+  }
+  if (!e.on) {
+    const p = document.createElement('p'); p.className = 'muted small'; p.style.margin = '0';
+    p.textContent = 'This part is off: its box in the list turns it on.';
+    box.prepend(p);
+  }
+}
+
+function changed() { saveDraft(); updateFile(); render(); }
+function updateFile() { $('out').textContent = writeLayout(els); }
+
+// presets
+for (const p of PRESETS) {
+  const b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.textContent = p.name; b.title = p.note;
+  b.addEventListener('click', () => { els = readLayout(p.t).els; buildFields(); changed(); $('loadstat').textContent = ''; });
+  $('presets').append(b);
+}
+
+// ------------------------------------------------------------------------------------------------- the screen: select, drag, nudge
+let drag = null, marquee = null, spaceDown = false;
+window.addEventListener('keydown', (ev) => { if (ev.code === 'Space' && !['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes((ev.target && ev.target.tagName) || '')) { spaceDown = true; ev.preventDefault(); } });
+window.addEventListener('keyup', (ev) => { if (ev.code === 'Space') spaceDown = false; });
+function toScreen(ev) {
+  const r = cv.getBoundingClientRect(), vr = viewRect();
+  const sx = vr.l + (ev.clientX - r.left) / r.width * vr.w, sy = vr.t + (ev.clientY - r.top) / r.height * vr.h;
+  return [sx, SCR.H - sy];
+}
+function hit(x, y) {
+  const pad = 8 * viewRect().w / cv.getBoundingClientRect().width;
+  const order = ELEMENTS.map(e => e.id).reverse();
+  if (boxes[sel]) order.unshift(sel);
+  for (const id of order) {
+    const b = boxes[id];
+    if (b && x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad) return id;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', (ev) => {
+  const [x, y] = toScreen(ev);
+  cv.setPointerCapture(ev.pointerId);
+  // (zoomed in: Space held or the middle button moves the view)
+  if (view.z > 1 && (spaceDown || ev.button === 1)) {
+    ev.preventDefault();
+    drag = { pan: true, cx: ev.clientX, cy: ev.clientY, vx: view.vx, vy: view.vy }; cv.classList.add('grabbing');
+    return;
+  }
+  const id = hit(x, y);
+  const add = ev.shiftKey || ev.ctrlKey || ev.metaKey;
+  if (!id) {
+    // (the empty screen: a box picks the parts it touches)
+    marquee = { x0: x, y0: y, x1: x, y1: y, add };
+    return;
+  }
+  if (add) { select(id, true); if (!selSet.has(id)) return; }
+  else if (!selSet.has(id)) { selSet.clear(); selSet.add(id); }
+  if (id !== sel) sel = id;
+  buildFields();
+  const start = {};
+  for (const sid of selSet) start[sid] = { ex: els[sid].x, ey: els[sid].y, gap: els[sid].gap, k: boxes[sid] ? boxes[sid].k : 1, follows: boxes[sid] && boxes[sid].follows };
+  drag = { id, x0: x, y0: y, start };
+  cv.classList.add('grabbing');
+  render();
+});
+cv.addEventListener('pointermove', (ev) => {
+  const [x, y] = toScreen(ev);
+  if (marquee) {
+    marquee.x1 = x; marquee.y1 = y;
+    render();
+    return;
+  }
+  if (!drag) {
+    const id = hit(x, y);
+    cv.classList.toggle('grab', !!id);
+    $('readout').textContent = 'x ' + (x / SCR.W * 100).toFixed(1) + ' %W   y ' + (y / SCR.H * 100).toFixed(1) + ' %H' + (id ? '   ' + BY_ID[id].name : '');
+    return;
+  }
+  if (drag.pan) {
+    const r = cv.getBoundingClientRect(), vr = viewRect();
+    view.vx = drag.vx - (ev.clientX - drag.cx) / r.width * vr.w;
+    view.vy = drag.vy - (ev.clientY - drag.cy) / r.height * vr.h;
+    const v2 = viewRect(); view.vx = v2.l + v2.w / 2; view.vy = v2.t + v2.h / 2;
+    render();
+    return;
+  }
+  const step = ev.altKey ? 0.01 : 0.1;
+  const snap = (v) => Math.round(v / step) * step;
+  const dxp = snap((x - drag.x0) / SCR.H * 100), dyp = snap((y - drag.y0) / SCR.H * 100);
+  for (const [sid, st] of Object.entries(drag.start)) {
+    const e = els[sid];
+    // (a part placed after another: dragging sideways sets its gap)
+    if (st.follows && !drag.start[st.follows]) e.gap = Math.max(-500, Math.min(500, Math.round(st.gap + dxp / 100 * SCR.H / st.k)));
+    else if (!st.follows) e.x = Math.max(-100, Math.min(100, Math.round((st.ex + dxp) * 100) / 100));
+    e.y = Math.max(-100, Math.min(100, Math.round((st.ey + dyp) * 100) / 100));
+  }
+  const e = els[drag.id];
+  $('readout').textContent = (selSet.size > 1 ? selSet.size + ' parts' : BY_ID[drag.id].name) + ': ' +
+    (boxes[drag.id] && boxes[drag.id].follows ? 'gap ' + e.gap : 'x ' + num(e.x)) + '  y ' + num(e.y) + '  (hold Alt for finer steps)';
+  render();
+  for (const [name, v] of [['x', e.x], ['y', e.y], ['gap', e.gap]]) { const n = $('f-' + name); if (n) n.value = num(v); }
+});
+function endDrag() {
+  if (marquee) {
+    const m = marquee; marquee = null;
+    const x0 = Math.min(m.x0, m.x1), x1 = Math.max(m.x0, m.x1), y0 = Math.min(m.y0, m.y1), y1 = Math.max(m.y0, m.y1);
+    const got = Object.entries(boxes).filter(([, b]) => b.x <= x1 && b.x + b.w >= x0 && b.y <= y1 && b.y + b.h >= y0).map(([id]) => id);
+    if (Math.abs(m.x1 - m.x0) + Math.abs(m.y1 - m.y0) < 4) { if (!m.add) { /* a click on nothing keeps the selection */ } render(); return; }
+    if (!m.add) selSet.clear();
+    for (const id of got) selSet.add(id);
+    if (got.length) sel = got.includes(sel) ? sel : got[0];
+    if (!selSet.size) selSet.add(sel);
+    buildFields(); render();
+    return;
+  }
+  if (!drag) return;
+  const pan = drag.pan;
+  drag = null; cv.classList.remove('grabbing');
+  if (pan) return;
+  buildFields(); changed();
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+document.addEventListener('keydown', (ev) => {
+  const tag = (ev.target && ev.target.tagName) || '';
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;
+  const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[ev.key];
+  if (!m) return;
+  ev.preventDefault();
+  const st = ev.shiftKey ? 1 : 0.1;
+  for (const sid of selSet) {
+    const e = els[sid];
+    if (boxes[sid] && boxes[sid].follows) e.gap = Math.round(e.gap + m[0] * st * SCR.H / 100 / boxes[sid].k);
+    else e.x = Math.round((e.x + m[0] * st) * 100) / 100;
+    e.y = Math.round((e.y + m[1] * st) * 100) / 100;
+  }
+  buildFields(); changed();
+});
+
+// ------------------------------------------------------------------------------------------------- the preview's settings
+$('aspect').addEventListener('change', () => { SCR.W = Math.round(1440 * Number($('aspect').value)); view.vx = SCR.W / 2; render(); });
+for (const b of $('zoom').querySelectorAll('button')) {
+  b.addEventListener('click', () => {
+    view.z = Number(b.dataset.z);
+    // (zoomed on the selected part, else the crosshair)
+    const bx = boxes[sel];
+    view.vx = bx ? bx.x + bx.w / 2 : SCR.W / 2; view.vy = bx ? SCR.H - (bx.y + bx.h / 2) : SCR.H / 2;
+    if (view.z > 1 && bx) { view.vx = (view.vx + SCR.W / 2) / 2; view.vy = (view.vy + SCR.H / 2) / 2; }
+    for (const o of $('zoom').querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b));
+    render();
+  });
+}
+sampleSel.addEventListener('change', render);
+$('fillr').addEventListener('input', render);
+$('o-size').addEventListener('change', () => { cfg.size = Number($('o-size').value); render(); });
+$('o-outline').addEventListener('change', () => { cfg.outline = $('o-outline').checked; render(); });
+$('o-modecol').addEventListener('change', () => { cfg.mode_colors = $('o-modecol').checked; render(); });
+$('o-cb').addEventListener('change', () => { P = PALETTES[$('o-cb').checked ? 2 : 1]; render(); });
+$('o-guides').addEventListener('change', render);
+function syncOffsets() { $('o-useoff').checked = useOffsets; $('o-offx').disabled = !useOffsets; $('o-offy').disabled = !useOffsets; }
+$('o-useoff').addEventListener('change', () => { useOffsets = $('o-useoff').checked; syncOffsets(); changed(); });
+$('o-offx').addEventListener('change', () => { cfg.off_x = Math.max(-50, Math.min(50, Number($('o-offx').value) || 0)); render(); });
+$('o-offy').addEventListener('change', () => { cfg.off_y = Math.max(-50, Math.min(50, Number($('o-offy').value) || 0)); render(); });
+$('selall').addEventListener('click', () => { for (const el of ELEMENTS) if (boxes[el.id]) selSet.add(el.id); buildFields(); render(); });
+window.addEventListener('resize', render);
+
+// ------------------------------------------------------------------------------------------------- the file: copy, download, open
+$('copy').addEventListener('click', () => {
+  const text = writeLayout(els);
+  const stat = $('copystat');
+  const fallback = () => {
+    const r = document.createRange(); r.selectNodeContents($('out'));
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    stat.className = 'status'; stat.textContent = 'Selected: press Ctrl+C to copy.';
+  };
+  try {
+    navigator.clipboard.writeText(text).then(() => { stat.className = 'status ok'; stat.textContent = 'Copied.'; }, fallback);
+  } catch (e) { fallback(); }
+});
+// (a download only where the page is the whole tab: inside an embedding frame it's refused)
+if (window.top === window.self) {
+  const dl = $('download');
+  dl.hidden = false;
+  dl.addEventListener('click', () => {
+    const blob = new Blob([writeLayout(els)], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'chef_data_luka189_2fnarrowhud__layout.lua';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+}
+function loadText(text, from) {
+  const stat = $('loadstat');
+  try {
+    const t = parseLua(text);
+    const r = readLayout(t);
+    els = r.els;
+    if (t.use_offsets !== undefined && typeof t.use_offsets !== 'boolean') r.dropped.push('use_offsets');
+    useOffsets = t.use_offsets === true; syncOffsets();
+    select(sel); changed();
+    if (r.dropped.length) { stat.className = 'status err'; stat.textContent = from + ': read. ' + r.dropped.length + ' value(s) that don\'t fit were left at Under\'s: ' + r.dropped.join(', ') + '.'; }
+    else { stat.className = 'status ok'; stat.textContent = from + ': read.'; }
+  } catch (e) {
+    stat.className = 'status err'; stat.textContent = from + ' can\'t be read: ' + e.message + '. The game wouldn\'t read it either.';
+  }
+}
+$('openfile').addEventListener('change', (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => loadText(String(rd.result), f.name);
+  rd.readAsText(f);
+  ev.target.value = '';
+});
+$('paste').addEventListener('input', () => { const t = $('paste').value.trim(); if (t) loadText(t, 'The pasted file'); });
+
+// ------------------------------------------------------------------------------------------------- start
+function start() {
+  measureCap();
+  SCR.W = Math.round(1440 * Number($('aspect').value));
+  syncOffsets(); buildFields(); updateFile(); render();
+}
+if (document.fonts && document.fonts.load) {
+  Promise.all([document.fonts.load('500 40px "Saira Semi Condensed"'), document.fonts.ready]).then(start, start);
+  setTimeout(() => { if (!$('out').textContent) start(); }, 2500);
+} else start();
+</script>

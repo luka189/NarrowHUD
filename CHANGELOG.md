@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.0.6
+
+**New: Custom position and the layout editor**
+- F9 > NarrowHUD > Position: **Custom** places every part of the HUD on its own: the bar, the charge meter, the count,
+  the magazines, the modes, the rate of fire, stims, grenades and the backpack bar, each placed, sized, faded and
+  styled on its own (bars horizontal, vertical, curved "(" or curved ")", ticks or solid; magazines as a number or
+  squares; modes in a line or stacked). A part can follow another (the magazines follow the count, so "100%" never
+  runs over them).
+- **The layout editor**, https://luka189.github.io/NarrowHUD/editor/ : drag the parts around a game screen, see each
+  weapon type as it will look, then copy (or download) the file. Starting points: Under, Beside, and a curved pair.
+- The first time you pick Custom, NarrowHUD writes a layout file with Under's look to start from. A new key in F9
+  reads the file again without restarting. A file with a typo is never written over: Under's look until it's fixed,
+  and the key says so on screen. F9's offsets move a Custom layout only when its file says so (the editor has a box
+  for it). The format is in docs/LAYOUT.md.
+
+**Hosting with SEAF** (from full-mission logs, thanks!)
+- A soldier's gun firing while you fired could still take the HUD over and teach NarrowHUD wrong things. Now a gun
+  whose trigger is held while you aren't firing is someone else's at once, as is one that fires without your fire
+  button three times and a quarter of its shots. What such a gun taught NarrowHUD in that mission is taken back, and
+  while you charge the Nova, the Quasar or a Railgun, a gun firing on the same hand pose isn't learned as yours.
+- Lighter as host: guns proven someone else's aren't read any more, and the others only for what shows a shot.
+
+**Fixes**
+- No more blinking off for a moment: walking, vaulting, a stim or a swap's first moments pass through hand poses with
+  no weapon, and the HUD went off for 0.1 to 1 s each time. The weapon shown now stays up to 2 s there. Grenades and
+  stratagems still hide it at once.
+- Swapping to your support weapon could show another weapon for a moment (a Stalwart lying on the map, as host, held
+  like your primary). NarrowHUD now waits for the hand pose to settle after a key.
+- The mouse wheel while holding the weapon options key (R) changes a scope's zoom or the flashlight, not the weapon:
+  no longer taken for a swap (switching the AMR's scope showed the wrong ammo). Moved weapon options off R in the
+  game? Set the same key in F9 ("Weapon options key, held").
+- New setting "Mouse wheel swaps weapons (as in the game)": up and down, up only, down only, or no.
+- The Railgun showed the Guard Dog's magazines instead of its own spare rounds (a reload just as the dog reloaded was
+  taken for a backpack reload). A weapon whose own magazines go down on a reload is never taken for one, and one
+  learned so before is put right on its next reload.
+- Heat weapons with a backpack on (the Nova, the Scythe ...) showed the backpack's count as magazines. Not any more.
+- The LAS-5 Scythe's heat sink attachments (overheating at 60 or 150) showed the wrong top of the heat bar. Each
+  weapon's overheat point is now taken from its own overheats, and the last one is kept for the next mission.
+- A weapon with no rate of fire setting could show one (the Sightliner's 40 RPM, from 40 on one planet and 36 on an
+  Extreme Cold one). Fixed, and what was learned that way is dropped.
+- The Halt: its two rounds are shown by name, FLECHETTE and STUN, each with its own count and magazine size.
+- Research log: a timing line once a minute (where NarrowHUD's time goes), and it reads less as host.
+- Under the hood: the mod is split into modules.
+
 ## 1.0.5
 
 - Joining someone else's game: your grenades and stims could show the host's counts instead, flicking between theirs

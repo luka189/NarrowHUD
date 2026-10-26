@@ -6,12 +6,20 @@
 
 A small ammo and heat readout by your crosshair for Helldivers 2: the magazine in hand as a narrow bar, the count and
 your spare magazines, plus your stims, grenades and backpack. It runs on
-[Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.0.x or 1.2 and newer** (1.1 doesn't allow the
-reads it needs).
+[Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.0.x or 1.2.3 and newer** (1.1 doesn't allow the
+reads it needs; 1.2.0 to 1.2.2 take some smaller missions for the ship, and NarrowHUD stays off in them).
+
+## Make it your own: the layout editor
+
+**[Open the NarrowHUD layout editor](https://luka189.github.io/NarrowHUD/editor/)** to place every part of the HUD
+anywhere on the screen: drag the bar, the count, the magazines, the modes, stims, grenades and the backpack bar around a
+game screen, make bars vertical or curved, and see how each kind of weapon will look. Then download (or copy) the file,
+pick **Position: Custom** in F9, and press the "Read the layout file again" key. Under, Beside and a curved pair are
+there to start from. The file's format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
 
 ## Install
 
-1. Install Chef Shared Loader (1.0.x, or 1.2 or newer) as its page says.
+1. Install Chef Shared Loader (1.0.x, or 1.2.3 or newer) as its page says.
 2. Add the NarrowHUD zip in your mod manager and enable it.
 3. Play. Settings are in the F9 menu, under NarrowHUD.
 
@@ -31,13 +39,16 @@ reads it needs).
 - **Lock-on** (Spear, WASP ...) and **charge meters** (Railgun, Epoch).
 - **Stims, grenades** and how full your **backpack** is; the warp pack's heat and the jump pack's recharge.
 
-Three layouts: **under the crosshair** (a wide bar), **beside it** (a short vertical bar, the count, your magazines as
-small squares), or **a screen corner** by the game's weapon panel (best with the bar and items turned off).
+Three built-in layouts: **under the crosshair** (a wide bar), **beside it** (a short vertical bar, the count, your
+magazines as small squares), or **a screen corner** by the game's weapon panel (best with the bar and items turned
+off). Or **Custom**: your own, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 
 ## Settings (F9, NarrowHUD)
 
-- Size; position (under or beside the crosshair, or a screen corner by the game's weapon panel); one offset left /
-  right and down / up that moves any of them anywhere.
+- Size; position (under or beside the crosshair, a screen corner by the game's weapon panel, or Custom: every part
+  placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/));
+  one offset left / right and down / up that moves the built-in ones anywhere (a Custom layout only when its file
+  says so).
 - Every part shown or hidden on its own: the bar, the count, the spare magazines, the HEAT label, weapon modes, the
   fire mode, the rate of fire, the charge meter, stims, grenades, the backpack bar.
 - Spare magazines beside and in the corner: squares or a number; the empty squares shown or hidden.
@@ -45,7 +56,8 @@ small squares), or **a screen corner** by the game's weapon panel (best with the
 - Opacity, and dimming or hiding when nothing has changed for a few seconds.
 - Colours: standard, or colourblind (white, sky blue, yellow, magenta: told apart by brightness too).
 - The game's font or a pixel font (Chef 1.0.x; from 1.1 on, Chef's own "Game font" setting does that for every mod).
-- Your fire button and swap keys, as you've bound them in the game (left mouse and 1 / 2 / 3 by default).
+- Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
+  game (left mouse, 1 / 2 / 3, the wheel and R by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.
 - A research log for bug reports, and running on a game version NarrowHUD wasn't made for.
 
@@ -73,12 +85,17 @@ python3 tests/run_tests.py        # offline tests (lupa, Lua 5.1)
 python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge, src/learned_seed.lua
 ```
 
-- `src/narrowhud.lua`: the mod. `src/data_generated.lua`: the game object types and fields it reads, from the game's
+- `src/narrowhud.lua`: the head (header lines, version); `src/modules/NN_*.lua`: the mod, in modules (core, settings,
+  learned, objects, hand, learning, weapon, draw_kit, beside, custom, under, research, main) that build.py puts
+  together, each in its own function, sharing through a table N. `python3 tools/lint_globals.py` (also run by the
+  tests) catches a name a module uses but doesn't have. `src/data_generated.lua`: the game object types and fields it reads, from the game's
   network config (`tools/parse_netcfg.py`, `tools/make_data.py`; the engine knows them only by a 32-bit hash, so the
   names are stand-ins with the same hashes, from `tools/crack_thin.c`). `src/learned_seed.lua`: the shipped knowledge.
 - The learned file is `chef_data_luka189_2fnarrowhud__learned.lua` (Chef 1.0.0: `..._narrowhud_learned.lua`) in
   `%APPDATA%\Arrowhead\Helldivers2`; the log is `narrowhud.log` next to it.
 - After a game patch: [PATCHING.md](PATCHING.md). Release history: [CHANGELOG.md](CHANGELOG.md).
+- The layout editor: `editor/editor.html` (one page, no build step; `tools/build.py` wraps it as `editor/index.html`
+  for GitHub Pages). It draws the parts with the mod's own drawing code ported to JavaScript.
 
 ## Credits
 
