@@ -86,7 +86,7 @@ local function draw_side(d, items)
       local cwid = math.max(1, math.floor(2 * k + 0.5))
       local cx0 = x0 - math.max(1, math.floor(2 * k + 0.5)) - cwid
       local f = d.charge_frac
-      local cc = d.locked and WARN or (f >= 0.95 and not d.t0.has.lock and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
+      local cc = d.locked and WARN or (f >= 0.95 and not d.t0.has.lock and not d.charge_safe and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
       chef.rect(cx0, yb, cwid, vh, col(CREAM, 40), L)
       chef.rect(cx0, yb, cwid, math.floor(vh * math.min(1, f) + 0.5), col(cc, 230), L + 1)
       if d.charge_mark then

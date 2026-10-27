@@ -4,7 +4,7 @@ Thanks for all the reports! To get your problem fixed quickly, please include [b
 
 [size=3][b]1. First, the quick checks[/b][/size]
 [list]
-[*][b]Chef Shared Loader version:[/b] NarrowHUD needs [b]1.0.x, or 1.2.3 and newer[/b]. Chef 1.1 blocks the reads it needs, and 1.2.0 to 1.2.2 take some smaller missions for the ship, so NarrowHUD never starts in them. In chef_loader.log, a mission showing as "not a mission" means updating Chef.
+[*][b]Chef Shared Loader version:[/b] NarrowHUD needs [b]1.2.3 and newer[/b].
 [*][b]Chef Shared Loader must have the highest priority[/b] in your mod manager (then Purge and Deploy). Some mods bring their own boot script (HD2 Transmog, for one): with a higher priority than Chef, theirs replaces Chef's and no Chef mod runs, NarrowHUD included. Chef runs Transmog itself, so both work with Chef on top.
 [*][b]No other loader needed:[/b] the "look-alike: CowboyBingusModLoader" line in chef_loader.log is Chef offering other loaders' features to their mods. NarrowHUD only needs Chef.
 [*][b]Only in missions:[/b] nothing shows on the ship or in menus.

@@ -256,6 +256,24 @@ local function pack_state(items, d)
   return nil
 end
 
+-- the icon textures (TEXTURES, tools/make_textures.py): each a ladder of sizes told to Chef once; the largest is the
+-- name drawn by, Chef picks the copy nearest the size drawn
+local tex_tops, tex_said, tex_n = {}, nil, nil
+local function tex_top(name)
+  local l = TEXTURES[name]
+  if not l then return nil end
+  local top = tex_tops[name]
+  if top == nil then
+    top = l[#l][3]
+    if chef.texture_sizes then
+      local ladder = {}
+      for _, e in ipairs(l) do ladder[#ladder + 1] = e[1] ladder[#ladder + 1] = e[3] end
+      chef.texture_sizes({ [top] = ladder })
+    end
+    tex_tops[name] = top
+  end
+  return top
+end
 local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, bar)
   local L = 905
   local lw = math.max(1, math.floor(k * 0.8 + 0.5))
@@ -267,10 +285,43 @@ local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, ba
   local function icon_count(x, rows, n)
     local c = n == 0 and RED or CREAM
     local h = #rows * cell
-    chef.sprite(x, iy + math.floor((S - h) / 2), rows, cell,
-      { ['#'] = col(c, 220), ['+'] = col({ 40, 40, 40 }, 210), o = col({ 0, 0, 0 }, 110) }, L)
+    -- (1.2.0 warnings: no stims left while hurt: they pulse)
+    local p = rows == N.STIM and n == 0 and N.warn_stims or 1
+    -- (1.6.0 test: the stim as a texture, its own size ladder; the pixel sprite when it can't be drawn)
+    local drawn = false
+    local mode = cfg.icon_tex or 1
+    if rows == N.STIM and mode > 1 and TEXTURES.stim and chef.bitmap then
+      -- (the test's ways: 2 the size ladder in the main world, 3 the same at a top layer (Chef's top world, over the
+      -- game's HUD), 4 one texture (the 128 px one) with no ladder, in the main world)
+      local tex = mode == 4 and TEXTURES.stim[2][3] or tex_top('stim')
+      local layer = mode == 3 and (chef.TOP or 2000) + L - 900 or L
+      -- (a square texture, the icon across its middle: drawn as a square of the icon's width, centred on the line)
+      local tw = #rows[1] * cell
+      drawn = tex and chef.bitmap(tex, x, iy + math.floor((S - tw) / 2), tw, tw, col(c, 220 * p), layer) == true
+      local said = drawn and ('drawn, way ' .. mode) or 'not drawn'
+      if tex_said ~= said then
+        tex_said = said
+        local rr = chef.setting and chef.setting('render_settings.render_resolution')
+        local sw, sh = chef.screen()
+        log('icons: the stim texture %s; screen %sx%s, render resolution %s', drawn and said or 'not drawn (Chef says why above): the pixel sprite instead',
+          tostring(sw), tostring(sh), type(rr) == 'table' and (tostring(rr[1]) .. 'x' .. tostring(rr[2])) or tostring(rr))
+      end
+      -- (research: how many frames Chef drew it and how many it refused, every 10 s, to catch it coming and going)
+      if cfg.research then
+        tex_n = tex_n or { at = chef.time(), yes = 0, no = 0 }
+        if drawn then tex_n.yes = tex_n.yes + 1 else tex_n.no = tex_n.no + 1 end
+        if chef.time() - tex_n.at >= 10 then
+          if tex_n.no > 0 then log('research: the stim texture: drawn %d frames, refused %d, in 10 s', tex_n.yes, tex_n.no) end
+          tex_n.at, tex_n.yes, tex_n.no = chef.time(), 0, 0
+        end
+      end
+    end
+    if not drawn then
+      chef.sprite(x, iy + math.floor((S - h) / 2), rows, cell,
+        { ['#'] = col(c, 220 * p), ['+'] = col({ 40, 40, 40 }, 210 * p), o = col({ 0, 0, 0 }, 110 * p) }, L)
+    end
     x = x + #rows[1] * cell + math.floor(4 * k)
-    txt(x, ty, tostring(n), small, col(c, 220), L)
+    txt(x, ty, tostring(n), small, col(c, 220 * p), L)
     return x + txt_width(tostring(n), small)
   end
   local x = x0 - gap

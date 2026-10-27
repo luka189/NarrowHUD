@@ -17,7 +17,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 NAME = 'mods/luka189/narrowhud'
 GUID = '8e4b6f12-3a7d-4c95-b0e1-6d2f9a54c3b7'
-LUA_TYPE = 0xA14E8DFA2CD117E2
+LUA_TYPE, TEXTURE_TYPE = 0xA14E8DFA2CD117E2, 0xCD4238C6A0C69E32
 ARCHIVE = '9ba626afa44a3aa3.patch_0'
 
 
@@ -38,18 +38,35 @@ def resource_hash(name):
 
 
 def make_archive(resources):
-    count = len(resources)
-    offset = (104 + 80 * count + 15) & ~15
-    entries, body = bytearray(), bytearray(offset)
-    for index, (name, resource) in enumerate(sorted(resources.items())):
-        entries += struct.pack('<7Q6I', name, LUA_TYPE, offset, 0, 0, 0, 0, len(resource), 0, 0, 16, 16, index)
-        body += resource
+    """A patch archive of (name hash, type hash, data, gpu data) resources: the main file and its .gpu_resources
+    (the layout Stratagem Timers' icon sheet and Lua shipped in before the October 2026 patch)"""
+    order = [LUA_TYPE, TEXTURE_TYPE]
+    types = sorted({r[1] for r in resources}, key=lambda t: order.index(t) if t in order else 99)
+    res = sorted(resources, key=lambda r: (types.index(r[1]), r[0]))
+    count = len(res)
+    offset = (72 + 32 * len(types) + 80 * count + 15) & ~15
+    entries, body, gpu = bytearray(), bytearray(offset), bytearray()
+    for index, (name, rtype, data, gdata) in enumerate(res):
+        gpu_off = len(gpu) if gdata else 0
+        entries += struct.pack('<7Q6I', name, rtype, offset, 0, gpu_off, 0, 0, len(data), 0, len(gdata), 16, 64, index)
+        body += data
         body += b'\0' * (-len(body) % 16)
         offset = len(body)
-    header = struct.pack('<III20sQQ24s', 0xF0000011, 1, count, b'', offset, 0, b'')
-    types = struct.pack('<IIQIIII', 0, 0, LUA_TYPE, count, 0, 16, 16)
-    body[:104 + len(entries)] = header + types + entries
-    return bytes(body)
+        if gdata:
+            gpu += gdata
+            gpu += b'\0' * (-len(gpu) % 64)
+    header = struct.pack('<III20sQQ24s', 0xF0000011, len(types), count, b'', offset, 0, b'')
+    tlist = b''.join(struct.pack('<IIQIIII', 0, 0, t, sum(1 for r in res if r[1] == t), 0, 16, 64) for t in types)
+    body[:72 + len(tlist) + len(entries)] = header + tlist + entries
+    return bytes(body), bytes(gpu)
+
+
+def textures():
+    """the icon textures tools/make_textures.py wrote (build/textures/<id>.texture + .gpu)"""
+    out = []
+    for tex in sorted((ROOT / 'build' / 'textures').glob('*.texture')):
+        out.append((int(tex.stem, 16), TEXTURE_TYPE, tex.read_bytes(), tex.with_suffix('.gpu').read_bytes()))
+    return out
 
 
 def source():
@@ -64,12 +81,15 @@ def source():
         n += 1
     head, rest = '\n'.join(lines[:n]), '\n'.join(lines[n:])
     seed = (ROOT / 'src' / 'learned_seed.lua').read_text(encoding='utf-8')
+    ball = (ROOT / 'src' / 'ballistics_generated.lua').read_text(encoding='utf-8')
+    tex = (ROOT / 'src' / 'textures_generated.lua').read_text(encoding='utf-8')
     # the modules (src/modules/NN_name.lua, in order), each in a function of its own (each gets Lua's 200 locals),
     # sharing through N; the head (src/narrowhud.lua) first, return M last
     rest = rest.replace('-- the modules (src/modules, in order) go here, then: return M\n', '')
     mods = sorted((ROOT / 'src' / 'modules').glob('[0-9][0-9]_*.lua'))
     body = ''.join(f';(function() -- {m.stem}\n{m.read_text(encoding="utf-8")}end)()\n' for m in mods)
     return (f'{head}\nlocal DATA = (function()\n{data}\nend)()\nlocal SEED = (function()\n{seed}\nend)()\n'
+            f'local BALLISTICS = (function()\n{ball}\nend)()\nlocal TEXTURES = (function()\n{tex}\nend)()\n'
             f'{rest}local N = {{}}\n{body}return M\n')
 
 
@@ -84,11 +104,13 @@ def main():
     (out / 'narrowhud.lua').write_text(src, encoding='utf-8')
     lua = src.encode('utf-8')
     manifest = {'Version': 1, 'Guid': GUID, 'Name': f'NarrowHUD {version}',
-                'Description': 'Ammo and heat as a narrow bar by the crosshair, plus stims, grenades and your backpack. '
-                               'Needs Chef Shared Loader 1.0.x or 1.2.3 and newer. Settings: F9 menu, NarrowHUD.',
+                'Description': 'NEW: layout editor at https://luka189.github.io/NarrowHUD/editor/ . '
+                               'Ammo and heat by the crosshair, plus stims, grenades and your backpack. '
+                               'Needs Chef Shared Loader 1.2.3 or newer. Settings: F9 menu, NarrowHUD.',
                 'IconPath': 'thumbnail.png'}
-    files = {f'core/{ARCHIVE}': make_archive({resource_hash(NAME): struct.pack('<II', len(lua), 2) + lua}),
-             f'core/{ARCHIVE}.stream': b'', f'core/{ARCHIVE}.gpu_resources': b'',
+    main_file, gpu_file = make_archive([(resource_hash(NAME), LUA_TYPE, struct.pack('<II', len(lua), 2) + lua, b'')] + textures())
+    files = {f'core/{ARCHIVE}': main_file,
+             f'core/{ARCHIVE}.stream': b'', f'core/{ARCHIVE}.gpu_resources': gpu_file,
              'manifest.json': (json.dumps(manifest, indent=2) + '\n').encode(),
              'Source/narrowhud.lua': lua,
              'thumbnail.png': (ROOT / 'art' / 'thumbnail.png').read_bytes(),

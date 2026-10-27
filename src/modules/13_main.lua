@@ -8,14 +8,13 @@ local objs, queue, me, queue_2, queue_b, classify = N.objs, N.queue, N.me, N.que
 local session, scan, input, read_fire_button, hand_pose, read_weapon = N.session, N.scan, N.input, N.read_fire_button, N.hand_pose, N.read_weapon
 local av_refs, av_said, read_av_refs, pack_ammo, hand, swap = N.av_refs, N.av_said, N.read_av_refs, N.pack_ammo, N.hand, N.swap
 local read_swap, research_switch, pick, heat_rate, watch_fire, CHARGE_METER = N.read_swap, N.research_switch, N.pick, N.heat_rate, N.watch_fire, N.CHARGE_METER
-local shown, notice, layout, load_layout, draw, rws = N.shown, N.notice, N.layout, N.load_layout, N.draw, N.rws
+local shown, notice, layout, load_layout, draw = N.shown, N.notice, N.layout, N.load_layout, N.draw
 
 local next_scan, next_read, next_items = 0, 0, 0
 local shown_now, items_now = nil, nil
 local session_ok = false
 
 local world_seen = nil
-local probe_said = false
 -- (research log: where NarrowHUD's time goes, once a minute. os.clock counts in 1 ms steps on Windows, but its sums
 -- over a minute come out right)
 local clock = os and os.clock
@@ -26,7 +25,6 @@ local function lap(name, t0)
   perf.t[name] = (perf.t[name] or 0) + (t1 - t0)
   return t1
 end
-local rw_turn = 0
 
 -- On a game version NarrowHUD wasn't made for, with Chef 1.2's Network.object_info (a type's declared fields), it
 -- checks its data instead of staying off: each type it reads must still exist and declare every field it reads. A type
@@ -87,12 +85,27 @@ local function build_gate(now)
   end
   return false
 end
+-- (1.2.2) a mark in the log, for testing: the key set in F9 writes a numbered line with what's shown, so a moment
+-- in play can be found in the log ("at mark 3 the HUD blinked")
+local marks = 0
 local function read_forget_keys(now)
+  if keys.log_mark and keys.log_mark.pressed and keys.log_mark.pressed() == true then
+    marks = marks + 1
+    local o = hand.goid and objs[hand.goid]
+    log('==== MARK %d ==== hand pose %s, shown: %s (object %s), fire button %.1f s ago, swap %.1f s ago', marks,
+      tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100))
+    flash.text, flash.till = string.format('NarrowHUD: mark %d in the log', marks), now + 1.5
+  end
+  if N.startup_flash then flash.text, flash.till, N.startup_flash = N.startup_flash, now + 8, nil end
   if keys.reload_layout and keys.reload_layout.pressed and keys.reload_layout.pressed() == true then
     local ok, dropped = load_layout('the reload key')
     flash.text, flash.till = not ok and 'NarrowHUD: the layout file can\'t be read (see narrowhud.log)'
       or ((dropped or 0) > 0 and string.format('NarrowHUD: layout file read, %d values left at their defaults', dropped)
       or 'NarrowHUD: layout file read again'), now + 3
+    -- (1.2.1: read, but only Custom uses it: said, a player waited for a change that couldn't come)
+    if ok and (not cfg.custom or cfg.builtin) then
+      flash.text, flash.till = 'NarrowHUD: layout file read, but it\'s used only with F9 > NarrowHUD > Position: Custom', now + 5
+    end
   end
   if keys.forget_weapon and keys.forget_weapon.pressed and keys.forget_weapon.pressed() == true then
     local o = hand.goid and objs[hand.goid]
@@ -164,7 +177,6 @@ function M.update(dt)
     for i = #queue_2, 1, -1 do queue_2[i] = nil end
     for i = #queue_b, 1, -1 do queue_b[i] = nil end
     for k in pairs(N.checked) do N.checked[k] = nil end
-    for k in pairs(rws) do rws[k] = nil end
     for k in pairs(N.pack_vals) do N.pack_vals[k] = nil end
     for k in pairs(distrust) do distrust[k] = nil end
     for k in pairs(av_refs) do av_refs[k] = nil end
@@ -175,32 +187,14 @@ function M.update(dt)
     blocked.n, blocked.types, blocked.yes, blocked.since, blocked.new_said = 0, 0, false, now, 0
     me.player, me.avatar = nil, nil
     shown_now, items_now, N.pack_prev = nil, nil, nil
+    if N.stim then N.stim.prev_s, N.stim.at = nil, nil end   -- (a new mission's stim count isn't a stim used)
+    if N.reload_reset then N.reload_reset() end
+    if N.markers_reset then N.markers_reset() end
     next_scan = now
   end
   local t0 = cfg.research and clock and clock() or nil
   classify(s)
   t0 = lap('sorting', t0)
-  -- (research, once a session: what Network.object_info gives for the player's type, allowed again from Chef 1.2:
-  -- a type's field list would let NarrowHUD check its data against a patched game instead of going off)
-  if cfg.research and not probe_said then
-    probe_said = true
-    local ok, info = pcall(call, 'objinfo', 'Network.object_info', DATA.player.name)
-    local function show(v, depth)
-      if type(v) ~= 'table' then return tostring(v) end
-      if depth > 3 then return '{...}' end
-      local parts, n = {}, 0
-      for k, x in pairs(v) do
-        n = n + 1
-        if n <= 12 then parts[#parts + 1] = tostring(k) .. '=' .. show(x, depth + 1) end
-      end
-      return '{' .. table.concat(parts, ' ') .. (n > 12 and (' ... ' .. n .. ' in all') or '') .. '}'
-    end
-    log('research: Network.object_info(player type) gives %s: %s', ok and type(info) or 'an error', string.sub(show(info, 0), 1, 600))
-    if ok and type(info) == 'table' and type(info.fields) == 'table' then
-      for i = 1, math.min(4, #info.fields) do log('research: object_info field %d: %s', i, string.sub(show(info.fields[i], 1), 1, 300)) end
-      log('research: object_info: %d fields (NarrowHUD\'s data: the player type has the avatar field %s)', #info.fields, tostring(DATA.player.avatar))
-    end
-  end
   if now >= next_scan then
     next_scan = now + 1
     scan(s, peer)
@@ -222,6 +216,7 @@ function M.update(dt)
         local t = o.t and TYPES[o.t]
         if t and o.on and (t.pack or t.special) then
           packs[#packs + 1] = t.id .. (t.has.carry and ('(carry ' .. tostring(field(s, goid, t, 'carry')) .. ')') or '')
+            .. ((o.map_pack and not o.mine) and ' (the map\'s)' or '')
         end
       end
       log('session: you %s, host %s; %d objects yours, %d the host\'s; your player %s; %d weapons on you; a weapon\'s owner field reads %s (%s); packs on you: %s',
@@ -230,13 +225,14 @@ function M.update(dt)
     end
   end
   read_fire_button(now)
+  if (cfg.drop_line or 1) == 2 or cfg.throw_line then N.read_aim_button(now) end
   read_swap(now)
   read_forget_keys(now)
 
   t0 = lap('scan', t0)
   if now >= next_read then
     next_read = now + 0.1
-    local grip = hand_pose()
+    local grip = hand_pose(s)
     t0 = lap('scan', t0)
     watch_fire(s, grip)
     t0 = lap('weapons', t0)
@@ -257,7 +253,18 @@ function M.update(dt)
       if cfg.research and goid and hand.goid and goid ~= hand.goid and grip == hand.grip then research_switch(s, hand.goid, goid, grip, now) end
       local o = goid and objs[goid]
       local said = string.format('hand pose %s: %s', tostring(grip), o and TYPES[o.t].id or 'no weapon shown')
-      if said ~= hand.said then log('%s', said) hand.said = said end
+      if said ~= hand.said then
+        log('%s', said)
+        hand.said = said
+        -- (the drop line needs each type's weapon name once, from a tester: which weapon this is)
+        local b = o and BALLISTICS[TYPES[o.t].id]
+        if o and (not b or b.guess) and not (hand.named or {})[o.t] then
+          hand.named = hand.named or {}
+          hand.named[o.t] = true
+          log('weapon %s: %s (for the drop line, tell which weapon this is, with the magazine it shows)', TYPES[o.t].id,
+            b and ('taken for the ' .. b.name .. ' by its magazine and rate of fire') or 'no projectile numbers known')
+        end
+      end
       hand.goid, hand.grip = goid, grip
     end
     local o = goid and objs[goid]
@@ -268,32 +275,11 @@ function M.update(dt)
       if line ~= hand.fields then hand.fields = line log('%s', line) end
     end
     t0 = lap('picking', t0)
-    if o and o.t and cfg.research then N.research_watch(s, goid, TYPES[o.t]) end
-    if cfg.research then
-      -- your backpack (jump pack, hover pack ...: what it keeps), and while nothing is shown, the weapons on you not
-      -- learned yet (what an Arc Thrower changes when fired). At most 25 a read, in turn: as host, everything a SEAF
-      -- squad carries is yours too
-      local list = {}
-      for pgoid, po in pairs(objs) do
-        local pt = po.t and TYPES[po.t]
-        if pt and po.on and not po.notmine and (pt.pack or pt.other or (shown_now == nil and grip and grip ~= 0 and not THROWABLE[grip]
-            and not pt.player and not pt.avatar and learned.grip[pt.id] == nil and not po.ub)) then
-          list[#list + 1] = pgoid
-        end
-      end
-      table.sort(list)
-      local n = #list
-      for i = 1, math.min(25, n) do
-        rw_turn = rw_turn % n + 1
-        local pgoid = list[rw_turn]
-        N.research_watch(s, pgoid, TYPES[objs[pgoid].t])
-      end
-    end
+    if cfg.research then N.batched_research(s, now, goid, grip) end
     t0 = lap('research', t0)
     local full = o and o.prev and not o.prev.lite and o.prev or (o and o.t and read_weapon(s, goid, TYPES[o.t]))
     shown_now = o and o.t and shown(s, goid, TYPES[o.t], full, o) or nil
     if shown_now and shown_now.kind == nil then shown_now = nil end
-    hand.throwable = THROWABLE[grip] == true
   end
 
   if me.avatar and now >= next_items and alive(s, me.avatar, TYPES[2]) then
@@ -317,21 +303,24 @@ function M.update(dt)
         local sp = t and t.special
         if sp and o.on and alive(s, sgoid, t) then
           local v = call(t.id .. '.special', 'GameSession.game_object_field', s, sgoid, sp.fname)
+          -- (one of the map's from the mission's start (04_objects) is read, never shown, until it's used: yours)
+          if o.sp_prev ~= nil and v ~= o.sp_prev then o.mine = true end
+          local maps = o.map_pack and not o.mine
           if sp.kind == 'warp' and type(v) == 'number' then
-            items_now.warp = v
+            if not maps then items_now.warp = v end
           elseif sp.kind == 'timer' and type(v) == 'boolean' then
             if o.sp_prev ~= nil and v ~= o.sp_prev and v == sp.on_rise then o.sp_t = now end
             if v and not sp.on_rise then o.sp_t = nil end          -- (hovering: the recharge starts on landing)
             -- a flight starts when the flag comes on with no flight in the last 14 s (later ones are the landing assist)
             if sp.flight and v and o.sp_prev == false and (o.fly_t == nil or now - o.fly_t > 14) then o.fly_t = now end
-            o.sp_prev = v
             local f = 1
             if v and not sp.on_rise then
               f = sp.flight and o.fly_t and math.max(0, 1 - (now - o.fly_t) / sp.flight) or 0   -- (draining)
               items_now.draining = true
             elseif o.sp_t then f = math.min(1, (now - o.sp_t) / sp.secs) end
-            items_now.recharge = f
+            if not maps then items_now.recharge = f else items_now.draining = nil end
           end
+          o.sp_prev = v
         end
       end
       if cfg.research and (pt and pt.id) ~= hand.bar_pack then
@@ -345,31 +334,13 @@ function M.update(dt)
     end
   end
 
+  local vit = N.vitals_step(s, now, items_now)
+  N.read_markers(s, now)
   t0 = lap('items', t0)
-  -- Heat, every frame: run on at the weapon's rate (up while the trigger is held, read every frame; down otherwise),
-  -- and when the field brings a new value, fold the difference in over a quarter second instead of jumping to it.
+  -- Heat, every frame, between the field's values (12_heat)
   local d = shown_now
   if d and d.kind == 'heat' and d.o and d.o.h_last and not d.charge_anim then
-    local o = d.o
-    local held
-    if d.t.has.held and learned.charge2[d.tid] == nil then held = field(s, d.goid, d.t, 'held') == true
-    else held = o.firing == true end
-    local dt = math.min(0.1, now - (o.sim_t or now))
-    o.sim_t = now
-    if o.sim == nil then
-      o.sim, o.err, o.sim_seen = o.h_last, 0, o.h_last_t
-    else
-      local rate = held and heat_rate('up', d.tid) or (not held and heat_rate('down', d.tid) and -heat_rate('down', d.tid)) or 0
-      o.sim = o.sim + rate * dt
-      if o.sim_seen ~= o.h_last_t then                     -- a new value from the field
-        o.sim_seen = o.h_last_t
-        o.err = o.h_last - o.sim
-      end
-      local take = (o.err or 0) * math.min(1, dt / 0.25)
-      o.sim, o.err = o.sim + take, (o.err or 0) - take
-    end
-    o.sim = math.max(0, math.min(d.top_raw, o.sim))
-    d.value = math.max(0, o.sim - d.rest)
+    N.heat_model(s, d, now)
   elseif d and d.o then
     d.o.sim = nil
   end
@@ -394,31 +365,64 @@ function M.update(dt)
     local held = field(s, d.goid0, d.t0, 'held') == true
     if held then
       hand.held_t = hand.held_t or now
-      d.charge_frac = (now - hand.held_t) / m.secs
-      d.charge_mark = m.mark and m.mark / m.secs
+      -- (the Railgun in SAFE mode charges to 60 % in about 1.7 s and stops there, never blowing up: the meter fills to
+      -- 60 % and stays, orange once it's there, no danger mark)
+      local fm = d.t0.id == '26acc614' and d.t0.has.fire_mode and tonumber(field(s, d.goid0, d.t0, 'fire_mode'))
+      if fm and math.floor(fm / 8) % 2 == 0 and fm % 8 == 5 then
+        d.charge_frac, d.charge_mark, d.charge_safe = math.min(0.6, (now - hand.held_t) / 1.7 * 0.6), nil, true
+        d.locked = d.charge_frac >= 0.6
+      else
+        d.charge_frac = (now - hand.held_t) / m.secs
+        d.charge_mark = m.mark and m.mark / m.secs
+      end
     else
       hand.held_t = nil
     end
   elseif d then
     hand.held_t = nil
   end
+  N.reload_track(d, now)
   -- idle: dimmed or hidden when nothing changed for a while (idle_target)
   local target = idle_target(d, items_now, now)
   hand.fade = hand.fade or 1
   if target < hand.fade then hand.fade = math.max(target, hand.fade - (dt or 0.016) * 1.5) else hand.fade = target end
-  N.alpha_k = cfg.opacity * hand.fade
-  if (shown_now or (items_now and hand.grip and hand.grip ~= 0)) and hand.fade > 0.01 then
+  -- (the stratagem input, an emote: hidden over a quarter second, back at once)
+  local st8 = N.state8
+  local hide = st8.strat or (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0)
+  hand.hidef = hide and math.max(0, (hand.hidef or 1) - (dt or 0.016) * 4) or 1
+  local vhide = cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0
+  N.alpha_k = cfg.opacity * hand.fade * hand.hidef
+  if (shown_now or (items_now and hand.grip and hand.grip ~= 0)) and hand.fade > 0.01 and hand.hidef > 0.01 then
     local dd = shown_now
-    if dd and not (cfg.show_rpm and cfg.show_fmode and cfg.show_mode and cfg.show_mags and cfg.show_charge) then
+    if dd and not (cfg.show_rpm and cfg.show_fmode and cfg.show_mode and cfg.show_mags and (cfg.show_charge or dd.reload_line)) then
       dd = setmetatable({}, { __index = shown_now })
       if not cfg.show_rpm then dd.setting = false end
       if not cfg.show_fmode then dd.fmode = false end
       if not cfg.show_mode then dd.mode = false end
       if not cfg.show_mags then dd.reserve = false end
-      if not cfg.show_charge then dd.charge_frac = false end
+      if not cfg.show_charge and not shown_now.reload_line then dd.charge_frac = false end
     end
     draw(dd, items_now)
   end
+  -- (health and stamina: dimmed or hidden with the rest when nothing changes, never while you're hurt or out of breath)
+  if vit and (vit.show_h > 0 or vit.show_s > 0 or vit.stim) and not vhide then
+    N.alpha_k = cfg.opacity * ((vit.busy or vit.stim) and 1 or (hand.fade or 1))
+    N.draw_vitals(vit)
+  end
+  -- (1.3.0) your map pin and your last death, on the screen where they are; hidden with the stratagem input
+  if hand.hidef > 0.01 then
+    N.alpha_k = cfg.opacity * hand.hidef
+    N.draw_markers()
+    -- (1.4.0) the drop line of the weapon in hand
+    N.drop_lines = 0
+    if shown_now and shown_now.tid and hand.grip and hand.grip ~= 0 then N.draw_drop(shown_now.tid) end
+    -- (1.5.0) a throw's line: a stratagem ball, a grenade or C4 aimed
+    N.throw_step(now, hand.grip, shown_now)
+  end
+  -- (Chef keeps showing the last lines dispatched until a frame draws some again: a line of nothing for a few
+  -- frames after the last, so a drop or throw line that goes doesn't stay in the world; the 1.4.2 and 1.5.1 logs)
+  if N.drop_lines > 0 then hand.lines_at = now
+  elseif hand.lines_at and now - hand.lines_at < 0.25 then N.drop_clear() end
   N.alpha_k = cfg.opacity
   if t0 then
     lap('drawing', t0)
@@ -435,6 +439,7 @@ function M.update(dt)
       for id, sec in pairs(N.el_time or {}) do els[#els + 1] = string.format('%s %.3f', id, sec * 1000 / f) end
       table.sort(els)
       if #els > 0 then parts[#parts + 1] = 'of the drawing: ' .. table.concat(els, ' ') end
+      if (N.drop_lines or 0) > 0 then parts[#parts + 1] = string.format('%d drop line segments this frame', N.drop_lines) end
       N.el_time = {}
       local nobj, queued = 0, #queue + #queue_2 + #queue_b
       for _ in pairs(objs) do nobj = nobj + 1 end
@@ -446,11 +451,14 @@ function M.update(dt)
   end
   if (blocked.n >= 5 or (blocked.types or 0) > 2000 and not blocked.yes) and blocked.since and now - blocked.since < 25 then
     if not blocked.said then blocked.said = true log('GameSession.game_object_is_type refused: your weapons can\'t be read with this Chef version') end
-    notice('NarrowHUD: this Chef version blocks the reads it needs (it runs on Chef Shared Loader 1.0.x and 1.2 on)')
+    notice('NarrowHUD: this Chef version blocks the reads it needs (it needs Chef Shared Loader 1.2.3 or newer)')
   end
   if flash.text and now < flash.till then notice(flash.text) end
 end
 
+function M.debug_objs() return objs end   -- (tests)
+function M.debug_fly(b, pitch, len) return N.drop_fly(b, pitch, len) end
+function M.debug_cfg(k, v) cfg[k] = v end   -- (tests: a setting with no menu row, such as the texture test's way)
 function M.shutdown()
   if N.dirty_at then save_learned() end
 end

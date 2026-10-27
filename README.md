@@ -6,20 +6,20 @@
 
 A small ammo and heat readout by your crosshair for Helldivers 2: the magazine in hand as a narrow bar, the count and
 your spare magazines, plus your stims, grenades and backpack. It runs on
-[Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.0.x or 1.2.3 and newer** (1.1 doesn't allow the
-reads it needs; 1.2.0 to 1.2.2 take some smaller missions for the ship, and NarrowHUD stays off in them).
+[Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.2.3 or newer** (older versions either block the
+reads it needs or take some smaller missions for the ship, where NarrowHUD stays off).
 
 ## Make it your own: the layout editor
 
 **[Open the NarrowHUD layout editor](https://luka189.github.io/NarrowHUD/editor/)** to place every part of the HUD
 anywhere on the screen: drag the bar, the count, the magazines, the modes, stims, grenades and the backpack bar around a
-game screen, make bars vertical or curved, and see how each kind of weapon will look. Then download (or copy) the file,
+game screen (or a screenshot of your own game, read in the browser only), make bars vertical or curved, and see how each kind of weapon will look. Then download (or copy) the file,
 pick **Position: Custom** in F9, and press the "Read the layout file again" key. Under, Beside and a curved pair are
 there to start from. The file's format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
 
 ## Install
 
-1. Install Chef Shared Loader (1.0.x, or 1.2.3 or newer) as its page says.
+1. Install Chef Shared Loader (1.2.3 or newer) as its page says, with the highest priority in your mod manager.
 2. Add the NarrowHUD zip in your mod manager and enable it.
 3. Play. Settings are in the F9 menu, under NarrowHUD.
 
@@ -38,15 +38,23 @@ there to start from. The file's format is in [docs/LAYOUT.md](docs/LAYOUT.md) fo
   colour (cream, blue or green), so a switch is easy to see.
 - **Lock-on** (Spear, WASP ...) and **charge meters** (Railgun, Epoch).
 - **Stims, grenades** and how full your **backpack** is; the warp pack's heat and the jump pack's recharge.
+- **Health and stamina** bars: always (the default), or only while they aren't full.
+- A **stim timer**, **reload progress**, low-health **warnings**, and the HUD **out of the way** while you call in a stratagem or emote.
+- **Your map pin** and **where you last died** on the screen, where they are in the world, with their distance; an
+  arrow at the screen's edge when one is out of view.
+- A **drop line** for grenade launchers, rockets and plasma: the shot's flight from the weapon, bending down, hidden
+  where it enters the ground (while aiming down the sights by default; or whenever the weapon is in hand).
+- A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
 
-Three built-in layouts: **under the crosshair** (a wide bar), **beside it** (a short vertical bar, the count, your
-magazines as small squares), or **a screen corner** by the game's weapon panel (best with the bar and items turned
-off). Or **Custom**: your own, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
+Four built-in layouts: **under the crosshair** (a wide bar), **beside it** (a short vertical bar, the count, your
+magazines as small squares), **a screen corner** by the game's weapon panel (best with the bar and items turned
+off), or a **curved pair** around the crosshair (the ammo bar as a ) on the right, the backpack as a ( on the left).
+Or **Custom**: your own, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 
 ## Settings (F9, NarrowHUD)
 
-- Size; position (under or beside the crosshair, a screen corner by the game's weapon panel, or Custom: every part
-  placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/));
+- Size; position (under or beside the crosshair, a screen corner by the game's weapon panel, the curved pair, or
+  Custom: every part placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/));
   one offset left / right and down / up that moves the built-in ones anywhere (a Custom layout only when its file
   says so).
 - Every part shown or hidden on its own: the bar, the count, the spare magazines, the HEAT label, weapon modes, the
@@ -55,7 +63,8 @@ off). Or **Custom**: your own, made in the [layout editor](https://luka189.githu
 - Empty parts (of the ammo bar, the magazine squares, the backpack bar) faint, or as outlines.
 - Opacity, and dimming or hiding when nothing has changed for a few seconds.
 - Colours: standard, or colourblind (white, sky blue, yellow, magenta: told apart by brightness too).
-- The game's font or a pixel font (Chef 1.0.x; from 1.1 on, Chef's own "Game font" setting does that for every mod).
+- The world: the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its length), the
+  throw line, and the lines' thickness.
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.
@@ -70,7 +79,7 @@ off). Or **Custom**: your own, made in the [layout editor](https://luka189.githu
   your swap keys.
 - A shot counts as yours only within a moment of your fire button: as host, you own the soldiers' and some other
   objects too.
-- After a game patch it checks its data against the game (on Chef 1.0.x and 1.2+) and leaves out anything that
+- After a game patch it checks its data against the game (on Chef 1.2 and newer) and leaves out anything that
   moved. If it can't check, it stays off and says so, rather than risk a crash.
 
 **Known issues:** controllers (right trigger to fire, Y to swap) work on an Xbox-style pad; PlayStation pads are
@@ -99,7 +108,8 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
 
 ## Credits
 
-- Weapon heat and charge values: the [Helldivers 2 wiki](https://helldivers.wiki.gg).
+- Weapon heat and charge values, stim durations, each projectile's speed, mass, drag and gravity: the [Helldivers 2 wiki](https://helldivers.wiki.gg).
+- Uses research from [HD2Runtime by SkyeShade](https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line).
 - The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used here.
 - Chef Shared Loader by Th3chef runs it; filediver (BSD) takes the network config out of the game files.
 

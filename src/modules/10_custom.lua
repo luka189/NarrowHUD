@@ -19,7 +19,8 @@ local ALIGNS = { bottom_left = { 0, 0 }, bottom = { 0.5, 0 }, bottom_right = { 1
 -- the elements in drawing order, each field: { kind, default, min / choices, max }
 -- after: right after another part (drawn before it), gap pixels (at 1440p, Medium) from its right edge, its x then
 -- not used: a count that grows ("100%") pushes the magazines along instead of running over them
-local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, modes = 1, rpm = 1, stims = 1, grenades = 1, pack = 1 }
+local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, modes = 1, rpm = 1, stims = 1, grenades = 1, pack = 1,
+  health = 1, stamina = 1, stim = 1 }
 local COMMON = { on = { 'boolean', true }, anchor = { 'choice', 'center', ANCHORS }, x = { 'number', 0, -100, 100 },
   y = { 'number', 0, -100, 100 }, align = { 'choice', 'bottom_left', ALIGNS }, size = { 'number', 1, 0.3, 4 },
   opacity = { 'number', 100, 0, 100 }, after = { 'choice', 'none', AFTER }, gap = { 'number', 8, -500, 500 } }
@@ -39,6 +40,14 @@ local ELEMENTS = {
   { id = 'grenades', fields = {} },
   { id = 'pack', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
       length = { 'number', 120, 10, 2000 }, thickness = { 'number', 7, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+  -- (1.1.0) your health and stamina: shown when F9's Health bar / Stamina bar say so (off by default)
+  { id = 'health', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 5, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+  { id = 'stamina', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+  -- (1.2.0) the stim timer: shown when F9's Stim timer is on, while a stim of yours works
+  { id = 'stim', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
 }
 -- the layout written the first time Custom is chosen and there's no file: Under's look, to start from
 local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
@@ -50,7 +59,30 @@ local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   rpm = { anchor = 'center', x = 9.9, y = -9.9, align = 'top_left' },
   stims = { anchor = 'center', x = -9, y = -9.6, align = 'top_left' },
   grenades = { anchor = 'center', x = -4.6, y = -9.6, align = 'top_left' },
-  pack = { anchor = 'center', x = -0.4, y = -10.6, align = 'left', length = 135 } } }
+  pack = { anchor = 'center', x = -0.4, y = -10.6, align = 'left', length = 135 },
+  -- (over the charge meter, as Under draws them)
+  health = { anchor = 'center', x = 0, y = -7.33, align = 'bottom' },
+  stamina = { anchor = 'center', x = 0, y = -6.78, align = 'bottom' },
+  stim = { anchor = 'center', x = 0, y = -6.36, align = 'bottom' } } }
+
+-- (1.5.13) Position: Curved pair, a built-in layout: the ammo bar as a ) right of the crosshair with the charge meter
+-- outside it, the count and magazines under it, the modes and rate of fire above; the backpack bar as a ( on the
+-- left with stims and grenades under; health, stamina and the stim timer in a stack over the crosshair. The same
+-- layout is the editor's Curved pair preset (editor/editor.html: PRESETS); the editor's "flipped" one has the sides
+-- the other way round, as 1.0.6 to 1.5.12 had it.
+local CURVED_LAYOUT = { _v = LAYOUT_VERSION, elements = {
+  bar = { anchor = 'center', x = 6, y = 0, align = 'left', style = 'curved_right', fill = 'auto', length = 300, radius = 160, thickness = 10 },
+  charge = { anchor = 'center', x = 6.78, y = 0, align = 'left', style = 'curved_right', length = 330, radius = 176, thickness = 4 },
+  count = { anchor = 'center', x = 9.7, y = -8.4, align = 'top_left' },
+  mags = { anchor = 'center', x = 9.7, y = -10.6, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'none' },
+  modes = { anchor = 'center', x = 10.6, y = 8, align = 'bottom_left', style = 'stacked' },
+  rpm = { anchor = 'center', x = 10.6, y = 11.4, align = 'bottom_left' },
+  stims = { anchor = 'center', x = -4.7, y = -9.2, align = 'top_right' },
+  grenades = { anchor = 'center', x = -8.7, y = -9.2, align = 'top_right' },
+  pack = { anchor = 'center', x = -6, y = 0, align = 'right', style = 'curved_left', length = 240, radius = 160, thickness = 8 },
+  health = { anchor = 'center', x = 0, y = -12, align = 'top', style = 'horizontal', length = 220, thickness = 5 },
+  stamina = { anchor = 'center', x = 0, y = -12.7, align = 'top', style = 'horizontal', length = 220, thickness = 3 },
+  stim = { anchor = 'center', x = 0, y = -13.2, align = 'top', style = 'horizontal', length = 220, thickness = 3 } } }
 
 -- a layout table as read: every known field checked (type, range, choice), what doesn't fit dropped and counted,
 -- Under's look's values (or the field's default) for the rest
@@ -78,7 +110,13 @@ local function read_layout(t)
   end
   return out, dropped
 end
-local layout = { els = nil, said = nil }
+local layout = { els = nil, said = nil, builtin = {} }
+-- a built-in layout (Position: Curved pair) as read, once; F9's offsets move it, as they move Under and Beside
+local function builtin_layout(name)
+  local l = layout.builtin[name]
+  if not l then l = { els = read_layout(CURVED_LAYOUT) } layout.builtin[name] = l end
+  return l
+end
 local function load_layout(why)
   -- (chef.load_table's second value says why there's no table: called on its own, an 'and' would drop it)
   local ok, t, err = false, nil, 'no chef.load_table'
@@ -283,7 +321,7 @@ end
 function EL_DRAW.charge(e, k, d, x, y, dry)
   if not d or not d.charge_frac then return nil end
   local f = d.charge_frac
-  local cc = d.locked and WARN or (f >= 0.95 and d.t0 and not d.t0.has.lock and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
+  local cc = d.locked and WARN or (f >= 0.95 and d.t0 and not d.t0.has.lock and not d.charge_safe and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
   if d.kind == 'none' then cc = f >= 1 and WARN or CREAM end
   if curved(e) then
     local g, w, h = arc_geom(e, k)
@@ -396,9 +434,10 @@ local function icon_el(rows, n, k, x, y, dry)
   local w = iw + math.floor(4 * k) + txt_width(str, small)
   if dry then return w, S end
   local c = n == 0 and RED or CREAM
+  local p = rows == N.STIM and n == 0 and N.warn_stims or 1
   chef.sprite(x, y + math.floor((S - #rows * cell) / 2), rows, cell,
-    { ['#'] = col(c, 220), ['+'] = col({ 40, 40, 40 }, 210), o = col({ 0, 0, 0 }, 110) }, L_CUSTOM)
-  txt(x + iw + math.floor(4 * k), y + math.floor((S - small) / 2), str, small, col(c, 220), L_CUSTOM)
+    { ['#'] = col(c, 220 * p), ['+'] = col({ 40, 40, 40 }, 210 * p), o = col({ 0, 0, 0 }, 110 * p) }, L_CUSTOM)
+  txt(x + iw + math.floor(4 * k), y + math.floor((S - small) / 2), str, small, col(c, 220 * p), L_CUSTOM)
   return w, S
 end
 function EL_DRAW.stims(e, k, d, x, y, dry, items)
@@ -433,26 +472,90 @@ function EL_DRAW.pack(e, k, d, x, y, dry, items)
   return w, h
 end
 
+-- Health and stamina (vit: 13_main's reading): a bar of the part that's left, and for health, what a hit just took
+-- in red, shrinking to it ("trail"). Health cream, orange from half, red from a quarter; stamina blue, orange when
+-- nearly out. Faint where it's empty, as the other bars.
+local STAMINA_C = { 130, 190, 235 }
+local function vital_bar(e, k, f, c, trail, x, y, dry)
+  f = math.max(0, math.min(1, f))
+  if curved(e) then
+    local g, w, h = arc_geom(e, k)
+    if dry then return w, h end
+    arc_solid(g, x, y, f, c, math.max(1, math.floor(k * 0.8 + 0.5)), 45)
+    if trail and trail > f then arc_piece(g, x, y, f, math.min(1, trail), g.r_in, g.r_out, col(RED, 170), L_CUSTOM + 1) end
+    return w, h
+  end
+  local vert = e.style ~= 'horizontal'
+  local len, th = math.floor(e.length * k + 0.5), math.max(1, math.floor(e.thickness * k + 0.5))
+  local w, h = vert and th or len, vert and len or th
+  if dry then return w, h end
+  solid_bar(x, y, w, h, f, c, L_CUSTOM, math.max(1, math.floor(k * 0.8 + 0.5)), vert)
+  if trail and trail > f then
+    local a, b = math.floor(len * f + 0.5), math.floor(len * math.min(1, trail) + 0.5)
+    if b > a then
+      if vert then chef.rect(x, y + a, w, b - a, col(RED, 170), L_CUSTOM + 1)
+      else chef.rect(x + a, y, b - a, h, col(RED, 170), L_CUSTOM + 1) end
+    end
+  end
+  return w, h
+end
+function EL_DRAW.health(e, k, d, x, y, dry, items, vit)
+  if not vit or not vit.hp or vit.show_h <= 0 then return nil end
+  local f = vit.hp / math.max(1, vit.max)
+  local c = f <= 0.25 and RED or (f <= 0.5 and WARN or CREAM)
+  local a = N.alpha_k
+  if not dry then N.alpha_k = a * vit.show_h * (vit.pulse_h or 1) end
+  local w, h = vital_bar(e, k, f, col(c, 230), vit.trail and vit.trail / math.max(1, vit.max), x, y, dry)
+  N.alpha_k = a
+  return w, h
+end
+function EL_DRAW.stamina(e, k, d, x, y, dry, items, vit)
+  if not vit or not vit.st or vit.show_s <= 0 then return nil end
+  local a = N.alpha_k
+  if not dry then N.alpha_k = a * vit.show_s end
+  local w, h = vital_bar(e, k, vit.st, col(vit.st <= 0.2 and WARN or STAMINA_C, 220), nil, x, y, dry)
+  N.alpha_k = a
+  return w, h
+end
+-- the stim timer: green, shrinking from full as the stim's effect runs out
+local STIM_C = { 120, 215, 140 }
+function EL_DRAW.stim(e, k, d, x, y, dry, items, vit)
+  if not vit or not vit.stim then return nil end
+  return vital_bar(e, k, vit.stim, col(STIM_C, 225), nil, x, y, dry)
+end
+N.vital_bar, N.STAMINA_C, N.EL_DRAW = vital_bar, STAMINA_C, EL_DRAW
+
 -- (research log: each element's time, for the timing line)
 N.el_time = {}
 local el_clock = cfg.research and os and os.clock or nil
-local function draw_custom(d, items)
+-- (vitals: the health and stamina parts only, drawn on their own each frame; else every other part)
+local function draw_custom(d, items, vitals)
   local w, h = chef.screen()
   if not w then return end
-  if not layout.els then load_layout('Custom chosen') end
+  local els, offsets = nil, nil
+  if cfg.builtin then
+    els, offsets = builtin_layout(cfg.builtin).els, true
+  else
+    if not layout.els then load_layout('Custom chosen') end
+    els, offsets = layout.els, layout.offsets
+  end
   local base = N.alpha_k
-  local drawn = {}                                   -- (each part's box this frame, for one placed after it)
+  -- (each part's box, for one placed after it: this pass's parts from this frame, the other pass's from its last
+  -- frame, so health can follow the count and the other way round)
+  local drawn = layout.drawn or {}
+  layout.drawn = drawn
+  for _, el in ipairs(ELEMENTS) do if (el.vitals == true) == (vitals ~= nil) then drawn[el.id] = nil end end
   for _, el in ipairs(ELEMENTS) do
-    local e = layout.els[el.id]
+    local e = els[el.id]
     local c0 = el_clock and el_clock()
-    if e.on and e.opacity > 0 then
+    if e.on and e.opacity > 0 and (el.vitals == true) == (vitals ~= nil) then
       local k = (h / 1440) * cfg.size * e.size
       local fn = EL_DRAW[el.id]
-      local ew, eh = fn(e, k, d, 0, 0, true, items)
+      local ew, eh = fn(e, k, d, 0, 0, true, items, vitals)
       if ew then
         local an, al = ANCHORS[e.anchor], ALIGNS[e.align]
         local ox, oy = 0, 0
-        if layout.offsets then ox, oy = w * (cfg.off_x or 0) / 100, h * (cfg.off_y or 0) / 100 end
+        if offsets then ox, oy = w * (cfg.off_x or 0) / 100, h * (cfg.off_y or 0) / 100 end
         local px = w * an[1] + h * e.x / 100 + ox
         local py = h * an[2] + h * e.y / 100 + oy
         local x = math.floor(px - ew * al[1] + 0.5)
@@ -462,7 +565,7 @@ local function draw_custom(d, items)
         x = math.max(0, math.min(x, w - ew))
         y = math.max(0, math.min(y, h - eh))
         N.alpha_k = base * e.opacity / 100
-        fn(e, k, d, x, y, false, items)
+        fn(e, k, d, x, y, false, items, vitals)
         drawn[el.id] = { x = x, w = ew }
       end
     end

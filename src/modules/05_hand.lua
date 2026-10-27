@@ -9,7 +9,7 @@ local objs, me, as_peer, session = N.objs, N.me, N.as_peer, N.session
 ------------------------------------------------------------------------------------------------ your hand pose
 local watch = chef.watch and chef.watch({ [AVATAR_RESOURCE] = true }, 2) or nil
 local grip_index = setmetatable({}, { __mode = 'k' })
-local function my_unit()
+local function nearest_unit()
   if not watch or not watch.items or #watch.items == 0 then return nil end
   if #watch.items == 1 then return watch.items[1].unit end
   local cam = chef.camera()
@@ -22,6 +22,10 @@ local function my_unit()
   end
   return best
 end
+-- Your Helldiver: the Helldiver unit nearest the camera. (1.0.7 to 1.2.5 asked the session's unit synchronizer for
+-- your avatar object's unit first: Helldivers 2 keeps none, it answered nil in every game, hosted or joined.)
+local function my_unit(s) return nearest_unit() end
+N.my_unit = my_unit
 -- Your fire button (the left mouse button), read every frame: as host you own every soldier's objects too (SEAF
 -- troops' rifles ...), and their shots look like yours. A shot counts as yours only within 0.4 s of your fire button;
 -- an object that fires three times without it is someone else's for the rest of the session. (0.3.5 tried the
@@ -34,6 +38,8 @@ end
 -- as before 1.0.2.
 local PAD_FIRE = { 'right_trigger', 'r2', 'trigger_right', 'rt' }
 local PAD_SWAP = { 'y', 'triangle' }
+local PAD_STRAT = { 'left_shoulder', 'l1', 'lb' }      -- (1.2.4: the stratagem button, the game's default)
+local PAD_AIM = { 'left_trigger', 'l2', 'lt' }         -- (1.4.6: aiming, the game's default)
 local pads = { list = nil, look_at = -100, said = false }
 local function pad_list(now)
   if pads.list and now < pads.look_at then return pads.list end
@@ -52,14 +58,18 @@ local function pad_list(now)
       local e = { name = p, listed = next(by) ~= nil }
       for _, c in ipairs(PAD_FIRE) do if by[c] then e.fire = by[c] break end end
       for _, c in ipairs(PAD_SWAP) do if by[c] then e.swap = by[c] break end end
+      for _, c in ipairs(PAD_STRAT) do if by[c] then e.strat = by[c] break end end
+      for _, c in ipairs(PAD_AIM) do if by[c] then e.aim = by[c] break end end
       if e.fire or e.swap then list[#list + 1] = e end
     end
   end
   if #list == 0 then
     -- (no pad listed its buttons: the Xbox names on the first one)
     local f, y = call('pad', 'Pad1.button_index', 'right_trigger'), call('pad', 'Pad1.button_index', 'y')
+    local l1, l2 = call('pad', 'Pad1.button_index', 'left_shoulder'), call('pad', 'Pad1.button_index', 'left_trigger')
     if type(f) == 'number' or type(y) == 'number' then
-      list[1] = { name = 'Pad1', fire = type(f) == 'number' and f or nil, swap = type(y) == 'number' and y or nil }
+      list[1] = { name = 'Pad1', fire = type(f) == 'number' and f or nil, swap = type(y) == 'number' and y or nil,
+                  strat = type(l1) == 'number' and l1 or nil, aim = type(l2) == 'number' and l2 or nil }
     end
   end
   for _, e in ipairs(list) do e.button, e.pressed = e.name .. '.button', e.name .. '.pressed' end
@@ -108,12 +118,33 @@ local function read_fire_button(now)
     input.last, input.ever = now, true
     if not input.pad_said then input.pad_said = true log('fire button: a controller\'s right trigger seen') end
   end
+  -- (1.2.7: each press counted, for the heat of a laser that fires shots: the Talon's 15 a shot)
+  local down = (type(v) == 'number' and v > 0.5) or (type(pv) == 'number' and pv > 0.3)
+  if down and not input.down then input.presses = (input.presses or 0) + 1 end
+  input.down = down
 end
+-- the aim button (the right mouse button, a controller's left trigger), for the drop line's "while aiming" (1.4.6:
+-- the weapon stance field 95c46304 reads 4 only around a shot, not while you aim)
+local function read_aim_button(now)
+  if not input.aim_idx then input.aim_idx = call('mouse', 'Mouse.button_index', 'right') or false end
+  local v = input.aim_idx and call('mouse', 'Mouse.button', input.aim_idx) or nil
+  local aim = type(v) == 'number' and v > 0.5
+  if not aim then
+    for _, p in ipairs(pad_list(now)) do
+      if p.aim then
+        local x = call('pad', p.button, p.aim)
+        if x == true or (type(x) == 'number' and x > 0.3) then aim = true break end
+      end
+    end
+  end
+  input.aiming = aim
+end
+N.read_aim_button = read_aim_button
 -- (blind: your weapon in hand keeps firing and no fire input of any kind has been seen for a while: a controller
 -- NarrowHUD can't read. Shots aren't checked from then on, as when nothing can be read)
 local function pressed_recently(now) return input.ok ~= true or input.blind or now - input.last <= 0.4 end
-local function hand_pose()
-  local u = my_unit()
+local function hand_pose(s)
+  local u = my_unit(s)
   if u == nil or chef.unit_alive(u) ~= true then return nil end
   local idx = grip_index[u]
   if idx == nil then
@@ -143,6 +174,13 @@ local function read_weapon(s, goid, t, lite)
   end
   return w
 end
+-- the weapon can't fire now: overheated, or a charge weapon cooling from its shot (the Nova about 3 s, the Quasar 15):
+-- your fire button held then isn't the shown one doing nothing
+local function cooling_of(o, t)
+  return o and o.prev and (o.prev.overheated == true or (t and CHARGE_WEAPONS[t.id] and type(o.prev.heat) == 'number'
+    and o.prev.heat > (learned.rest2[t.id] or 0) + 5)) or false
+end
+N.cooling = cooling_of
 local function fired(prev, w)
   if prev == nil then return false end
   local function down(k) return type(prev[k]) == 'number' and type(w[k]) == 'number' and w[k] < prev[k] end
@@ -241,7 +279,6 @@ local function read_swap(now)
   end
   if key ~= nil then swap.prev_at, swap.key, swap.at, swap.used, swap.from = swap.at, key, now, false, hand.goid end
 end
-N.research_watch = nil                                -- (defined with the research log, below)
 -- (research: the HUD going from one object to another on the same hand pose: both, to see how a soldier's gun gets in)
 local switch_said = 0
 local function research_switch(s, from, to, grip, now)
@@ -387,9 +424,11 @@ local function pick(s, grip, now)
   -- (the shown one active: fired in the last 0.4 s, reloading, or for a weapon that's held before it fires (a charge,
   -- a lock-on, the Arc Thrower) its trigger held)
   local ct = co and co.t and TYPES[co.t]
-  local holds = ct and (HOLD_FIRST[ct.id] or CHARGE_WEAPONS[ct.id] or ct.has.charging or ct.has.lock)
+  local holds = ct and (HOLD_FIRST[ct.id] or CHARGE_WEAPONS[ct.id] or ct.has.charging or ct.has.lock or ct.has.heat)
+  local cooling = cooling_of(co, ct)
   local active = co and ((co.fired_at and now - co.fired_at <= 0.4) or (holds and co.held_t and now - co.held_t <= 0.4)
-    or (co.prev and (tonumber(co.prev.reload_stage) or 0) ~= 0))
+    or (holds and co.charging_t and now - co.charging_t <= 0.6)
+    or (co.prev and (tonumber(co.prev.reload_stage) or 0) ~= 0) or cooling)
   if co and input.ok == true and not input.blind and now - input.last <= 0.15 then
     hand.unlock = active and 0 or (hand.unlock or 0) + dtp
   end
@@ -433,3 +472,4 @@ end
 N.input, N.read_fire_button, N.pressed_recently, N.hand_pose, N.read_weapon, N.fired = input, read_fire_button, pressed_recently, hand_pose, read_weapon, fired
 N.av_refs, N.av_said, N.read_av_refs, N.pack_ammo, N.packs_now, N.hand = av_refs, av_said, read_av_refs, pack_ammo, packs_now, hand
 N.SWAP_KEYS, N.swap, N.read_swap, N.research_switch, N.pick = SWAP_KEYS, swap, read_swap, research_switch, pick
+N.pad_list = pad_list

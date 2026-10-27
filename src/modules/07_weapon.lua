@@ -132,6 +132,7 @@ local function shown(s, goid, t, w, o)
       d.underbarrel = true
     end
   end
+  d.tid = t.id                                                   -- (the weapon shown: the underbarrel when selected)
   if t.has.heat and not t.has.rounds then
     d.kind = 'heat'
     local h = tonumber(w.heat) or 0
@@ -139,24 +140,43 @@ local function shown(s, goid, t, w, o)
     -- sinks, a player's report). The type keeps the last one seen, for the next mission's start. While overheated:
     -- the highest heat read is the point (a read can land a moment after it, a little lower: within 8 % below the
     -- one known, that one stays). Heat past the known point means it's higher.
+    -- The heat can read 0 already in the first overheated read (the Scythe, a 2026-10-26 log: "overheats at 0"), so
+    -- the heat just before counts too, and a point under 30 never does (no weapon overheats that low). A lower point is
+    -- taken only from an overheat seen starting (not one already under way when the weapon was first shown: its heat
+    -- had cooled some).
     local top = learned.heat[t.id] or 100
     local ho = (not d.underbarrel) and o or nil
-    if ho then
+    local now = chef.time()
+    if ho and type(w.heat) == 'number' then
       top = ho.heat_top or top
       if w.overheated == true then
-        ho.oh_peak = math.max(ho.oh_peak or 0, h)
-        local p = math.floor(ho.oh_peak + 0.5)
-        if p > top or p < top * 0.92 then ho.heat_top, top = p, p end
-      elseif ho.oh_peak then
-        ho.oh_peak = nil
-        local k = learned.heat[t.id]
-        if k == nil or top > k or top < k * 0.92 then
-          if k then log('learned: type %s overheats at %d (was %d: an attachment?)', t.id, top, k) end
-          learn('heat', t.id, top)
+        if ho.oh_peak == nil then
+          ho.oh_seen = ho.h_before_t ~= nil and now - ho.h_before_t <= 0.5
+          ho.oh_peak = ho.oh_seen and ho.h_before or 0
         end
+        if h > ho.oh_peak then ho.oh_peak, ho.oh_read = h, true end
+        local p = math.floor(ho.oh_peak + 0.5)
+        -- (a value read while overheated is the heat at its top. The one from just before has the field's dead band
+        -- (12_heat) over it: the heat went on up to anywhere within the band of that value before overheating, so
+        -- the known point stays when it's within that, and a lower one is the band's top; the 1.2.7 log read the
+        -- Talon's 84.8 just before and took its point for 85)
+        local tol = ho.oh_read and 0 or (N.heat_tol and N.heat_tol(t) or 15.6)
+        local lower = ho.oh_seen and p + tol < top * 0.92
+        if lower then p = math.floor(p + tol + 0.5) end
+        if p >= 30 and (p > top or lower) then ho.heat_top, top = p, p end
+      else
+        if ho.oh_peak then
+          ho.oh_peak, ho.oh_read = nil, nil
+          local k = learned.heat[t.id]
+          if top >= 30 and (k == nil or top > k or top < k * 0.92) then
+            if k then log('learned: type %s overheats at %d (was %d: an attachment?)', t.id, top, k) end
+            learn('heat', t.id, top)
+          end
+        end
+        ho.h_before, ho.h_before_t = h, now
       end
       if h > top then ho.heat_top, top = math.ceil(h), math.ceil(h) end
-    elseif w.overheated == true and h > top then
+    elseif w.overheated == true and h > top and h >= 30 then
       learn('heat', t.id, math.floor(h + 0.5))
       top = math.floor(h + 0.5)
     end
@@ -239,12 +259,18 @@ local function shown(s, goid, t, w, o)
     end
   end
   d.reloading = (tonumber(w.reload_stage) or 0) ~= 0 and d.kind == 'ammo'
+  d.reload_stage = tonumber(w.reload_stage)
   -- the reserve: magazines, else spare rounds, else your backpack's
   if learned.packres[t.id] then
     d.reserve = pack_ammo(s)                                    -- (reloads from its backpack: the C4's charges ...)
   elseif d.fed then
     -- (the pack is the ammo)
-  elseif t.has.magazines and tonumber(w.magazines) and (w.magazines > 0 or not t.has.heat) then d.reserve = w.magazines
+  -- (a heat weapon's magazines are heat sinks: shown once it has carried some, 0 too when they're used up; a charge
+  -- weapon's field never means anything)
+  elseif t.has.magazines and tonumber(w.magazines) and (not t.has.heat or (not N.CHARGE_WEAPONS[t.id]
+         and (w.magazines > 0 or (learned.resmax[t.id] or 0) > 0))) then
+    d.reserve = w.magazines
+    if t.has.heat and w.magazines > (learned.resmax[t.id] or 0) then learn('resmax', t.id, w.magazines) end
   elseif t.has.spare then d.reserve = tonumber(w.spare)
   elseif d.kind == 'ammo' then
     -- (not for a heat weapon: the Nova and the Scythe showed the Guard Dog's magazines as theirs)

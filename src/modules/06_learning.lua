@@ -2,11 +2,14 @@
 -- (tools/build.py puts src/narrowhud.lua and these modules together, each module in a function of its own; N holds
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local TYPES, HANDHELD, THROWABLE, cfg, learned, CHARGE_WEAPONS = N.TYPES, N.HANDHELD, N.THROWABLE, N.cfg, N.learned, N.CHARGE_WEAPONS
+local call = N.call
 local learn, distrust, many_poses, has_pose, add_pose, objs = N.learn, N.distrust, N.many_poses, N.has_pose, N.add_pose, N.objs
 local input, pressed_recently, read_weapon, fired, pack_ammo, packs_now = N.input, N.pressed_recently, N.read_weapon, N.fired, N.pack_ammo, N.packs_now
 local hand, SWAP_KEYS, swap = N.hand, N.SWAP_KEYS, N.swap
 
+-- (the Talon: 15 heat a shot, semi-automatic; cools 10 a second, 15 on Extreme Cold, 7.5 on Intense Heat)
 local WIKI_HEAT = {
+  ['4e87d68d'] = { down = 10, shot = 15 },   -- LAS-58 Talon
   ['42a6b5ba'] = { up = 12.5, down = 8.5 },   -- LAS-5 Scythe
   d100e0c8 = { up = 8, down = 5 },            -- LAS-98 Laser Cannon
 }
@@ -86,6 +89,30 @@ local function not_yours(goid, o, t, why)
   if hand.goid == goid then hand.goid = nil end
 end
 N.not_yours = not_yours
+-- (1.2.5) A weapon that aims by itself isn't in your hands. Weapon types carry a field 6f3ab277 (-0.5 to 1.58, an
+-- angle in radians: the aim's pitch) that reads 0 on every weapon a Helldiver holds (your own, across ten logged
+-- missions: the avatar carries the player's aim) and moves on a SEAF soldier's rifle, a turret's gun, a Guard Dog's
+-- or a tank's while it aims (the 2026-10-27 logs: 1,955 changes on soldiers' rifles, none on a weapon of yours). An
+-- object read off 0 twice is someone else's for the rest of the session. Read with the others, once a type's field
+-- list says it has the field.
+local AIM_FIELD = '6f3ab277'
+local aim_name = nil
+for id, name in string.gmatch(DATA.fieldnames or '', '(%x+) (%S+)') do if id == AIM_FIELD then aim_name = name end end
+local aim_types = {}                                  -- type id -> true / false: declares the aim field
+local function has_aim(t)
+  local v = aim_types[t.id]
+  if v == nil then
+    v = false
+    if aim_name then
+      for line in string.gmatch(DATA.fields or '', '[^\n]+') do
+        if string.sub(line, 1, 8) == t.id then v = string.find(line, AIM_FIELD, 9, true) ~= nil break end
+      end
+      if v and t.live and not t.live[AIM_FIELD] then v = false end
+    end
+    aim_types[t.id] = v
+  end
+  return v
+end
 local function watch_fire(s, grip)
   -- last read's learning (see below): dropped for an object that fired while the weapon shown in hand did too
   if #pending_learn > 0 then
@@ -94,9 +121,14 @@ local function watch_fire(s, grip)
     for _, e in ipairs(pending_learn) do
       -- (the shown one busy: it fired, or it's one held before it fires (a charge, a lock-on: the Nova, in that log) and its
       -- trigger was held or it was charging at the time)
-      local holds = st and (N.HOLD_FIRST[st.id] or CHARGE_WEAPONS[st.id] or st.has.charging or st.has.lock)
+      -- (heat weapons too: the heat field moves only now and then (the Laser Cannon about every 3 s). Or it can't fire:
+      -- overheated, or a charge weapon cooling from its shot: a SEAF gun firing as you held fire then was learned
+      -- (as host, a 2026-10-26 log: the Scythe overheated, the Nova cooling), the same as the pick's check)
+      local holds = st and (N.HOLD_FIRST[st.id] or CHARGE_WEAPONS[st.id] or st.has.charging or st.has.lock or st.has.heat)
       local active = so and ((so.fired_at and math.abs(so.fired_at - e.at) <= 0.4)
-        or (holds and ((so.held_t and math.abs(so.held_t - e.at) <= 0.4) or (so.prev and so.prev.charging == true))))
+        or (holds and ((so.held_t and math.abs(so.held_t - e.at) <= 0.4) or (so.prev and so.prev.charging == true)
+          or (so.charging_t and math.abs(so.charging_t - e.at) <= 0.6)))
+        or N.cooling(so, st))
       local busy = st and hand.goid ~= e.goid and active and has_pose(st.id, e.grip) and objs[e.goid] ~= nil
       if busy then
         if cfg.research and busy_said < 200 then
@@ -123,15 +155,58 @@ local function watch_fire(s, grip)
       if w.gone then break end                 -- forgotten (gone): the rest wait for the next read
       N.watched = N.watched + 1
       local now = chef.time()
+      -- (1.2.4: the last read charging: the Nova's charge, also one let go before it fired, and the Scythe's beam,
+      -- which reads charging while it fires: rapid clicks with it showed no shots between the heat field's updates)
+      if w.charging == true then o.charging_t = now end
       -- its trigger held with nothing on your fire button or trigger for over half a second, three reads: someone
       -- else's (a SEAF soldier's gun of a kind you carry, held=true while you weren't firing, in a 2026-10-26 log).
       -- Only once a press has been seen (a controller NarrowHUD can't read never shows one), and never for one that
       -- fired with your fire button 10 times and never without it.
+      -- (1.2.3: held without a break, 0.8 s at least: the count added up separate moments before, and the Halt reads
+      -- held for a moment as its ammo is switched with the quick weapon wheel: three switches hid it for the rest of
+      -- the mission, a player's report. Nor while its fire mode, ammo or options just changed, or it's reloading)
       local proven = (o.unpressed or 0) == 0 and (o.pressed or 0) >= 10
-      if w.held == true and input.ok == true and input.ever and not input.blind and not proven
+      local pw = o.prev
+      if pw and not w.lite and not pw.lite and (w.selected ~= pw.selected or w.fire_mode ~= pw.fire_mode or w.options ~= pw.options) then
+        o.mode_t = now
+      end
+      local switching = (o.mode_t and now - o.mode_t < 1.5) or ((tonumber(w.reload_stage) or 0) ~= 0)
+      if w.held == true and input.ok == true and input.ever and not input.blind and not proven and not switching
          and now - (input.any_last or -100) > 0.6 then
+        o.held_since = o.held_since or now
         o.held_alone = (o.held_alone or 0) + 1
-        if o.held_alone >= 3 then not_yours(goid, o, t, 'holds its trigger without your fire button') end
+        if o.held_alone >= 3 and now - o.held_since >= 0.8 then not_yours(goid, o, t, 'holds its trigger without your fire button') end
+      else
+        o.held_alone, o.held_since = 0, nil
+      end
+      -- (aims by itself: someone else's, see AIM_FIELD above. The field must move: a support weapon out of its
+      -- hellpod kept a stray 0.012 in it as you held it (the 1.2.7 log: a weapon of yours hidden for it), while a
+      -- soldier's rifle or a turret's gun changes its aim every read or two)
+      if has_aim(t) and not o.notmine then
+        local a = tonumber(call(t.id .. '.aim', 'GameSession.game_object_field', s, goid, aim_name))
+        if a and a ~= 0 then
+          if o.aim_last ~= nil and o.aim_last ~= 0 and a ~= o.aim_last then o.aim_n = (o.aim_n or 0) + 1 end
+          o.aim_last = a
+          if (o.aim_n or 0) >= 2 then
+            local shipped = SEED and ((SEED.poses and SEED.poses[t.id]) or (SEED.grip and SEED.grip[t.id]))
+            not_yours(goid, o, t, string.format('aims by itself (its aim field reads %.3f: a soldier\'s, a turret\'s)%s', a,
+              shipped and '; A TYPE PLAYERS CARRY: if this was your own weapon, report it' or ''))
+            -- (a pose or key the type taught, from any object of it, when none of its objects is proven yours: a
+            -- soldier's gun's, most likely; your own of that type teaches it again on its first shot)
+            local mine = false
+            for g2, o2 in pairs(objs) do if o2.t == o.t and o2.mine then mine = true end end
+            if not mine then
+              local had = learned.poses[t.id] or learned.grip[t.id] or learned.slot[t.id]
+              if had and not (SEED and ((SEED.poses and SEED.poses[t.id]) or (SEED.grip and SEED.grip[t.id]))) then
+                log('type %s: what was learned of its hand poses and key forgotten (its objects aim by themselves)', t.id)
+                N.forget_poses(t.id)
+                learn('slot', t.id, nil)
+              end
+            end
+          end
+        else
+          o.aim_n, o.aim_last = 0, a
+        end
       end
       -- Heat: the field changes only now and then (the Quasar a few times a second, the Laser Cannon about every 3 s).
       -- The rates it rises at while the trigger is held ("charging") and falls at otherwise are learned per type, so
@@ -147,7 +222,12 @@ local function watch_fire(s, grip)
             local up = w.heat > o.h_last
             if math.abs(r) < 200 and now - from > 0.15 then
               local kind = (up and firing) and 'up' or ((not up and not firing) and 'down' or nil)
-              if kind == 'down' and o.h_last_t >= (o.state_t or 0) and o.h_fell_before then
+              -- (a laser that fires shots: a shot can hide inside the field's dead band (the Talon's 12 in a band
+              -- of 15.6), so only an interval with no press of your fire button in it is cooling alone; the 1.2.7 log
+              -- measured the planet at x0.52 from one with shots in it, and the bar ran 20 ahead)
+              local shots_in = t.has.rpm and not CHARGE_WEAPONS[t.id]
+                and (input.ok ~= true or input.blind or (input.presses or 0) ~= (o.h_presses or 0))
+              if kind == 'down' and o.h_last_t >= (o.state_t or 0) and o.h_fell_before and not shots_in then
                 -- a whole interval of cooling: measures the planet (against the neutral rate) ...
                 -- (only weapons whose neutral rate is known from the wiki, and not near where it rests)
                 local base = WIKI_HEAT[t.id] and WIKI_HEAT[t.id].down
@@ -164,7 +244,7 @@ local function watch_fire(s, grip)
             end
           end
           o.h_fell_before = o.h_last ~= nil and w.heat < o.h_last and not firing
-          o.h_last, o.h_last_t = w.heat, now
+          o.h_last, o.h_last_t, o.h_presses = w.heat, now, input.presses or 0
         end
       end
       -- a charge (the Nova, the Quasar): the trigger held while the heat stays put, then the heat jumps (the shot).
@@ -242,8 +322,16 @@ local function watch_fire(s, grip)
             o.unpressed, o.notmine, distrust[t.id] = 0, nil, nil
           end
         end
-        -- (counted both ways: someone else's can fire just as you press)
-        if pressed_recently(now) then o.pressed = (o.pressed or 0) + 1 else o.unpressed = (o.unpressed or 0) + 1 end
+        -- (counted both ways: someone else's can fire just as you press. Not while the weapon shown in hand is itself
+        -- firing or charging (1.2.5): a soldier's gun firing as you hold the Scythe's beam counted a shot "with your
+        -- fire button" each time, and two of those made it "proven yours")
+        local so = hand.goid and hand.goid ~= goid and objs[hand.goid]
+        local st = so and so.t and TYPES[so.t]
+        local so_busy = so and ((so.fired_at and now - so.fired_at <= 0.4) or (so.held_t and now - so.held_t <= 0.4)
+          or (so.charging_t and now - so.charging_t <= 0.6) or (st and st.has.heat and so.prev and so.prev.charging == true))
+        if pressed_recently(now) then
+          if not so_busy then o.pressed = (o.pressed or 0) + 1 end
+        else o.unpressed = (o.unpressed or 0) + 1 end
         local p, u = o.pressed or 0, o.unpressed or 0
         o.mine = p >= 2 and p > u
         -- (three shots without it, and a quarter or more of all its shots: a soldier firing while you fire too got 10
@@ -370,4 +458,4 @@ end
 -- The fire mode field's value 8 selects an underbarrel (seen: the Arbitrator); 1, 2, 3 are auto, semi, burst (seen in
 -- the research log against the game's own display). Other values show as MODE <n> until named.
 
-N.planet, N.heat_rate, N.watch_fire = planet, heat_rate, watch_fire
+N.planet, N.heat_rate, N.watch_fire, N.WIKI_HEAT = planet, heat_rate, watch_fire, WIKI_HEAT

@@ -160,15 +160,23 @@ local function scan(s, peer)
       if t.has.carry then
         local c = field(s, goid, t, 'carry')
         o.on = type(c) == 'number' and c % 4 == 0
+        -- (onto your body during the mission: picked up from its hellpod or the ground. Until it fires, it's the one
+        -- in your hand among the weapons held the same way, not one of them at random)
+        if o.on and o.on_was == false and not t.pack and HANDHELD[t.id] and not o.host then
+          o.chosen_at = chef.time()
+          if cfg.research then log('research: weapon %s (object %s) picked up', t.id, tostring(goid)) end
+        end
+        o.on_was = o.on
         -- A backpack's carry field (the 2026-10-25 log): 0 worn, 1 in its hellpod, 2 dropped. One that isn't yours
         -- (a mission objective's, a soldier's: as host you own those) can read 0 too. A called backpack can't be
         -- worn in a mission's first 10 s (the call-in alone takes 10 s, after landing), so one already at 0 then
-        -- isn't yours, until it's seen at another value (dropped, then picked up) or proves yours.
-        if t.pack and type(c) == 'number' then
+        -- isn't yours, until it's seen at another value (dropped, then picked up) or proves yours. The same for the
+        -- jump and warp packs (a jump pack of the map's showed a recharge bar with none on your back: the 1.2.7 log).
+        if (t.pack or t.special) and type(c) == 'number' then
           if o.first_c == nil then
             o.first_c = c
             o.map_pack = c == 0 and blocked.since ~= nil and chef.time() - blocked.since < 10
-            if o.map_pack and cfg.research then log('research: backpack %s (object %s) there from the start: not yours until used', t.id, tostring(goid)) end
+            if o.map_pack and cfg.research then log('research: pack %s (object %s) there from the start: not yours until used', t.id, tostring(goid)) end
           elseif c ~= o.first_c then
             o.map_pack = false
           end

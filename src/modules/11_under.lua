@@ -92,7 +92,7 @@ local function draw(d, items)
       local ch = math.max(2, math.floor(bh * 0.3))
       local cy = y + bh + math.max(2, math.floor(4 * k))
       local f = d.charge_frac
-      local cc = d.locked and WARN or (f >= 0.95 and not d.t0.has.lock and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
+      local cc = d.locked and WARN or (f >= 0.95 and not d.t0.has.lock and not d.charge_safe and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
       chef.rect(x0, cy, bw, ch, col(CREAM, 40), L)
       chef.rect(x0, cy, math.floor(bw * math.min(1, f) + 0.5), ch, col(cc, 230), L + 1)
       if d.charge_mark then
@@ -108,5 +108,63 @@ local function draw(d, items)
   if items and (cfg.show_stims or cfg.show_grenades or cfg.pack) then draw_items(items, d, k, small, x0, y - math.floor(8 * k), x0 + bw, math.max(2, math.floor(bh * 0.5))) end
 end
 
+-- Health and stamina (vit, from 13_main), drawn every frame on their own: Custom places them from the layout file;
+-- Under: over the bar (above the charge meter), the bar's length; Beside: two thin bars mirroring the weapon's on
+-- the other side of the crosshair (the corner: left of the weapon's)
+local VH_UNDER = { style = 'horizontal', length = 260, thickness = 5 }
+local VS_UNDER = { style = 'horizontal', length = 260, thickness = 3 }
+local VT_UNDER = { style = 'horizontal', length = 260, thickness = 3 }
+local VH_SIDE = { style = 'vertical', length = 48, thickness = 4 }
+local VS_SIDE = { style = 'vertical', length = 48, thickness = 3 }
+local VT_SIDE = { style = 'vertical', length = 48, thickness = 3 }
+local function draw_vitals(vit)
+  if cfg.custom then return draw_custom(nil, nil, vit) end
+  local w, h = chef.screen()
+  if not w then return end
+  local E = N.EL_DRAW
+  -- (stacked: health, then stamina, then the stim timer, each only where F9 has it on: one off leaves no gap)
+  local parts = {}
+  if (cfg.health or 1) > 1 then parts[#parts + 1] = { E.health, VH_UNDER, VH_SIDE } end
+  if (cfg.stamina or 1) > 1 then parts[#parts + 1] = { E.stamina, VS_UNDER, VS_SIDE } end
+  if cfg.stim_timer then parts[#parts + 1] = { E.stim, VT_UNDER, VT_SIDE } end
+  if cfg.right then
+    local k = (h / 1440) * (cfg.side_size or 1.25)
+    local big = math.floor(28 * k + 0.5)
+    local vh = math.floor(big * 1.7 + 0.5)
+    local x0, yb
+    if cfg.corner then x0, yb = w * 0.02, h * 0.16
+    else x0, yb = w / 2 + h * 0.03, h / 2 - vh / 2 end
+    x0 = math.floor(x0 + w * (cfg.off_x or 0) / 100)
+    yb = math.floor(yb + h * (cfg.off_y or 0) / 100)
+    x0 = math.max(0, math.min(x0, w - math.floor(140 * k)))
+    yb = math.max(math.floor(30 * k), math.min(yb, h - vh))
+    local gap = math.max(2, math.floor(4 * k))
+    -- (nearest the crosshair first: mirrored, the first one's right edge as far left of the middle as the weapon's
+    -- left edge is right of it; the corner: left of the weapon's bar)
+    local xr = cfg.corner and (x0 - gap) or math.floor(w - x0)
+    for _, p in ipairs(parts) do
+      local e = p[3]
+      e.length = vh / k
+      local th = math.max(1, math.floor(e.thickness * k + 0.5))
+      local x = math.max(0, xr - th)
+      p[1](e, k, nil, x, yb, false, nil, vit)
+      xr = x - gap
+    end
+    return
+  end
+  local k = (h / 1440) * cfg.size
+  local bw, bh = math.floor(260 * k), math.max(3, math.floor(14 * k))
+  local y = math.floor(h / 2 - h * 0.09 + h * (cfg.off_y or 0) / 100)
+  local x0 = math.floor(w / 2 - bw / 2 + w * (cfg.off_x or 0) / 100)
+  y = math.max(math.floor(40 * k), math.min(y, h - math.floor(60 * k)))
+  x0 = math.max(math.floor(160 * k), math.min(x0, w - bw - math.floor(130 * k)))
+  local yy = y + bh + math.floor(10 * k)
+  for _, p in ipairs(parts) do
+    local e = p[2]
+    e.length = bw / k
+    p[1](e, k, nil, x0, yy, false, nil, vit)
+    yy = yy + math.max(1, math.floor(e.thickness * k + 0.5)) + math.max(2, math.floor(3 * k))
+  end
+end
 
-N.draw = draw
+N.draw, N.draw_vitals = draw, draw_vitals

@@ -5,8 +5,11 @@ editor writes this file; it can also be edited by hand.
 
 - **Where:** `%APPDATA%\Arrowhead\Helldivers2\chef_data_luka189_2fnarrowhud__layout.lua`
 - **First time:** if there's no file when Custom is chosen, NarrowHUD writes one with Under's look to start from.
+- **Not the learned file:** `chef_data_luka189_2fnarrowhud__learned.lua` next to it is what NarrowHUD has learned about
+  your weapons, rewritten as you play. (From 1.2.1, a layout pasted there by mistake is moved to the layout file.) Save
+  with Ctrl+S: Notepad's "Save as" can make it `...layout.lua.txt`, which isn't read.
 - **Read:** when Custom is chosen, at the start of each mission, and when you press the key set in F9 under "Read the
-  layout file again".
+  layout file again" (no key until you pick one; it says so on screen, and from 1.2.1 says when Position isn't Custom).
 - **Safe:** the file is a plain Lua table, read by Chef Shared Loader with nothing else available (it can't run
   code). A value that doesn't fit is left at its default and counted in narrowhud.log.
 - **On top of it:** the F9 "Show ..." toggles, colours, opacity, "When nothing changes for a while" and Size still
@@ -57,11 +60,14 @@ Sizes are in pixels at 1440p for Medium; they scale with the screen's height and
 | `stims` | the stim icon and count | — |
 | `grenades` | the grenade icon and count | — |
 | `pack` | the backpack bar (also the warp pack's heat, the jump pack's recharge) | `style` (see below); `length` (135); `thickness` (7); `radius` (150) |
+| `health` | your health (1.1.0; shown when F9 › Health bar is on): cream, orange from half, red from a quarter, a hit's loss in red for a moment | `style` (see below); `length` (260); `thickness` (5); `radius` (150) |
+| `stamina` | your stamina (1.1.0; shown when F9 › Stamina bar is on): blue, orange when nearly out | `style` (see below); `length` (260); `thickness` (3); `radius` (150) |
+| `stim` | the stim timer (1.2.0; shown when F9 › Stim timer is on): green, shrinking over a stim's effect | `style` (see below); `length` (260); `thickness` (3); `radius` (150) |
 
 The elements are listed in the order they're drawn. A part placed on its own doesn't move when another grows: the
 count's width changes with its digits and its % sign, so the magazines follow it (`after = 'count'`) in Under's look.
 
-### Bar styles (`bar`, `charge`, `pack`)
+### Bar styles (`bar`, `charge`, `pack`, `health`, `stamina`, `stim`)
 
 | `style` | Shape | Fills |
 |---|---|---|

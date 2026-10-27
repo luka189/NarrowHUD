@@ -64,6 +64,10 @@ header.top {
 .frame canvas.grab { cursor: grab; }
 .frame canvas.grabbing { cursor: grabbing; }
 .readout { font: 12px var(--font-mono); color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.shotbar { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.frame.dropping { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.dropnote { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  font: 500 18px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg); background: rgba(10, 12, 14, 0.55); }
 
 .seg { display: inline-grid; grid-auto-flow: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .seg.wide { display: grid; grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
@@ -131,6 +135,7 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.warnbox{margin:6px 0 2px;padding:6px 9px;border-left:3px solid #f0aa5a;background:rgba(240,170,90,0.08);font-size:13px}
 </style>
 
 <header class="top">
@@ -138,7 +143,7 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
     <h1>NarrowHUD Layout Editor</h1>
     <span class="tag">LAYOUT FILE v1 · NARROWHUD 1.0.6+</span>
   </div>
-  <p class="lead">Place each part of the HUD on the screen, then copy the file into the game's folder. Drag a part to move it; arrow keys nudge the selected one.</p>
+  <p class="lead">Place each part of the HUD on the screen, then copy the file into the game's folder. Drag a part to move it; arrow keys nudge the selected one. A screenshot of your game (picked, dropped on the screen or pasted) goes behind the parts, so you can place them around the game's own HUD.</p>
 </header>
 
 <div class="work">
@@ -162,8 +167,16 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
       </div>
       <label for="fillr">Left</label>
       <input id="fillr" type="range" min="0" max="100" value="70" style="width:120px" aria-label="Ammo, heat or charge left">
+      <span class="shotbar">
+        <button class="btn" type="button" id="shotbtn" style="font-size:12px;padding:3px 8px">Use a screenshot</button>
+        <input type="file" id="shotfile" accept="image/*" hidden>
+        <label for="shotalpha" id="shotalphalbl" hidden>Screenshot</label>
+        <input id="shotalpha" type="range" min="0" max="100" value="100" style="width:90px" aria-label="How visible the screenshot is" hidden>
+        <button class="btn" type="button" id="shotoff" style="font-size:12px;padding:3px 8px" hidden>Remove</button>
+        <span class="status" id="shotstat"></span>
+      </span>
     </div>
-    <div class="frame" id="frame"><canvas id="cv" width="1280" height="720" aria-label="The game screen with the HUD parts"></canvas></div>
+    <div class="frame" id="frame"><canvas id="cv" width="1280" height="720" aria-label="The game screen with the HUD parts"></canvas><div class="dropnote" id="dropnote" hidden>Drop the screenshot here</div></div>
     <div class="readout" id="readout">&nbsp;</div>
     <div class="preview-opts">
       <span class="rowlabel">F9 settings</span>
@@ -212,9 +225,11 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
     <h2>Put it in the game</h2>
     <ol class="steps">
       <li>In the game, press <b>F9</b> › NarrowHUD › <b>Position: Custom</b>. NarrowHUD writes a layout file the first time.</li>
-      <li>Open <code>%APPDATA%\Arrowhead\Helldivers2</code> (paste it into File Explorer's address bar) and open <code>chef_data_luka189_2fnarrowhud__layout.lua</code> in Notepad.</li>
-      <li>Replace everything in it with the copied file and save.</li>
-      <li>Back in the game, press the key set in F9 under <b>Read the layout file again</b>, or start a mission.</li>
+      <li>Open <code>%APPDATA%\Arrowhead\Helldivers2</code> (paste it into File Explorer's address bar) and open
+        <code id="fname">chef_data_luka189_2fnarrowhud__layout.lua</code> <button class="btn" type="button" id="copyname" style="font-size:12px;padding:2px 8px">Copy the name</button> in Notepad.
+        <div class="warnbox">The one ending in <b>__layout.lua</b>, not <b>__learned.lua</b> next to it: that's what NarrowHUD has learned about your weapons, and it rewrites it while you play.</div></li>
+      <li>Replace everything in it with the copied file and save (Ctrl+S, not "Save as": Notepad can make it <b>…layout.lua.txt</b>, which the game never reads; File Explorer's View › File name extensions shows it).</li>
+      <li>Back in the game, press the key set in F9 under <b>Read the layout file again</b> (it has no key until you pick one; "layout file read again" shows on screen when it works), or start a mission.</li>
     </ol>
     <h2 style="margin-top:16px">Edit a file you have</h2>
     <div class="actions">
@@ -238,7 +253,7 @@ const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right'];
 const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
   y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
   opacity: ['number', 100, 0, 100],
-  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'modes', 'rpm', 'stims', 'grenades', 'pack']],
+  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'modes', 'rpm', 'stims', 'grenades', 'pack', 'health', 'stamina', 'stim']],
   gap: ['number', 8, -500, 500] };
 const ELEMENTS = [
   { id: 'bar', name: 'Ammo / heat bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], fill: ['choice', 'auto', ['auto', 'ticks', 'solid']],
@@ -254,6 +269,12 @@ const ELEMENTS = [
   { id: 'grenades', name: 'Grenades', fields: {} },
   { id: 'pack', name: 'Backpack bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 120, 10, 2000],
       thickness: ['number', 7, 1, 200], radius: ['number', 150, 10, 2000] } },
+  { id: 'health', name: 'Health bar', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
+      thickness: ['number', 5, 1, 200], radius: ['number', 150, 10, 2000] } },
+  { id: 'stamina', name: 'Stamina bar', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
+      thickness: ['number', 3, 1, 200], radius: ['number', 150, 10, 2000] } },
+  { id: 'stim', name: 'Stim timer', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
+      thickness: ['number', 3, 1, 200], radius: ['number', 150, 10, 2000] } },
 ];
 const BY_ID = Object.fromEntries(ELEMENTS.map(e => [e.id, e]));
 const UNDER = { _v: 1, elements: {
@@ -265,7 +286,10 @@ const UNDER = { _v: 1, elements: {
   rpm: { anchor: 'center', x: 9.9, y: -9.9, align: 'top_left' },
   stims: { anchor: 'center', x: -9, y: -9.6, align: 'top_left' },
   grenades: { anchor: 'center', x: -4.6, y: -9.6, align: 'top_left' },
-  pack: { anchor: 'center', x: -0.4, y: -10.6, align: 'left', length: 135 } } };
+  pack: { anchor: 'center', x: -0.4, y: -10.6, align: 'left', length: 135 },
+  health: { anchor: 'center', x: 0, y: -7.33, align: 'bottom' },
+  stamina: { anchor: 'center', x: 0, y: -6.78, align: 'bottom' },
+  stim: { anchor: 'center', x: 0, y: -6.36, align: 'bottom' } } };
 const PRESETS = [
   { name: 'Under the crosshair', note: 'The mod\'s default look', t: UNDER },
   { name: 'Beside the crosshair', note: 'A vertical bar right of the middle', t: { _v: 1, elements: {
@@ -277,8 +301,24 @@ const PRESETS = [
     rpm: { anchor: 'center', x: 9.9, y: -4, align: 'bottom_left' },
     stims: { anchor: 'center', x: 8.5, y: -9.4, align: 'top_left' },
     grenades: { anchor: 'center', x: 12.9, y: -9.4, align: 'top_left' },
-    pack: { anchor: 'center', x: 8.5, y: -12.6, align: 'top_left', length: 150 } } } },
-  { name: 'Curved pair', note: 'A ( bar left of the crosshair, the backpack as a ) on the right', t: { _v: 1, elements: {
+    pack: { anchor: 'center', x: 8.5, y: -12.6, align: 'top_left', length: 150 },
+    health: { anchor: 'center', x: -8.5, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 5 },
+    stamina: { anchor: 'center', x: -9.1, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 3 },
+    stim: { anchor: 'center', x: -9.6, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 3 } } } },
+  { name: 'Curved pair', note: 'As F9\'s Position: Curved pair: a ) bar right of the crosshair, the backpack as a ( on the left', t: { _v: 1, elements: {
+    bar: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', fill: 'auto', length: 300, radius: 160, thickness: 10 },
+    charge: { anchor: 'center', x: 6.78, y: 0, align: 'left', style: 'curved_right', length: 330, radius: 176, thickness: 4 },
+    count: { anchor: 'center', x: 9.7, y: -8.4, align: 'top_left' },
+    mags: { anchor: 'center', x: 9.7, y: -10.6, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'none' },
+    modes: { anchor: 'center', x: 10.6, y: 8, align: 'bottom_left', style: 'stacked' },
+    rpm: { anchor: 'center', x: 10.6, y: 11.4, align: 'bottom_left' },
+    stims: { anchor: 'center', x: -4.7, y: -9.2, align: 'top_right' },
+    grenades: { anchor: 'center', x: -8.7, y: -9.2, align: 'top_right' },
+    pack: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 240, radius: 160, thickness: 8 },
+    health: { anchor: 'center', x: 0, y: -12, align: 'top', style: 'horizontal', length: 220, thickness: 5 },
+    stamina: { anchor: 'center', x: 0, y: -12.7, align: 'top', style: 'horizontal', length: 220, thickness: 3 },
+    stim: { anchor: 'center', x: 0, y: -13.2, align: 'top', style: 'horizontal', length: 220, thickness: 3 } } } },
+  { name: 'Curved pair, flipped', note: 'The same the other way round: the ( bar on the left, the backpack as a ) on the right', t: { _v: 1, elements: {
     bar: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 300, radius: 160, thickness: 10 },
     charge: { anchor: 'center', x: -6.78, y: 0, align: 'right', style: 'curved_left', length: 330, radius: 176, thickness: 4 },
     count: { anchor: 'center', x: -6.4, y: -10.2, align: 'top_right' },
@@ -287,7 +327,10 @@ const PRESETS = [
     rpm: { anchor: 'center', x: -6.4, y: 13.6, align: 'bottom_right' },
     stims: { anchor: 'center', x: 6.4, y: -10.2, align: 'top_left' },
     grenades: { anchor: 'center', x: 10.4, y: -10.2, align: 'top_left' },
-    pack: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', length: 240, radius: 160, thickness: 8 } } } },
+    pack: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', length: 240, radius: 160, thickness: 8 },
+    health: { anchor: 'center', x: 0, y: -12, align: 'top', length: 220, thickness: 5 },
+    stamina: { anchor: 'center', x: 0, y: -12.7, align: 'top', length: 220, thickness: 3 },
+    stim: { anchor: 'center', x: 0, y: -13.2, align: 'top', length: 220, thickness: 3 } } } },
 ];
 
 function fieldOk(f, v) {
@@ -764,6 +807,45 @@ const EL_DRAW = {
     return [w, h];
   },
 };
+// health and stamina (as the mod: health cream, orange from half, red from a quarter, a hit's trail in red;
+// stamina blue, orange when nearly out)
+const STAMINA_C = [130, 190, 235];
+function vitalBar(e, k, f, c, trail, x, y, dry) {
+  f = Math.max(0, Math.min(1, f));
+  if (curved(e)) {
+    const [gm, w, h] = arcGeom(e, k);
+    if (dry) return [w, h];
+    arcSolid(gm, x, y, f, c, Math.max(1, fl(k * 0.8 + 0.5)), 45);
+    if (trail && trail > f) arcPiece(gm, x, y, f, Math.min(1, trail), gm.r_in, gm.r_out, col(P.RED, 170));
+    return [w, h];
+  }
+  const vert = e.style !== 'horizontal';
+  const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
+  const w = vert ? th : len, h = vert ? len : th;
+  if (dry) return [w, h];
+  solidBar(x, y, w, h, f, c, Math.max(1, fl(k * 0.8 + 0.5)), vert);
+  if (trail && trail > f) {
+    const a = fl(len * f + 0.5), b = fl(len * Math.min(1, trail) + 0.5);
+    if (vert) rect(x, y + a, w, b - a, col(P.RED, 170)); else rect(x + a, y, b - a, h, col(P.RED, 170));
+  }
+  return [w, h];
+}
+EL_DRAW.health = function (e, k, d, x, y, dry, items) {
+  const v = items && items.vit;
+  if (!v) return null;
+  const f = v.hp / v.max;
+  return vitalBar(e, k, f, col(f <= 0.25 ? P.RED : (f <= 0.5 ? P.WARN : P.CREAM), 230), v.trail / v.max, x, y, dry);
+};
+EL_DRAW.stamina = function (e, k, d, x, y, dry, items) {
+  const v = items && items.vit;
+  if (!v) return null;
+  return vitalBar(e, k, v.st, col(v.st <= 0.2 ? P.WARN : STAMINA_C, 220), null, x, y, dry);
+};
+EL_DRAW.stim = function (e, k, d, x, y, dry, items) {
+  const v = items && items.vit;
+  if (!v) return null;
+  return vitalBar(e, k, v.stim, col([120, 215, 140], 225), null, x, y, dry);
+};
 function iconEl(rows, n, k, x, y, dry) {
   const cell = Math.max(1, fl(1.6 * k + 0.5)), small = Math.max(7, fl(16 * k + 0.5));
   const S = GRENADE.length * cell, iw = rows[0].length * cell, s = String(n);
@@ -814,20 +896,32 @@ for (const s of SAMPLES) { const o = document.createElement('option'); o.value =
 
 function state() {
   const s = SAMPLES.find(x => x.id === sampleSel.value) || SAMPLES[0];
-  return s.make(Math.max(0, Math.min(1, $('fillr').value / 100)));
+  const f = Math.max(0, Math.min(1, $('fillr').value / 100));
+  const r = s.make(f);
+  // (health and stamina with the slider too: a hit's trail shown over the last fifth)
+  if (r.items) r.items.vit = { hp: Math.round(125 * Math.max(0.05, f)), max: 125, st: Math.max(0.05, f), stim: Math.max(0.05, f), trail: Math.min(125, Math.round(125 * Math.max(0.05, f)) + 25) };
+  return r;
 }
 
-// the screen behind the HUD: dusk sky, a ridge line, the crosshair
+// the screen behind the HUD: dusk sky, a ridge line, the crosshair; or a screenshot of your own game (shot: read in
+// the browser, kept for this visit only, never in the draft or the file), fitted to the screen
+const shot = { img: null, alpha: 1, name: '' };
 function backdrop() {
   const W = SCR.W, H = SCR.H;
   const sky = g.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#1f2a33'); sky.addColorStop(0.5, '#3a3f3c'); sky.addColorStop(0.56, '#4b4637'); sky.addColorStop(1, '#262420');
   g.fillStyle = sky; g.fillRect(0, 0, W, H);
-  g.fillStyle = 'rgba(15,16,15,0.55)';
-  g.beginPath(); g.moveTo(0, H * 0.6);
-  const peaks = [0.58, 0.55, 0.59, 0.52, 0.57, 0.54, 0.6, 0.56, 0.58];
-  peaks.forEach((p, i) => g.lineTo(W * (i + 1) / peaks.length, H * p));
-  g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill();
+  if (shot.img) {
+    g.save(); g.globalAlpha = shot.alpha; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(shot.img, 0, 0, W, H);
+    g.restore();
+  } else {
+    g.fillStyle = 'rgba(15,16,15,0.55)';
+    g.beginPath(); g.moveTo(0, H * 0.6);
+    const peaks = [0.58, 0.55, 0.59, 0.52, 0.57, 0.54, 0.6, 0.56, 0.58];
+    peaks.forEach((p, i) => g.lineTo(W * (i + 1) / peaks.length, H * p));
+    g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill();
+  }
   // the crosshair
   g.strokeStyle = 'rgba(240,240,235,0.85)'; g.lineWidth = 3;
   const cx = W / 2, cy = H / 2;
@@ -1050,6 +1144,12 @@ function buildFields() {
   kp.append(kc, document.createTextNode(' Keep it in place'));
   pw.append(kp);
   box.append(pw);
+  if (el.vitals) {
+    const p = document.createElement('p'); p.className = 'small'; p.style.margin = '0';
+    p.textContent = el.id === 'stim' ? 'Shown in the game only when F9 › NarrowHUD › Stim timer is on, while a stim of yours works.'
+      : 'Shown in the game only when F9 › NarrowHUD › ' + el.name + ' is on (Always, or ' + (el.id === 'health' ? 'When hurt' : 'While not full') + ').';
+    box.prepend(p);
+  }
   if (selSet.size > 1) {
     const p = document.createElement('p'); p.className = 'small'; p.style.margin = '0';
     p.textContent = selSet.size + ' parts picked: dragging any of them or the arrow keys move them all. These fields are the ' + el.name.toLowerCase() + '\'s.';
@@ -1225,6 +1325,74 @@ document.addEventListener('keydown', (ev) => {
 
 // ------------------------------------------------------------------------------------------------- the preview's settings
 $('aspect').addEventListener('change', () => { SCR.W = Math.round(1440 * Number($('aspect').value)); view.vx = SCR.W / 2; render(); });
+
+// A screenshot of your game behind the parts (E2): a file picked, dropped on the screen or pasted (Ctrl+V). Read in
+// the browser only. The editor's screen takes the picture's shape: one of the listed ones when it's within 2 %, else
+// an option of its own, so the parts sit where they will in that game.
+function shotStatus(s) { $('shotstat').textContent = s; }
+function shotShow() {
+  const on = !!shot.img;
+  for (const id of ['shotalphalbl', 'shotalpha', 'shotoff']) $(id).hidden = !on;
+  $('shotbtn').textContent = on ? 'Another screenshot' : 'Use a screenshot';
+}
+function shotFit(img) {
+  const ratio = img.naturalWidth / img.naturalHeight;
+  const sel = $('aspect');
+  let pick = null;
+  for (const o of sel.options) if (o.dataset.shot !== '1' && Math.abs(Number(o.value) / ratio - 1) <= 0.02) { pick = o; break; }
+  let own = sel.querySelector('option[data-shot="1"]');
+  if (!pick) {
+    if (!own) { own = document.createElement('option'); own.dataset.shot = '1'; sel.appendChild(own); }
+    own.value = String(ratio); own.textContent = 'Your screenshot (' + img.naturalWidth + ' × ' + img.naturalHeight + ')';
+    pick = own;
+  } else if (own) own.remove();
+  sel.value = pick.value;
+  SCR.W = Math.round(1440 * ratio); view.vx = SCR.W / 2;
+  return pick.dataset.shot === '1' ? 'an unusual shape: the screen is set to it' : pick.textContent.split(' (')[0];
+}
+function shotLoad(file) {
+  if (!file || !/^image\//.test(file.type)) { shotStatus('That isn\'t a picture.'); return; }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    shot.img = img; shot.name = file.name || 'the pasted picture';
+    const shape = shotFit(img);
+    shotShow();
+    shotStatus(shot.name + ', ' + img.naturalWidth + ' × ' + img.naturalHeight + ' (' + shape + '). It stays in this page only: not in the draft, not in the file.');
+    render();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); shotStatus('That picture couldn\'t be read.'); };
+  img.src = url;
+}
+$('shotbtn').addEventListener('click', () => $('shotfile').click());
+$('shotfile').addEventListener('change', ev => { shotLoad(ev.target.files && ev.target.files[0]); ev.target.value = ''; });
+$('shotalpha').addEventListener('input', () => { shot.alpha = Number($('shotalpha').value) / 100; render(); });
+$('shotoff').addEventListener('click', () => {
+  shot.img = null; shot.name = '';
+  const own = $('aspect').querySelector('option[data-shot="1"]');
+  if (own && $('aspect').value === own.value) { $('aspect').value = '1.7778'; SCR.W = Math.round(1440 * 1.7778); view.vx = SCR.W / 2; }
+  if (own) own.remove();
+  shotShow(); shotStatus(''); render();
+});
+{
+  const frame = $('frame');
+  let over = 0;
+  frame.addEventListener('dragenter', ev => { if (ev.dataTransfer && Array.from(ev.dataTransfer.types).includes('Files')) { over++; frame.classList.add('dropping'); $('dropnote').hidden = false; } });
+  frame.addEventListener('dragover', ev => { if (ev.dataTransfer && Array.from(ev.dataTransfer.types).includes('Files')) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; } });
+  frame.addEventListener('dragleave', () => { if (--over <= 0) { over = 0; frame.classList.remove('dropping'); $('dropnote').hidden = true; } });
+  frame.addEventListener('drop', ev => {
+    ev.preventDefault(); over = 0; frame.classList.remove('dropping'); $('dropnote').hidden = true;
+    const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+    if (f) shotLoad(f);
+  });
+  document.addEventListener('paste', ev => {
+    if (ev.target === $('paste')) return;        // (the layout file's text box has its own paste)
+    const items = ev.clipboardData && ev.clipboardData.items;
+    if (!items) return;
+    for (const it of items) if (it.kind === 'file' && /^image\//.test(it.type)) { ev.preventDefault(); shotLoad(it.getAsFile()); return; }
+  });
+}
 for (const b of $('zoom').querySelectorAll('button')) {
   b.addEventListener('click', () => {
     view.z = Number(b.dataset.z);
@@ -1310,6 +1478,12 @@ if (document.fonts && document.fonts.load) {
   Promise.all([document.fonts.load('500 40px "Saira Semi Condensed"'), document.fonts.ready]).then(start, start);
   setTimeout(() => { if (!$('out').textContent) start(); }, 2500);
 } else start();
+$('copyname').addEventListener('click', async () => {
+  const name = $('fname').textContent, b = $('copyname');
+  try { await navigator.clipboard.writeText(name); b.textContent = 'Copied'; }
+  catch (e) { const r = document.createRange(); r.selectNodeContents($('fname')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); b.textContent = 'Selected: Ctrl+C'; }
+  setTimeout(() => { b.textContent = 'Copy the name'; }, 2000);
+});
 </script>
 
 </body>

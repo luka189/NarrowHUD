@@ -2,16 +2,16 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 1.0.6
+Version: 1.5.13
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v1.0.6.zip
-Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.0.x, or 1.2.3 and newer"
+Main file: NarrowHUD-v1.5.13.zip
+Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.2.3 or newer"
 
 Summary (the short line under the title, at most 350 characters):
 --------------------------------------------------------------------
-A narrow ammo and heat readout by your crosshair: the magazine as a bar, the count, your spare magazines, stims,
-grenades and backpack. Three layouts, or make your own in the online layout editor (curved bars too). Colourblind
-palette, dims when idle. Reads only, never writes. Needs Chef Shared Loader 1.0.x or 1.2.3+.
+A narrow ammo and heat readout by your crosshair: the magazine as a bar, the count, spare magazines, stims, grenades,
+backpack, health and stamina. Drop lines for launchers, throw lines for stratagems and grenades, your map pin and where
+you died, on screen. Four layouts or your own in the online editor. Reads only. Needs Chef Shared Loader 1.2.3+.
 
 Description (paste into the BBCode editor):
 -------------------------------------------
@@ -21,7 +21,20 @@ Description (paste into the BBCode editor):
 A small ammo and heat readout right by your crosshair, so you never have to look at the corner of the screen
 mid-fight.
 
-[size=4][b]NEW: make your own layout[/b][/size]
+[size=4][b]NEW in 1.5: lines and markers in the world[/b][/size]
+[list]
+[*]A [b]drop line[/b] for grenade launchers, rockets, the crossbow and plasma: where the shot goes, drawn from the
+weapon along your aim and bending down as the round drops, hidden where it enters the ground. While you aim down
+the sights by default; whenever the weapon is in hand if you like. Every weapon with a visible drop has its numbers.
+[*]A [b]throw line[/b] for a stratagem ball, a grenade or a C4 charge: where the throw goes while you aim it, from
+your hand to where it lands, your own run carried into the throw.
+[*][b]Your map pin[/b] and [b]where you last died[/b] on the screen, with their distance; an arrow at the screen's
+edge when out of view.
+[*]A fourth layout, the [b]curved pair[/b] around the crosshair, and health and stamina bars on by default.
+[/list]
+All of it in F9 > NarrowHUD, each with its off switch.
+
+[size=4][b]Make your own layout[/b][/size]
 [b][url=https://luka189.github.io/NarrowHUD/editor/]>> Open the NarrowHUD layout editor <<[/url][/b]
 Drag every part of the HUD anywhere on a game screen: the bar, the count, the magazines, the modes, stims, grenades
 and the backpack bar. Make bars vertical or curved, resize or fade any part, and see how each kind of weapon will
@@ -33,7 +46,7 @@ look. Then:
 (replace the one there).
 [*]Press the key set in F9 under "Read the layout file again", or start a mission.
 [/list]
-Under, Beside and a curved pair are in the editor to start from.
+Under, Beside and the curved pair are in the editor to start from, and a screenshot of your own game can go behind the parts.
 
 [size=4][b]What it shows[/b][/size]
 [list]
@@ -49,33 +62,40 @@ Backpack-fed weapons show the backpack's ammo.
 the [b]rate of fire[/b] setting. Optionally each mode in its own colour, so a switch is easy to see.
 [*][b]Lock-on[/b] (Spear, WASP) and [b]charge meters[/b] (Railgun, Epoch).
 [*][b]Stims, grenades[/b], your [b]backpack[/b]'s fill, the warp pack's heat and the jump pack's recharge.
+[*][b]Health and stamina[/b] bars: always, or only while they aren't full.
+[*]A [b]stim timer[/b], [b]reload progress[/b], low-health [b]warnings[/b], and the HUD out of the way while you call in a stratagem or emote.
+[*][b]Your map pin[/b] and [b]where you last died[/b] on the screen, where they are in the world, with their distance; an arrow at the screen's edge when one is out of view.
+[*]A [b]drop line[/b] for grenade launchers, rockets and plasma, and a [b]throw line[/b] for stratagem balls, grenades and C4: where the shot or throw goes, as a line in the world.
 [/list]
 
-[size=4][b]Three built-in layouts (or your own)[/b][/size]
+[size=4][b]Four built-in layouts (or your own)[/b][/size]
 [list]
 [*][b]Under the crosshair[/b]: a wide narrow bar, the count and magazines to its right, stims and grenades below.
 [*][b]Beside the crosshair[/b] (compact): a short vertical bar, the count, your magazines as small squares (or a
 number), the modes, stims and grenades.
 [*][b]A screen corner[/b]: by the game's own weapon panel; turn off the bar and items for just the count, magazines and modes (or anywhere
 you put it).
+[*][b]Curved pair[/b]: the ammo bar as a ) right of the crosshair, the backpack as a ( on the left, the count and
+items above, health and stamina over the crosshair.
 [*][b]Custom[/b]: your own, from the [url=https://luka189.github.io/NarrowHUD/editor/]layout editor[/url].
 [/list]
 
 [size=4][b]Settings[/b][/size] (F9 menu > NarrowHUD)
 [list]
-[*]Size, layout (under or beside the crosshair, a screen corner by the game's weapon panel, or Custom from the layout editor), and one offset that moves the built-in layouts anywhere
+[*]Size, position (under or beside the crosshair, a screen corner by the game's weapon panel, the curved pair, or Custom from the layout editor), and one offset that moves the built-in layouts anywhere
 [*]Every part shown or hidden on its own: bar, count, magazines, HEAT label, modes, fire mode, rate of fire, charge meter, stims, grenades, backpack bar
 [*]Magazines as squares or a number; the empty squares shown or hidden
 [*]Empty parts of the ammo bar, magazines and backpack bar faint, or as outlines
 [*]Opacity, and dimming or hiding when nothing has changed for a few seconds
 [*]Colours: standard, or colourblind (white, sky blue, yellow, magenta)
+[*]The world: the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its length), the throw line, and the lines' thickness
 [*]Your fire button, swap keys, the mouse wheel and the weapon options key, if you've changed them in the game
 [*]Keys to forget what NarrowHUD learned (about the weapon in hand, or everything)
 [/list]
 
 [size=4][b]Install[/b][/size]
 [list=1]
-[*]Install [b]Chef Shared Loader[/b] (1.0.x, or 1.2.3 or newer; 1.1 doesn't allow the reads NarrowHUD needs, and 1.2.0 to 1.2.2 take some smaller missions for the ship, where NarrowHUD stays off).
+[*]Install [b]Chef Shared Loader[/b] [b]1.2.3 or newer[/b], with the highest priority in your mod manager (older versions block the reads NarrowHUD needs or take some smaller missions for the ship, where NarrowHUD stays off).
 [*]Add the NarrowHUD zip in your mod manager and enable it.
 [*]Play. Settings are in F9.
 [/list]
@@ -97,7 +117,7 @@ set a key for "Forget what's learned about the weapon in hand" in F9, press it w
 [b]I changed my fire button or swap keys in the game.[/b] Set the same in F9 > NarrowHUD.
 [b]"NarrowHUD is off: the game was updated".[/b] A patch changed something NarrowHUD can't check safely. Wait for an
 update, or turn on "Run on a game version it wasn't made for" at your own risk.
-[b]The pixel font setting is missing.[/b] On Chef 1.1 and newer it's Chef's own: F9 > Chef Shared Loader > Game font.
+[b]Can I use a pixel font?[/b] That's Chef's own setting, for every mod: F9 > Chef Shared Loader > Game font.
 [b]Where does it keep what it learned?[/b] chef_data_luka189_2fnarrowhud__learned.lua in
 %APPDATA%\Arrowhead\Helldivers2. Its log is narrowhud.log in the same folder.
 [b]Does it work in multiplayer?[/b] Yes, hosting and joining. It only shows your own weapons and backpack.
@@ -116,25 +136,28 @@ Bug reports: turn on "Research log" in F9 (from the next start), play until it h
 
 [size=4][b]Credits[/b][/size]
 [list]
-[*]Weapon heat and charge values: the Helldivers 2 wiki (helldivers.wiki.gg).
+[*]Weapon heat and charge values, stim durations: the Helldivers 2 wiki (helldivers.wiki.gg).
+[*]Uses research from HD2Runtime by SkyeShade (https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line).
+[*]The stratagem ball's unit is found the way Stratagem and C4 Trajectory (Nexus 17945) finds it; the throw numbers are NarrowHUD's own, fitted from recorded throws. None of its code is used.
 [*]The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used.
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
 
-Changelog for the Nexus "Changelogs" tab (1.0.6)
-------------------------------------------------
-- NEW: Custom position and an online layout editor (https://luka189.github.io/NarrowHUD/editor/): put every part of
-  the HUD wherever you like, curved bars included.
-- Hosting with SEAF: soldiers' guns no longer take over the HUD.
-- No more blinking off while walking, vaulting or using a stim.
-- Swapping to your support weapon no longer flashes another weapon first.
-- Scrolling the zoom or flashlight (holding R) no longer counts as a weapon swap.
-- Railgun and heat weapons no longer show a Guard Dog's or other backpack's ammo.
-- The Scythe's heat sink attachments show the right heat.
-- Weapons without a rate of fire setting no longer show RPM after a cold planet.
-- The Halt shows FLECHETTE / STUN, each with its own count.
-- New settings: mouse wheel swapping, and your weapon options key.
+Changelog for the Nexus "Changelogs" tab (1.5.13)
+-------------------------------------------------
+- NEW: a drop line for grenade launchers, rockets, the crossbow and plasma weapons: where the shot goes, drawn from
+  the weapon and bending down as the round drops, ending where it enters the ground. While aiming by default.
+- NEW: a throw line for stratagem balls, grenades and C4: where the throw goes while you aim it.
+- NEW: your map pin and where you last died, on the screen with their distance; an arrow at the edge when out of
+  view.
+- NEW: a fourth layout, the curved pair around the crosshair; the layout editor has it, and can show a screenshot of
+  your game behind the parts.
+- Health and stamina bars are on by default now. Everything new has its off switch in F9.
+- F9 settings in topic blocks (Show, Bars, Look, World, Keys, Testing), shorter labels.
+- The Talon's heat bar no longer runs too high; a support weapon fresh out of its hellpod shows at once; a jump pack
+  lying on the map no longer shows a recharge bar.
+- Needs Chef Shared Loader 1.2.3 or newer, as before.
 
 Permissions (the Permissions tab)
 ---------------------------------
