@@ -100,6 +100,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .btn { background: var(--raise); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 11px; cursor: pointer; font-size: 14px; }
 .btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn:disabled:hover { border-color: var(--line); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.06); }
 
@@ -161,7 +163,7 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
     <h1>NarrowHUD Layout Editor</h1>
     <span class="tag">LAYOUT FILE v1 · NARROWHUD 1.0.6+</span>
   </div>
-  <p class="lead">Drag the parts around the screen (arrow keys nudge the picked one), then copy the file into the game's folder. A screenshot of your game, picked, dropped or pasted, goes behind the parts.</p>
+  <p class="lead">Drag the parts around the screen (arrow keys nudge the picked one; Ctrl+Z undoes), then copy the file into the game's folder. A screenshot of your game, picked, dropped or pasted, goes behind the parts.</p>
 </header>
 
 <div class="work">
@@ -193,7 +195,11 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
         <button class="btn" type="button" id="shotoff" style="font-size:12px;padding:3px 8px" hidden>Remove</button>
         <span class="status" id="shotstat"></span>
       </span>
-      <button class="btn" type="button" id="onecol" style="font-size:12px;padding:3px 8px;margin-left:auto" aria-pressed="false" title="The settings in one column, however wide the rail">One column</button>
+      <span style="margin-left:auto;display:inline-flex;gap:6px">
+        <button class="btn" type="button" id="undo" style="font-size:12px;padding:3px 8px" title="Undo (Ctrl+Z)" disabled>Undo</button>
+        <button class="btn" type="button" id="redo" style="font-size:12px;padding:3px 8px" title="Redo (Ctrl+Y)" disabled>Redo</button>
+        <button class="btn" type="button" id="onecol" style="font-size:12px;padding:3px 8px" aria-pressed="false" title="The settings in one column, however wide the rail">One column</button>
+      </span>
     </div>
     <div class="frame" id="frame"><canvas id="cv" width="1280" height="720" aria-label="The game screen with the HUD parts"></canvas><div class="dropnote" id="dropnote" hidden>Drop a screenshot of your game here: the parts are laid over it</div></div>
     <div class="readout" id="readout">&nbsp;</div>
@@ -1103,7 +1109,7 @@ function numberField(wrap, name, f, e) {
     if (from !== n) n.value = num(v);
     changed();
   };
-  r.addEventListener('input', () => set(r.value, r));
+  r.addEventListener('input', () => { changeKey = 'slider:' + name; set(r.value, r); });
   n.addEventListener('change', () => set(n.value, n));
   pair.append(r, n);
   wrap.append(pair);
@@ -1267,7 +1273,44 @@ function buildFields() {
   row('opacity', (w) => numberField(w, 'opacity', COMMON.opacity, e), FIELD_HELP.opacity);
 }
 
-function changed() { saveDraft(); updateFile(); render(); }
+// Undo and redo (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z, the two buttons): the layout and the offsets box as they were before
+// each change. A run of the same quick change (a slider moving, arrow-key nudges) within 600 ms counts as one step.
+const hist = { undo: [], redo: [], last: null, key: null, at: 0 };
+function snap() { return JSON.stringify({ e: els, o: useOffsets }); }
+function histMark(key) {
+  const s = snap();
+  if (s === hist.last) return;
+  const now = performance.now();
+  if (!(key && key === hist.key && now - hist.at < 600)) {
+    hist.undo.push(hist.last); if (hist.undo.length > 200) hist.undo.shift();
+    hist.redo.length = 0;
+  }
+  hist.last = s; hist.key = key || null; hist.at = now;
+  histButtons();
+}
+function histApply(s) {
+  const t = JSON.parse(s);
+  els = t.e; useOffsets = t.o; hist.last = s; hist.key = null;
+  if (!els[sel]) sel = 'bar';
+  for (const id of [...selSet]) if (!els[id]) selSet.delete(id);
+  if (!selSet.size) selSet.add(sel);
+  syncOffsets(); buildFields(); saveDraft(); updateFile(); render(); histButtons();
+}
+function undo() { if (!hist.undo.length) return; hist.redo.push(snap()); histApply(hist.undo.pop()); }
+function redo() { if (!hist.redo.length) return; hist.undo.push(snap()); histApply(hist.redo.pop()); }
+function histButtons() { $('undo').disabled = !hist.undo.length; $('redo').disabled = !hist.redo.length; }
+$('undo').addEventListener('click', undo);
+$('redo').addEventListener('click', redo);
+document.addEventListener('keydown', (ev) => {
+  if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+  const tag = (ev.target && ev.target.tagName) || '';
+  if (tag === 'TEXTAREA' || (tag === 'INPUT' && ['text', 'number'].includes(ev.target.type))) return;   // (the field's own undo)
+  const k = ev.key.toLowerCase();
+  if (k === 'z' && !ev.shiftKey) { ev.preventDefault(); undo(); }
+  else if (k === 'y' || (k === 'z' && ev.shiftKey)) { ev.preventDefault(); redo(); }
+});
+let changeKey = null;                              // (set by a slider or a nudge before changed(): the step's key)
+function changed() { histMark(changeKey); changeKey = null; saveDraft(); updateFile(); render(); }
 function updateFile() { $('out').textContent = writeLayout(els); }
 
 // presets
@@ -1393,7 +1436,7 @@ document.addEventListener('keydown', (ev) => {
     else e.x = Math.round((e.x + m[0] * st) * 100) / 100;
     e.y = Math.round((e.y + m[1] * st) * 100) / 100;
   }
-  buildFields(); changed();
+  changeKey = 'nudge'; buildFields(); changed();
 });
 
 // ------------------------------------------------------------------------------------------------- the rail's room
@@ -1579,7 +1622,7 @@ $('paste').addEventListener('input', () => { const t = $('paste').value.trim(); 
 function start() {
   measureCap();
   SCR.W = Math.round(1440 * Number($('aspect').value));
-  syncOffsets(); buildFields(); updateFile(); railApply();
+  syncOffsets(); buildFields(); updateFile(); hist.last = snap(); histButtons(); railApply();
 }
 if (document.fonts && document.fonts.load) {
   Promise.all([document.fonts.load('500 40px "Saira Semi Condensed"'), document.fonts.ready]).then(start, start);

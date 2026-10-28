@@ -2,6 +2,8 @@
 
 ## 1.5.15
 
+- The layout editor: **undo and redo** (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z, and two buttons in the screen bar); a slider
+  run or a run of arrow-key nudges counts as one step.
 - **The P-34 Breacher has its drop line**: named from two players' logs (the only weapon at 20 rpm, one round, a
   pistol's hand pose), with the wiki's numbers (10 g, 150 m/s, drag 200 %).
 - **The Halt vanished after a shot and a few mode switches** (the same player's report, with the research log): the
