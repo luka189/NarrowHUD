@@ -53,6 +53,9 @@ NAMES = {
     'a41ddfcd': ('PLAS-1 Scorcher', True),
     'ba161726': ('PLAS-101 Purifier', True),
     '82a8d3c2': ('JAR-5 Dominator', True),
+    # matched from players' logs, not a tester's naming: the Breacher by its 20 rpm (the only weapon at that rate),
+    # one round, a pistol's hand pose (1), as a secondary in two players' logs of 2026-10-28
+    'f94a73b3': ('P-34 Breacher', True),
 }
 # a diameter by projectile class when the catalogue has none that agrees (mm)
 DEFAULT_DIAMETER = [

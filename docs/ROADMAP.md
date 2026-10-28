@@ -124,6 +124,11 @@ slider for it, so the parts stay easy to see. The anchors and the crosshair mark
 
 Both only change the preview: nothing of them goes into the layout file.
 
+## To do
+
+- Weapons added with the Evictor: the P-34 Breacher is named (1.5.15, from logs); any other new weapon shows up as
+  `weapon <id>: no projectile numbers known` in a log and needs a name.
+
 ## Later
 
 **13. Compass with teammates and objectives** (effort 4): their positions as objects (HUDdle does it); a strip above or

@@ -24,6 +24,7 @@ return {
   ['521229d8'] = { name = 'M-105 Stalwart', m = 4.5, v = 900, drag = 0.3, g = 1, d = 5.5 },
   ['3d538455'] = { name = 'MLS-4X Commando', m = 350, v = 70, drag = 0, g = 0, d = 40 },
   ['c7dfd9eb'] = { name = 'P-113 Verdict', m = 15, v = 285, drag = 1.2, g = 1, d = 12.0 },
+  ['f94a73b3'] = { name = 'P-34 Breacher', m = 10, v = 150, drag = 2, g = 1, d = 8 },
   ['c920c2d3'] = { name = 'P-92 Warrant', m = 15, v = 285, drag = 0, g = 0, d = 12.0 },
   ['a41ddfcd'] = { name = 'PLAS-1 Scorcher', m = 25, v = 550, drag = 1.5, g = 0.5, d = 20.0 },
   ['ba161726'] = { name = 'PLAS-101 Purifier', m = 25, v = 550, drag = 1.5, g = 1, d = 8 },

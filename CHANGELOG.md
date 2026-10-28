@@ -2,6 +2,8 @@
 
 ## 1.5.15
 
+- **The P-34 Breacher has its drop line**: named from two players' logs (the only weapon at 20 rpm, one round, a
+  pistol's hand pose), with the wiki's numbers (10 g, 150 m/s, drag 200 %).
 - **The Halt vanished after a shot and a few mode switches** (the same player's report, with the research log): the
   Halt swaps its two slots' counts when its ammo is switched (slot0 6>7 and slot1 8>7 going to stun, back on the way
   back), and each swap read as a round fired. Fired three times with no fire button pressed, the Halt was "someone
