@@ -181,11 +181,15 @@ local function cooling_of(o, t)
     and o.prev.heat > (learned.rest2[t.id] or 0) + 5)) or false
 end
 N.cooling = cooling_of
-local function fired(prev, w)
+-- (switching: the weapon's ammo, fire mode or options just changed. The Halt swaps its two slots' counts on a
+-- mode switch (slot0 6>7, slot1 8>7 as it went to stun, back again on the way back: a player's 2026-10-28 log),
+-- which read as a shot each time, and three "shots without your fire button" hid it for the session)
+local function fired(prev, w, switching)
   if prev == nil then return false end
   local function down(k) return type(prev[k]) == 'number' and type(w[k]) == 'number' and w[k] < prev[k] end
-  if down('rounds') or down('slot0') or down('slot1') then return true end
-  if prev.chamber == false and w.chamber == true then return true end   -- the chambered one left (a single shell, a C4)
+  if down('rounds') then return true end
+  if not switching and (down('slot0') or down('slot1')) then return true end
+  if not switching and prev.chamber == false and w.chamber == true then return true end   -- the chambered one left (a single shell, a C4)
   if type(prev.heat) == 'number' and type(w.heat) == 'number' and w.heat > prev.heat + 0.5 then return true end
   if w.charging == true and prev.charging ~= true then return true end
   return false

@@ -310,7 +310,7 @@ local function watch_fire(s, grip)
       local by_you = not t.has.held or not o.held_ever or (o.held_t and now - o.held_t <= 0.6)
       -- (a weapon whose trigger was never seen held can't take the hands from one whose trigger has been: the shown
       -- weapon keeps them while a dog's fires)
-      if fired(o.prev, w) then
+      if fired(o.prev, w, switching) then
         -- the weapon in hand firing with no fire input seen in the last 20 s, twice: the fire input can't be read
         -- (never once a press was seen: then it can be read, and the weapon shown firing alone is someone else's: a
         -- SEAF soldier's gun, shown by mistake, set this off in a 1.0.2 log)
@@ -344,7 +344,7 @@ local function watch_fire(s, grip)
       -- session (someone else's of the same kind), it must have fired with it twice and more than without
       local yours = (o.unpressed or 0) == 0 or o.mine
       if distrust[t.id] then yours = o.mine end
-      if grip and grip ~= 0 and not THROWABLE[grip] and HANDHELD[t.id] and fired(o.prev, w) and not o.ub and by_you
+      if grip and grip ~= 0 and not THROWABLE[grip] and HANDHELD[t.id] and fired(o.prev, w, switching) and not o.ub and by_you
          and not steals
          and not o.notmine and pressed_recently(now) and yours then
         any_fired = true

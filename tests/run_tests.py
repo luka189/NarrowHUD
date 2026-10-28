@@ -1450,6 +1450,22 @@ def main():
     r.execute('OBJ[95].fields[ROLE.selected] = 1 run(0.3) OBJ[95].fields[ROLE.slot1] = 5 run(0.3)')
     t = r.eval('texts()')
     check('the Halt on stun: STUN, its own count [%s]' % t, 'STUN' in t and t.startswith('5 |') and 'FLECHETTE' not in t)
+    # 1.5.15: the Halt's mode switch swaps its two slots' counts (slot0 6>7, slot1 8>7 going to stun, back on the way
+    # back: a player's 2026-10-28 log); one flechette shot, then three switches with no fire press, had it "fire
+    # without your fire button" three times and hidden for the session. Now a slot change while switching isn't a shot
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil OBJ[95] = { name = '%s', fields = {} } local f = OBJ[95].fields
+      f[ROLE.slot0] = 7 f[ROLE.slot1] = 8 f[ROLE.selected] = 0 f[ROLE.spare] = 32 f[ROLE.chamber] = false f[ROLE.carry] = 0
+      GRIP = 80 run(3) FIRE = true run(0.1) f[ROLE.slot0] = 6 run(0.3) FIRE = false run(1)
+      for i = 1, 3 do
+        if i %% 2 == 1 then f[ROLE.selected] = 1 f[ROLE.slot0] = 7 f[ROLE.slot1] = 7 else f[ROLE.selected] = 0 f[ROLE.slot0] = 6 f[ROLE.slot1] = 8 end
+        run(0.9)
+      end''' % type_name('9c06f074'))
+    t = r.eval('texts()')
+    logs = list(r.eval('logs').values())
+    check('the Halt: a shot, then three mode switches (the slots swapped): still shown [%s] %s' % (t, [l for l in logs if 'not yours' in l]),
+          'STUN' in t and not any('not yours' in l for l in logs))
     # a controller that isn't the first one the engine has (Pad3)
     rt7b = lua51.LuaRuntime()
     setup(rt7b)

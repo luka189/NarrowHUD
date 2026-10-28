@@ -2,6 +2,12 @@
 
 ## 1.5.15
 
+- **The Halt vanished after a shot and a few mode switches** (the same player's report, with the research log): the
+  Halt swaps its two slots' counts when its ammo is switched (slot0 6>7 and slot1 8>7 going to stun, back on the way
+  back), and each swap read as a round fired. Fired three times with no fire button pressed, the Halt was "someone
+  else's" for the session. Before the first shot the same switches made NarrowHUD give up checking the fire button
+  instead, which is why switching first "worked". A slot change while the ammo, fire mode or options just changed
+  (1.5 s) is no longer a shot.
 - **The Liberator Legacy showed no ammo** (a player's report with his logs): it's new, with a hand pose NarrowHUD
   had never seen (90), and 1.0.6 learned it right, then learned three wrong poses for it during quick swaps (the
   grenade pistol's among them, within a second). Four poses tripped the "not one weapon's set, never shown" guard,
