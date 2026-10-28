@@ -50,10 +50,14 @@ header.top {
 .brand { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .brand h1 { font: 600 26px/1 var(--font-display); letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
 .brand .tag { font: 500 12px var(--font-mono); color: var(--muted); letter-spacing: 0.04em; }
-.top .lead { color: var(--muted); margin: 0; max-width: 62ch; }
+.top .lead { color: var(--muted); margin: 0; flex-basis: 100%; }
 
-.work { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-@media (max-width: 980px) { .work { grid-template-columns: minmax(0, 1fr); } }
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 10px var(--railw, 340px); gap: 0 8px; align-items: start; }
+@media (max-width: 980px) { .work { grid-template-columns: minmax(0, 1fr); gap: 16px; } .split { display: none; } }
+/* the divider between the preview and the rail: dragged, it gives one side room from the other */
+.split { align-self: stretch; cursor: col-resize; border-radius: 3px; position: relative; touch-action: none; }
+.split::before { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: var(--line); border-radius: 1px; }
+.split:hover::before, .split.on::before { background: var(--accent); }
 
 /* the screen */
 .stage { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -66,14 +70,16 @@ header.top {
 .readout { font: 12px var(--font-mono); color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
 .shotbar { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
 .frame.dropping { outline: 2px dashed var(--accent); outline-offset: -4px; }
-.dropnote { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
-  font: 500 18px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg); background: rgba(10, 12, 14, 0.55); }
+.dropnote { position: absolute; top: 10px; right: 10px; pointer-events: none; padding: 6px 10px; border-radius: var(--r);
+  font: 500 13px var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent); }
+.dropnote[hidden] { display: none; }
 
 .seg { display: inline-grid; grid-auto-flow: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
-.seg.wide { display: grid; grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+.seg.wide { display: grid; grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 .seg button { background: var(--panel); border: 0; padding: 5px 10px; cursor: pointer; color: var(--muted); font-size: 13px; white-space: nowrap; }
 .seg button[aria-pressed="true"] { background: var(--raise); color: var(--fg); }
 .seg button:hover { color: var(--fg); }
+.seg .gl { display: inline-block; width: 1.4em; text-align: center; margin-right: 0.45em; font-family: var(--font-mono); }
 
 select, input[type="number"], input[type="text"] {
   background: var(--raise); border: 1px solid var(--line); border-radius: var(--r); padding: 5px 8px; min-width: 0;
@@ -88,6 +94,16 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 
 /* the rail */
 .rail { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* Beside the preview the rail scrolls on its own (the preview stays in view while a part's fields are changed);
+   on a wide window it has two columns: the presets and parts left, the picked part's fields right, so nothing
+   scrolls at all on a 1440p screen. */
+@media (min-width: 981px) {
+  .rail { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+  #fieldcard { margin-bottom: 40vh; }     /* (room to scroll the lower groups up to the top) */
+}
+/* (two columns when the rail is wide enough, unless "One column" is on: .rail.two, set from its width) */
+.rail.two { display: grid; grid-template-columns: minmax(380px, 46%) minmax(0, 1fr); grid-template-rows: auto auto 1fr; align-items: start; }
+.rail.two > #fieldcard { grid-column: 2; grid-row: 1 / span 3; margin-bottom: 0; }   /* (the spare height goes to the empty third row) */
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; min-width: 0; }
 .card h2 { font: 600 15px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 10px; color: var(--fg); }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -96,8 +112,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.06); }
 
-.els { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.els li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+.els { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 8px; }
+.els li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 4px; cursor: pointer; user-select: none; }
 .els li:hover { background: var(--raise); }
 .els li[aria-selected="true"] { background: var(--raise); box-shadow: inset 3px 0 0 var(--accent); }
 .els li .nm { font-size: 14px; }
@@ -109,6 +125,17 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .f > .rowlabel { line-height: 1.2; }
 .f .pair { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; }
 .f .help { grid-column: 2; color: var(--muted); font-size: 12.5px; margin-top: -4px; }
+.f .help[hidden] { display: none; }
+.f .lbl { display: flex; align-items: center; gap: 6px; }
+.mixed { color: var(--accent); font-weight: 600; cursor: help; }
+.fillrow { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.fillrow .ticks { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.fillrow .ticks input { width: 64px; }
+.q { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); background: var(--raise); color: var(--muted); font: 600 11px var(--font-display); cursor: pointer; padding: 0; line-height: 1; flex: none; }
+.q[aria-expanded="true"], .q:hover { border-color: var(--accent); color: var(--accent); }
+.grp { font: 600 12px var(--font-display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 6px 0 -2px; padding-top: 8px; border-top: 1px solid var(--line); }
+.grp:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.padline { font-size: 12.5px; color: var(--muted); flex-basis: 100%; }
 .pad9 { display: grid; grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(3, 20px); gap: 3px; }
 .pad9 button { border: 1px solid var(--line); background: var(--raise); border-radius: 3px; cursor: pointer; padding: 0; position: relative; }
 .pad9 button::after { content: ""; position: absolute; inset: 0; margin: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); opacity: 0.5; }
@@ -143,7 +170,7 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
     <h1>NarrowHUD Layout Editor</h1>
     <span class="tag">LAYOUT FILE v1 · NARROWHUD 1.0.6+</span>
   </div>
-  <p class="lead">Place each part of the HUD on the screen, then copy the file into the game's folder. Drag a part to move it; arrow keys nudge the selected one. A screenshot of your game (picked, dropped on the screen or pasted) goes behind the parts, so you can place them around the game's own HUD.</p>
+  <p class="lead">Drag the parts around the screen (arrow keys nudge the picked one), then copy the file into the game's folder. A screenshot of your game, picked, dropped or pasted, goes behind the parts.</p>
 </header>
 
 <div class="work">
@@ -175,8 +202,9 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
         <button class="btn" type="button" id="shotoff" style="font-size:12px;padding:3px 8px" hidden>Remove</button>
         <span class="status" id="shotstat"></span>
       </span>
+      <button class="btn" type="button" id="onecol" style="font-size:12px;padding:3px 8px;margin-left:auto" aria-pressed="false" title="The settings in one column, however wide the rail">One column</button>
     </div>
-    <div class="frame" id="frame"><canvas id="cv" width="1280" height="720" aria-label="The game screen with the HUD parts"></canvas><div class="dropnote" id="dropnote" hidden>Drop the screenshot here</div></div>
+    <div class="frame" id="frame"><canvas id="cv" width="1280" height="720" aria-label="The game screen with the HUD parts"></canvas><div class="dropnote" id="dropnote" hidden>Drop a screenshot of your game here: the parts are laid over it</div></div>
     <div class="readout" id="readout">&nbsp;</div>
     <div class="preview-opts">
       <span class="rowlabel">F9 settings</span>
@@ -193,8 +221,9 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
       <p class="note">These are the mod's own settings, shown here only so the preview matches your game. They aren't saved in the layout file, except whether F9's offsets move this layout at all (off unless you turn it on).</p>
     </div>
   </section>
+  <div class="split" id="split" role="separator" aria-orientation="vertical" aria-label="Room for the preview against the settings: drag" title="Drag: room for the preview against the settings. Double-click: back to the usual split."></div>
 
-  <aside class="rail">
+  <aside class="rail" id="rail">
     <div class="card">
       <h2>Start from</h2>
       <div class="presets" id="presets"></div>
@@ -1015,8 +1044,9 @@ function overlay() {
 }
 
 // ------------------------------------------------------------------------------------------------- the rail
-const STYLE_NAMES = { horizontal: 'Horizontal', vertical: 'Vertical', curved_left: '( Curved', curved_right: 'Curved )', auto: 'Auto', ticks: 'Ticks',
+const STYLE_NAMES = { horizontal: 'Horizontal', vertical: 'Vertical', curved_left: 'Curved', curved_right: 'Curved', auto: 'Auto', ticks: 'Ticks',
   solid: 'Solid', number: 'Number (x7)', squares: 'Squares', shown: 'Shown', hidden: 'Hidden', line: 'In a line', stacked: 'Stacked' };
+const STYLE_GLYPHS = { horizontal: '\u2014', vertical: '|', curved_left: '(', curved_right: ')' };
 const FIELD_NAMES = { style: 'Style', fill: 'Fill', length: 'Length', thickness: 'Thickness', radius: 'Radius', ticks_max: 'Ticks up to', empty: 'Empty squares',
   divider: 'Divider', size: 'Size', opacity: 'Opacity', x: 'X', y: 'Y', after: 'After', gap: 'Gap' };
 const FIELD_HELP = {
@@ -1031,6 +1061,9 @@ const FIELD_HELP = {
   size: 'Times the F9 Size.',
   after: 'Right after another part, moving along as that one grows ("100%"). Its x isn\'t used then.',
   gap: 'Pixels from that part\'s right edge (at 1440p, Medium). Dragging sets it too.',
+  opacity: '% of the F9 Opacity; 0 hides the part.',
+  style: 'Horizontal or vertical bar, or a curve: ( bends left, ) bends right.',
+  thickness: 'Pixels at 1440p, Medium size.',
 };
 
 function renderList() {
@@ -1074,7 +1107,7 @@ function numberField(wrap, name, f, e) {
   const set = (v, from) => {
     v = Number(v);
     if (!(v >= f[2] && v <= f[3])) return;
-    els[sel][name] = v;
+    setField(name, v);
     if (from !== r) r.value = v;
     if (from !== n) n.value = num(v);
     changed();
@@ -1087,9 +1120,11 @@ function numberField(wrap, name, f, e) {
 function choiceField(wrap, name, f, e) {
   const seg = document.createElement('div'); seg.className = f[2].length > 3 ? 'seg wide' : 'seg'; seg.setAttribute('role', 'group');
   for (const v of f[2]) {
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = STYLE_NAMES[v] || v;
+    const b = document.createElement('button'); b.type = 'button';
+    if (STYLE_GLYPHS[v]) { const g = document.createElement('span'); g.className = 'gl'; g.textContent = STYLE_GLYPHS[v]; b.append(g); }
+    b.append(document.createTextNode(STYLE_NAMES[v] || v));
     b.setAttribute('aria-pressed', String(e[name] === v));
-    b.addEventListener('click', () => { els[sel][name] = v; buildFields(); changed(); });
+    b.addEventListener('click', () => { setField(name, v); buildFields(); changed(); });
     seg.append(b);
   }
   wrap.append(seg);
@@ -1110,51 +1145,116 @@ function pad9(label, name, map, e) {
 }
 // a new anchor or align point: x and y worked out again so the part stays where it is (unless that's turned off)
 function setPlace(name, v) {
-  const e = els[sel], b = boxes[sel];
-  e[name] = v;
-  if (keepPlace && b) {
-    const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
-    const tx = b.x + b.w * al[0], ty = b.y + b.h * al[1];
-    e.x = Math.round((tx - SCR.W * an[0]) / SCR.H * 10000) / 100;
-    e.y = Math.round((ty - SCR.H * an[1]) / SCR.H * 10000) / 100;
-    e.x = Math.max(-100, Math.min(100, e.x)); e.y = Math.max(-100, Math.min(100, e.y));
+  for (const id of selSet) {
+    const e = els[id], b = boxes[id];
+    e[name] = v;
+    if (keepPlace && b) {
+      const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
+      const tx = b.x + b.w * al[0], ty = b.y + b.h * al[1];
+      e.x = Math.round((tx - SCR.W * an[0]) / SCR.H * 10000) / 100;
+      e.y = Math.round((ty - SCR.H * an[1]) / SCR.H * 10000) / 100;
+      e.x = Math.max(-100, Math.min(100, e.x)); e.y = Math.max(-100, Math.min(100, e.y));
+    }
   }
   buildFields(); changed();
 }
 
+// A field changed with several parts picked: set on every picked part that has it (the fields shown are the ones
+// they all have, with the first part's values; one whose values differ is marked)
+function targetsOf(name) {
+  const out = [];
+  for (const id of selSet) { const el = BY_ID[id]; if (name in COMMON || (el.fields && name in el.fields)) out.push(id); }
+  return out;
+}
+function setField(name, v) { for (const id of targetsOf(name)) els[id][name] = v; }
+function mixed(name) { const ids = targetsOf(name); return ids.some(id => els[id][name] !== els[ids[0]][name]); }
+const helpOpen = new Set();                        // (the fields whose ? hint is open; kept across rebuilds)
 function buildFields() {
   const el = BY_ID[sel], e = els[sel];
   $('fieldtitle').textContent = el.name;
   const box = $('fields'); box.replaceChildren();
+  const group = (text) => { const g = document.createElement('div'); g.className = 'grp'; g.textContent = text; box.append(g); };
+  const many = selSet.size > 1;
   const row = (name, build, help) => {
     const f = document.createElement('div'); f.className = 'f';
+    const lw = document.createElement('div'); lw.className = 'lbl';
     const l = document.createElement('label'); l.className = 'rowlabel'; l.textContent = FIELD_NAMES[name] || name; l.htmlFor = 'f-' + name;
+    lw.append(l);
+    if (many && mixed(name)) { const m = document.createElement('span'); m.className = 'mixed'; m.textContent = '≠'; m.title = 'The picked parts differ here: a change sets them all'; lw.append(m); }
     const w = document.createElement('div'); w.style.minWidth = '0';
     build(w);
-    f.append(l, w);
-    if (help) { const h = document.createElement('div'); h.className = 'help'; h.textContent = help; f.append(h); }
+    f.append(lw, w);
+    if (help) {
+      // (the hint behind a ? button: the rail stays short; a hint opened stays open for that field)
+      const h = document.createElement('div'); h.className = 'help'; h.textContent = help; h.hidden = !helpOpen.has(name); h.id = 'help-' + name;
+      const q = document.createElement('button'); q.type = 'button'; q.className = 'q'; q.textContent = '?'; q.setAttribute('aria-label', 'What ' + (FIELD_NAMES[name] || name) + ' means');
+      q.setAttribute('aria-expanded', String(!h.hidden)); q.setAttribute('aria-controls', h.id);
+      q.addEventListener('click', () => { if (helpOpen.has(name)) helpOpen.delete(name); else helpOpen.add(name); h.hidden = !helpOpen.has(name); q.setAttribute('aria-expanded', String(!h.hidden)); });
+      q.addEventListener('mouseenter', () => { h.hidden = false; });
+      q.addEventListener('mouseleave', () => { h.hidden = !helpOpen.has(name); });
+      lw.append(q); f.append(h);
+    }
     box.append(f);
   };
-  // place
+  const note = (text, muted) => { const p = document.createElement('p'); p.className = muted ? 'muted small' : 'small'; p.style.margin = '0'; p.textContent = text; box.append(p); };
+  if (!e.on) note('This part is off: its box in the list turns it on.', true);
+  if (el.vitals) note(el.id === 'stim' ? 'Shown in the game only when F9 › NarrowHUD › Stim timer is on, while a stim of yours works.'
+    : 'Shown in the game only when F9 › NarrowHUD › ' + el.name + ' is on (Always, or ' + (el.id === 'health' ? 'When hurt' : 'While not full') + ').');
+  if (many) note(selSet.size + ' parts picked: the fields they all have, with the ' + el.name.toLowerCase() + '\'s values (≠: they differ); a change sets every one of them. Dragging or the arrow keys move them all.');
+  // the look: the style first (what changes a part most), then what goes with it; with several parts picked, only
+  // the fields every one of them has, with the same choices
+  const own = Object.entries(el.fields).filter(([name, f]) => [...selSet].every(id => {
+    const g = BY_ID[id].fields[name];
+    return g && g[0] === f[0] && (f[0] !== 'choice' || g[2].join() === f[2].join());
+  }));
+  if (own.length) group('Look');
+  for (const [name, f] of own) {
+    if (name === 'radius' && !curved(e)) continue;
+    if (name === 'ticks_max') continue;            // (beside the fill, below)
+    if (name === 'empty' && e.style !== 'squares') continue;
+    if (name === 'divider' && e.style === 'squares') continue;
+    const help = FIELD_HELP[name];
+    if (name === 'fill') {
+      // the fill, and with Auto the ticks it counts up to, beside it when there's room
+      row(name, (w) => {
+        w.className = 'fillrow';
+        choiceField(w, name, f, e);
+        if (e.fill === 'auto' && el.fields.ticks_max) {
+          const t = document.createElement('label'); t.className = 'ticks';
+          t.append(document.createTextNode('ticks up to '));
+          const n = document.createElement('input'); n.type = 'number'; n.min = 1; n.max = 200; n.step = 1; n.value = e.ticks_max; n.id = 'f-ticks_max'; n.title = FIELD_HELP.ticks_max;
+          n.addEventListener('change', () => { const v = Number(n.value); if (v >= 1 && v <= 200) { setField('ticks_max', v); changed(); } });
+          t.append(n);
+          if (many && mixed('ticks_max')) t.append(document.createTextNode(' ≠'));
+          w.append(t);
+        }
+      }, help);
+      continue;
+    }
+    if (f[0] === 'number') row(name, (w) => numberField(w, name, f, e), help);
+    else if (f[0] === 'choice') row(name, (w) => choiceField(w, name, f, e), help);
+    else if (f[0] === 'boolean') row(name, (w) => {
+      const c = document.createElement('input'); c.type = 'checkbox'; c.id = 'f-' + name; c.checked = e[name];
+      c.addEventListener('change', () => { setField(name, c.checked); changed(); });
+      w.append(c);
+    }, help);
+  }
+  // the place: the two anchor points, then after / x, y
+  group('Place');
   const pw = document.createElement('div'); pw.className = 'padwrap';
-  pw.append(pad9('Screen point', 'anchor', ANCHORS, e), pad9('The part\'s point on it', 'align', ALIGNS, e));
+  pw.append(pad9('On the screen', 'anchor', ANCHORS, e), pad9('Of the part', 'align', ALIGNS, e));
   const kp = document.createElement('label'); kp.className = 'keep chk';
-  const kc = document.createElement('input'); kc.type = 'checkbox'; kc.checked = keepPlace; kc.id = 'keepplace';
+  const kc = document.createElement('input'); kc.type = 'checkbox'; kc.checked = keepPlace; kc.id = 'keepplace'; kc.title = 'A new point moves the numbers, not the part';
   kc.addEventListener('change', () => { keepPlace = kc.checked; });
   kp.append(kc, document.createTextNode(' Keep it in place'));
   pw.append(kp);
+  const pl = document.createElement('div'); pl.className = 'padline';
+  const say = (v) => v.replace('_', ' ');
+  pl.textContent = e.after === 'none'
+    ? 'The part\'s ' + say(e.align) + ' point sits at the screen\'s ' + say(e.anchor) + ', then x / y from there.'
+    : 'The part\'s ' + say(e.align) + ' point sits at the screen\'s ' + say(e.anchor) + ' for y; its x follows ' + BY_ID[e.after].name.toLowerCase() + '.';
+  pw.append(pl);
   box.append(pw);
-  if (el.vitals) {
-    const p = document.createElement('p'); p.className = 'small'; p.style.margin = '0';
-    p.textContent = el.id === 'stim' ? 'Shown in the game only when F9 › NarrowHUD › Stim timer is on, while a stim of yours works.'
-      : 'Shown in the game only when F9 › NarrowHUD › ' + el.name + ' is on (Always, or ' + (el.id === 'health' ? 'When hurt' : 'While not full') + ').';
-    box.prepend(p);
-  }
-  if (selSet.size > 1) {
-    const p = document.createElement('p'); p.className = 'small'; p.style.margin = '0';
-    p.textContent = selSet.size + ' parts picked: dragging any of them or the arrow keys move them all. These fields are the ' + el.name.toLowerCase() + '\'s.';
-    box.prepend(p);
-  }
   row('after', (w) => {
     const sl = document.createElement('select'); sl.id = 'f-after';
     const order = ELEMENTS.map(x => x.id);
@@ -1164,34 +1264,16 @@ function buildFields() {
       const o = document.createElement('option'); o.value = v; o.textContent = v === 'none' ? 'Nothing: placed on its own' : BY_ID[v].name;
       o.selected = e.after === v; sl.append(o);
     }
-    sl.addEventListener('change', () => { els[sel].after = sl.value; buildFields(); changed(); });
+    sl.addEventListener('change', () => { setField('after', sl.value); buildFields(); changed(); });
     w.append(sl);
   }, FIELD_HELP.after);
   if (e.after !== 'none') row('gap', (w) => numberField(w, 'gap', COMMON.gap, e), FIELD_HELP.gap);
   if (e.after === 'none') row('x', (w) => numberField(w, 'x', COMMON.x, e), FIELD_HELP.x);
   row('y', (w) => numberField(w, 'y', COMMON.y, e), FIELD_HELP.y);
+  // the size
+  group('Size');
   row('size', (w) => numberField(w, 'size', COMMON.size, e), FIELD_HELP.size);
-  row('opacity', (w) => numberField(w, 'opacity', COMMON.opacity, e));
-  for (const [name, f] of Object.entries(el.fields)) {
-    if (name === 'radius' && !curved(e)) continue;
-    if (name === 'ticks_max' && e.fill !== 'auto') continue;
-    if (name === 'empty' && e.style !== 'squares') continue;
-    if (name === 'divider' && e.style === 'squares') continue;
-    let help = FIELD_HELP[name];
-    if (name === 'length' && sel === 'bar' && e.style === 'horizontal' && e.length === 260) help = FIELD_HELP.length;
-    if (f[0] === 'number') row(name, (w) => numberField(w, name, f, e), help);
-    else if (f[0] === 'choice') row(name, (w) => choiceField(w, name, f, e), help);
-    else if (f[0] === 'boolean') row(name, (w) => {
-      const c = document.createElement('input'); c.type = 'checkbox'; c.id = 'f-' + name; c.checked = e[name];
-      c.addEventListener('change', () => { els[sel][name] = c.checked; changed(); });
-      w.append(c);
-    }, help);
-  }
-  if (!e.on) {
-    const p = document.createElement('p'); p.className = 'muted small'; p.style.margin = '0';
-    p.textContent = 'This part is off: its box in the list turns it on.';
-    box.prepend(p);
-  }
+  row('opacity', (w) => numberField(w, 'opacity', COMMON.opacity, e), FIELD_HELP.opacity);
 }
 
 function changed() { saveDraft(); updateFile(); render(); }
@@ -1323,6 +1405,36 @@ document.addEventListener('keydown', (ev) => {
   buildFields(); changed();
 });
 
+// ------------------------------------------------------------------------------------------------- the rail's room
+// The divider between the preview and the rail is dragged to give one room from the other; the rail takes two columns
+// (presets and parts left, the picked part's fields right) once it's wide enough, unless "One column" is on. Both
+// are remembered in this browser only.
+const RAIL_STORE = 'narrowhud-editor-rail';
+const railPref = (() => { try { return JSON.parse(localStorage.getItem(RAIL_STORE) || '{}') || {}; } catch (e) { return {}; } })();
+function railSave() { try { localStorage.setItem(RAIL_STORE, JSON.stringify(railPref)); } catch (e) { /* ignore */ } }
+function railDefault() { const w = window.innerWidth; return w >= 2200 ? 940 : (w >= 1700 ? 800 : 340); }
+function railApply() {
+  const work = document.querySelector('.work'), rail = $('rail');
+  const most = Math.max(340, window.innerWidth - 520);
+  const w = Math.max(300, Math.min(most, railPref.w || railDefault()));
+  work.style.setProperty('--railw', w + 'px');
+  const two = !railPref.one && window.innerWidth > 980 && rail.getBoundingClientRect().width >= 680;
+  rail.classList.toggle('two', two);
+  $('onecol').setAttribute('aria-pressed', String(!!railPref.one));
+  render();
+}
+$('onecol').addEventListener('click', () => { railPref.one = !railPref.one; railSave(); railApply(); });
+{
+  const sp = $('split');
+  let from = null;
+  sp.addEventListener('pointerdown', ev => { from = { x: ev.clientX, w: $('rail').getBoundingClientRect().width }; sp.classList.add('on'); sp.setPointerCapture(ev.pointerId); ev.preventDefault(); });
+  sp.addEventListener('pointermove', ev => { if (!from) return; railPref.w = Math.round(from.w - (ev.clientX - from.x)); railApply(); });
+  const done = () => { if (!from) return; from = null; sp.classList.remove('on'); railSave(); };
+  sp.addEventListener('pointerup', done); sp.addEventListener('pointercancel', done);
+  sp.addEventListener('dblclick', () => { delete railPref.w; railSave(); railApply(); });
+  window.addEventListener('resize', railApply);
+}
+
 // ------------------------------------------------------------------------------------------------- the preview's settings
 $('aspect').addEventListener('change', () => { SCR.W = Math.round(1440 * Number($('aspect').value)); view.vx = SCR.W / 2; render(); });
 
@@ -1377,15 +1489,19 @@ $('shotoff').addEventListener('click', () => {
 });
 {
   const frame = $('frame');
-  let over = 0;
-  frame.addEventListener('dragenter', ev => { if (ev.dataTransfer && Array.from(ev.dataTransfer.types).includes('Files')) { over++; frame.classList.add('dropping'); $('dropnote').hidden = false; } });
-  frame.addEventListener('dragover', ev => { if (ev.dataTransfer && Array.from(ev.dataTransfer.types).includes('Files')) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; } });
-  frame.addEventListener('dragleave', () => { if (--over <= 0) { over = 0; frame.classList.remove('dropping'); $('dropnote').hidden = true; } });
+  // (shown while a file is dragged over the screen; dragenter / dragleave counts go wrong with the children, so the
+  // note is hidden a moment after the last dragover instead, and on any drop or drag end anywhere)
+  let dropTimer = null;
+  const dropShow = () => { frame.classList.add('dropping'); $('dropnote').hidden = false; clearTimeout(dropTimer); dropTimer = setTimeout(dropHide, 200); };
+  const dropHide = () => { clearTimeout(dropTimer); frame.classList.remove('dropping'); $('dropnote').hidden = true; };
+  frame.addEventListener('dragover', ev => { if (ev.dataTransfer && Array.from(ev.dataTransfer.types).includes('Files')) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; dropShow(); } });
   frame.addEventListener('drop', ev => {
-    ev.preventDefault(); over = 0; frame.classList.remove('dropping'); $('dropnote').hidden = true;
+    ev.preventDefault(); dropHide();
     const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
     if (f) shotLoad(f);
   });
+  document.addEventListener('dragend', dropHide);
+  document.addEventListener('drop', dropHide);
   document.addEventListener('paste', ev => {
     if (ev.target === $('paste')) return;        // (the layout file's text box has its own paste)
     const items = ev.clipboardData && ev.clipboardData.items;
@@ -1472,7 +1588,7 @@ $('paste').addEventListener('input', () => { const t = $('paste').value.trim(); 
 function start() {
   measureCap();
   SCR.W = Math.round(1440 * Number($('aspect').value));
-  syncOffsets(); buildFields(); updateFile(); render();
+  syncOffsets(); buildFields(); updateFile(); railApply();
 }
 if (document.fonts && document.fonts.load) {
   Promise.all([document.fonts.load('500 40px "Saira Semi Condensed"'), document.fonts.ready]).then(start, start);

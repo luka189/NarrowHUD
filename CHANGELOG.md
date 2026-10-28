@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.14
+
+The layout editor only; the mod is unchanged.
+- The settings rail scrolls on its own beside the preview, so the preview stays in view while you edit; drag the
+  divider between them to give either side room (double-click puts it back), and a wide rail shows two columns
+  (presets and parts left, the picked part's fields right) unless "One column" is on.
+- A part's fields in three groups: Look (style first), Place, Size; hints behind ? buttons (hover or click); the
+  parts list in two columns where there's room; "ticks up to" beside the fill.
+- Several parts picked together show the fields they all have, with ≠ where they differ; a change sets every one.
+- A screenshot of your game behind the parts (picked, dropped or pasted; read in the browser only).
+
 ## 1.5.13
 
 The 1.0.7 to 1.5.13 builds, as released together.
