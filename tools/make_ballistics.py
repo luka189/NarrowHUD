@@ -56,6 +56,11 @@ NAMES = {
     # matched from players' logs, not a tester's naming: the Breacher by its 20 rpm (the only weapon at that rate),
     # one round, a pistol's hand pose (1), as a secondary in two players' logs of 2026-10-28
     'f94a73b3': ('P-34 Breacher', True),
+    '3244dc49': ('AR/GL-21 One-Two', True),   # (2026-10-28: luka's log, 650 rpm, the underbarrel grenade launcher)
+    # the One-Two's underbarrel launcher (its own type, the weapon shown while selected): the GP-31's round
+    '16425925': ('One-Two 40MM HE (underbarrel)', True, 'GP-31 Grenade Pistol'),
+    # the Re-Educator by its 110 rpm, 6 rounds, secondary (swap key 2) and the one-handed pose 36, in testers' logs
+    '1d3b01d7': ('P-35 Re-Educator', True),
 }
 # a diameter by projectile class when the catalogue has none that agrees (mm)
 DEFAULT_DIAMETER = [
@@ -97,6 +102,12 @@ def catalogue(root):
     return rows
 
 
+# corrections measured in game by testers, applied over the wiki's numbers (the line drawn against the shots' landing)
+TUNED = {
+    'f94a73b3': { 'g': 1.2 },   # the Breacher drops about a fifth more than the wiki's numbers say at 50 m (luka, 2026-10-28)
+}
+
+
 def main():
     root, out = Path(sys.argv[1]), Path(sys.argv[2])
     wiki, cat = wiki_rows(root), catalogue(root)
@@ -104,20 +115,23 @@ def main():
              '-- m grams, v m/s, drag and g factors (the Helldivers 2 wiki), d the diameter in mm (HD2Runtime\'s catalogue,',
              '-- https://github.com/SkyeShade/HD2Runtime, SkyeShade). guess: the type matched by its magazine and rate of fire alone.',
              'return {']
-    for tid, (name, sure) in sorted(NAMES.items(), key=lambda kv: kv[1][0]):
-        w = wiki.get(name)
+    for tid, entry in sorted(NAMES.items(), key=lambda kv: kv[1][0]):
+        name, sure = entry[0], entry[1]
+        source = entry[2] if len(entry) > 2 else name      # (a third value: the wiki weapon whose round it fires)
+        w = wiki.get(source)
         if not w:
             print('no wiki projectile for', name, file=sys.stderr)
             continue
         d = None
-        for fl in cat.get(name, []):
+        for fl in cat.get(source, []):
             if abs(fl.get('velocity', -1) - w['v']) < 1 and abs(fl.get('mass', -1) - w['m']) < 0.5:
                 d = fl.get('diameter')
         if d is None:
             d = next(dd for test, dd in DEFAULT_DIAMETER if test(w['m'], w['v']))
             print('diameter by class for %s: %s mm' % (name, d), file=sys.stderr)
-        lines.append("  ['%s'] = { name = '%s', m = %s, v = %s, drag = %s, g = %s, d = %s%s }," % (
-            tid, name.replace("'", "\\'"), w['m'], w['v'], w['drag'], w['g'], d, '' if sure else ', guess = true'))
+        w = dict(w, **TUNED.get(tid, {}))
+        lines.append("  ['%s'] = { name = '%s', m = %s, v = %s, drag = %s, g = %s, d = %s%s%s }," % (
+            tid, name.replace("'", "\\'"), w['m'], w['v'], w['drag'], w['g'], d, '' if sure else ', guess = true', ', tuned = true' if tid in TUNED else ''))
     lines.append('}')
     out.write_text('\n'.join(lines) + '\n')
     print('wrote', out, len(lines) - 5, 'weapons')

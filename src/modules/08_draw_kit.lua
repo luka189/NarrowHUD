@@ -67,6 +67,50 @@ local function game_font()
   if not gf.said then gf.said = true log('game font on (cap height %.1f at size 100)', gf.cap100) end
   return g
 end
+-- (1.5.18 research) a sprite of the game's atlas drawn through the game's own icon material for it (the mask shader
+-- the HUD draws it with: black empty, white the icon, blue a second layer) on a screen GUI of ours: Gui.material
+-- gives this GUI its own copy of the material, the page is bound to its diffuse_map slot (bind = true; the copy may
+-- point at the page already: bind = false leaves it), Gui.bitmap_uv draws the sprite's rectangle. Every engine
+-- value made fresh in the frame it's used (docs/chef_bitmap_issue.md).
+local im = { gui = nil, world = nil, wid = nil, mats = {} }
+local UI_SLOT = '3aa8b87e00000000'
+-- c: the vertex colour (an engine Color), which is the icon's colour: the icon shader (template 5f8113d2, its
+-- library read 2026-10-28) tints the mask by it; its own variables are a glow and a shadow (glow_color, shadow_color
+-- ...) and a per-object c0 that setting didn't change anything (research/materials, docs/ICONS.md)
+local function own_sprite(e, x, y, w, h, c, layer)
+  local world, wid = chef.world(), chef.world_id()
+  if world == nil then return false, 'no world' end
+  if not (im.gui and im.world == world and im.wid == wid) then
+    im.gui, im.mats, im.cols = nil, {}, {}
+    local g, why = call('gui', 'World.create_screen_gui', world, 'immediate')
+    if not g then return false, why or 'no gui' end
+    im.gui, im.world, im.wid = g, world, wid
+  end
+  local mat = e[6]
+  local st = im.mats[mat]
+  if st == nil then
+    local mid = call('id', 'IdString64.from_hex', mat)
+    local ok, why = call('can_get', 'Application.can_get', 'material', mid)
+    st = ok == true and 'yes' or ('material not loaded (' .. tostring(why or ok) .. ')')
+    im.mats[mat] = st
+  end
+  if st ~= 'yes' then return false, st end
+  local mid, pid = call('id', 'IdString64.from_hex', mat), call('id', 'IdString64.from_hex', e[1])
+  if not (mid and pid) then return false, 'no id' end
+  local mh, why = call('mat', 'Gui.material', im.gui, mid)
+  if not mh then return false, 'Gui.material: ' .. tostring(why) end
+  -- (the page bound to this copy of the material every frame: unbound, a first pickup drew white squares, the copy
+  -- pointing at a texture that isn't loaded; 2026-10-28)
+  local sid = call('id', 'IdString64.from_hex', UI_SLOT)
+  local _, err = call('settex', 'Material.set_texture', mh, sid, pid)
+  if err then return false, 'set_texture: ' .. tostring(err) end
+  local a0, a1 = call('v2', 'Vector2', e[2], e[3]), call('v2', 'Vector2', e[4], e[5])
+  local p, sz = v3(x, y, layer), call('v2', 'Vector2', w, h)
+  if not (a0 and a1 and p and sz) then return false, 'no vectors' end
+  local _, err2 = call('bitmap_uv', 'Gui.bitmap_uv', im.gui, mid, a0, a1, p, sz, c)
+  if err2 then return false, 'bitmap_uv: ' .. tostring(err2) end
+  return true
+end
 -- width of a string at a cap height, in pixels
 local function txt_width(str, cap)
   if CHEF_TEXT then return chef.text_width(str, cap / 7) end
@@ -258,7 +302,7 @@ end
 
 -- the icon textures (TEXTURES, tools/make_textures.py): each a ladder of sizes told to Chef once; the largest is the
 -- name drawn by, Chef picks the copy nearest the size drawn
-local tex_tops, tex_said, tex_n = {}, nil, nil
+local tex_tops, tex_said, tex_n, mode_icon_said = {}, {}, nil, nil
 local function tex_top(name)
   local l = TEXTURES[name]
   if not l then return nil end
@@ -274,6 +318,81 @@ local function tex_top(name)
   end
   return top
 end
+-- (1.5.18) the stim or grenade icon as a texture: luka189's stim, dogo314's grenade (art/icons,
+-- tools/make_textures.py), in the game's own icon layout (BC3, every mip level), drawn through chef.bitmap_uv with
+-- the whole texture: the one call that doesn't strobe next to other mods' bitmaps (docs/chef_bitmap_issue.md).
+-- A square of S (the line's height) at x, its bottom at iy, the icon centred in it and the square pushed left so the
+-- icon starts at x. Returns whether it was drawn and the icon's own width (the line advances by it); the caller
+-- draws the pixel sprite when not (Chef says why in its log). The research row's ways: 2 the size ladder through
+-- chef.bitmap, 3 the same at a top layer (Chef's top world, over the game's HUD), 4 one size (the 128) with no
+-- ladder, 5 and 6 the game layout through chef.bitmap in the main world and at the top layer, 7 the game layout
+-- through the uv call (shipped), 8 the ladder through the uv call, its size picked by hand.
+local function icon_texture(name, x, iy, S, c, p, L)
+  local mode = cfg.icon_tex or 7
+  if mode >= 9 then mode = 7 end
+  local game, ladder = TEXTURES[name .. '_game'], TEXTURES[name]
+  if mode <= 1 or not (game and ladder and chef.bitmap) then return false, nil end
+  local g = game[1]
+  local iw = math.max(1, math.floor(S * g[4] / g[1] + 0.5))
+  local sx = x - math.floor((S - iw) / 2)
+  local tex = (mode == 4 and ladder[2][3]) or ((mode >= 5 and mode <= 7) and g[3]) or tex_top(name)
+  local layer = (mode == 3 or mode == 6) and (chef.TOP or 2000) + L - 900 or L
+  local drawn
+  if mode == 7 or mode == 8 then
+    if mode == 8 then
+      tex = ladder[#ladder][3]
+      for _, e in ipairs(ladder) do if e[1] >= S then tex = e[3] break end end
+    end
+    drawn = tex and chef.bitmap_uv and chef.bitmap_uv(tex, 0, 0, 1, 1, sx, iy, S, S, col(c, 220 * p), layer) == true
+  else
+    drawn = tex and chef.bitmap(tex, sx, iy, S, S, col(c, 220 * p), layer) == true
+  end
+  local said = drawn and ('drawn, way ' .. mode) or 'not drawn'
+  if tex_said[name] ~= said then
+    tex_said[name] = said
+    local rr = chef.setting and chef.setting('render_settings.render_resolution')
+    local sw, sh = chef.screen()
+    log('icons: the %s texture %s; screen %sx%s, render resolution %s', name, drawn and said or 'not drawn (Chef says why above): the pixel sprite instead',
+      tostring(sw), tostring(sh), type(rr) == 'table' and (tostring(rr[1]) .. 'x' .. tostring(rr[2])) or tostring(rr))
+  end
+  -- (research: how many frames Chef drew it and how many it refused, every 10 s, to catch it coming and going)
+  if cfg.research and name == 'stim' then
+    tex_n = tex_n or { at = chef.time(), yes = 0, no = 0 }
+    if drawn then tex_n.yes = tex_n.yes + 1 else tex_n.no = tex_n.no + 1 end
+    if chef.time() - tex_n.at >= 10 then
+      if tex_n.no > 0 then log('research: the stim texture: drawn %d frames, refused %d, in 10 s', tex_n.yes, tex_n.no) end
+      tex_n.at, tex_n.yes, tex_n.no = chef.time(), 0, 0
+    end
+  end
+  return drawn, iw
+end
+-- one of the game's own mode icons (N.ATLAS: an atlas sprite), a square of tw at x, y (bottom-left), in the HUD's
+-- colour: way 2 through Chef's plain UI material (the mask's black comes out black), 3 through the sprite's own icon
+-- material (the game's mask shader, the vertex colour its tint) on a GUI of ours (shipped), 4 the same in blue
+-- the colour of a mode's word, as txt_modes gives the text (cream, or the mode's tone with Modes in their own colours)
+local function mode_rgb(word)
+  if not cfg.mode_colors or not word then return CREAM end
+  local n = MODE_TONE[word] or (string.match(word, '^OPT (%d)$') and math.min(3, tonumber(string.match(word, '^OPT (%d)$')) + 1)) or 1
+  return n == 3 and MODE3 or (n == 2 and MODE2 or CREAM)
+end
+local TEST_BLUE = { 60, 110, 255 }
+-- e: the sprite; word: the mode it stands for (its colour follows the text's)
+local function mode_icon(e, x, y, tw, L, word)
+  local way = cfg.mode_icons
+  local c = mode_rgb(word)
+  if way == 2 then
+    local ok = chef.bitmap_uv and chef.bitmap_uv(e[1], e[2], e[3], e[4], e[5], x, y, tw, tw, col(c, 220), L) == true
+    return ok, ok and nil or 'Chef says why above'
+  end
+  -- (way 4: a blue vertex colour, the proof the tint takes (2026-10-28: it does); 3 as shipped)
+  return own_sprite(e, x, y, tw, tw, col(way == 4 and TEST_BLUE or c, 220), L)
+end
+local function mode_icons_said(way, keys)
+  local key = way .. ': ' .. table.concat(keys, ' ')
+  if mode_icon_said ~= key then mode_icon_said = key log('icons: the game\'s mode sprites, way %s (+ drawn, - not)', key) end
+end
+N.icon_texture, N.mode_icon, N.mode_icons_said = icon_texture, mode_icon, mode_icons_said
+
 local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, bar)
   local L = 905
   local lw = math.max(1, math.floor(k * 0.8 + 0.5))
@@ -287,42 +406,48 @@ local function draw_items(items, d, k, small, x0, top, xend, ph, icon_k, gap, ba
     local h = #rows * cell
     -- (1.2.0 warnings: no stims left while hurt: they pulse)
     local p = rows == N.STIM and n == 0 and N.warn_stims or 1
-    -- (1.6.0 test: the stim as a texture, its own size ladder; the pixel sprite when it can't be drawn)
-    local drawn = false
-    local mode = cfg.icon_tex or 1
-    if rows == N.STIM and mode > 1 and TEXTURES.stim and chef.bitmap then
-      -- (the test's ways: 2 the size ladder in the main world, 3 the same at a top layer (Chef's top world, over the
-      -- game's HUD), 4 one texture (the 128 px one) with no ladder, in the main world)
-      local tex = mode == 4 and TEXTURES.stim[2][3] or tex_top('stim')
-      local layer = mode == 3 and (chef.TOP or 2000) + L - 900 or L
-      -- (a square texture, the icon across its middle: drawn as a square of the icon's width, centred on the line)
+    local name = rows == N.STIM and 'stim' or 'grenade'
+    local drawn, adv = false, #rows[1] * cell
+    local mode = cfg.icon_tex or 7
+    if rows == N.STIM and mode >= 9 and chef.bitmap_uv and N.ATLAS then
+      -- (ways 9 to 11: the game's own sprite in the stim's place, from its atlas page by uv: the stim, the three
+      -- stims, the grenade candidate (docs/ICONS.md; nothing shipped); the stim page isn't loaded in a mission)
+      local e = N.ATLAS[({ 'stim', 'stims', 'grenade' })[mode - 8]]
       local tw = #rows[1] * cell
-      drawn = tex and chef.bitmap(tex, x, iy + math.floor((S - tw) / 2), tw, tw, col(c, 220 * p), layer) == true
-      local said = drawn and ('drawn, way ' .. mode) or 'not drawn'
-      if tex_said ~= said then
-        tex_said = said
-        local rr = chef.setting and chef.setting('render_settings.render_resolution')
-        local sw, sh = chef.screen()
-        log('icons: the stim texture %s; screen %sx%s, render resolution %s', drawn and said or 'not drawn (Chef says why above): the pixel sprite instead',
-          tostring(sw), tostring(sh), type(rr) == 'table' and (tostring(rr[1]) .. 'x' .. tostring(rr[2])) or tostring(rr))
-      end
-      -- (research: how many frames Chef drew it and how many it refused, every 10 s, to catch it coming and going)
-      if cfg.research then
-        tex_n = tex_n or { at = chef.time(), yes = 0, no = 0 }
-        if drawn then tex_n.yes = tex_n.yes + 1 else tex_n.no = tex_n.no + 1 end
-        if chef.time() - tex_n.at >= 10 then
-          if tex_n.no > 0 then log('research: the stim texture: drawn %d frames, refused %d, in 10 s', tex_n.yes, tex_n.no) end
-          tex_n.at, tex_n.yes, tex_n.no = chef.time(), 0, 0
-        end
-      end
+      drawn = e and chef.bitmap_uv(e[1], e[2], e[3], e[4], e[5], x, iy + math.floor((S - tw) / 2), tw, tw, col(c, 220 * p), L) == true
+      local said = drawn and ('drawn, way ' .. mode) or ('not drawn, way ' .. mode)
+      if tex_said.stim ~= said then tex_said.stim = said log('icons: the game\'s own sprite %s (page %s)', drawn and 'drawn' or 'not drawn (Chef says why above): the pixel sprite instead', e and e[1] or '?') end
+    else
+      local iw
+      drawn, iw = icon_texture(name, x, iy, S, c, p, L)
+      if drawn then adv = iw end
     end
     if not drawn then
       chef.sprite(x, iy + math.floor((S - h) / 2), rows, cell,
         { ['#'] = col(c, 220 * p), ['+'] = col({ 40, 40, 40 }, 210 * p), o = col({ 0, 0, 0 }, 110 * p) }, L)
     end
-    x = x + #rows[1] * cell + math.floor(4 * k)
+    x = x + adv + math.floor(4 * k)
     txt(x, ty, tostring(n), small, col(c, 220 * p), L)
     return x + txt_width(tostring(n), small)
+  end
+  -- the game's own icons of the weapon's mode and fire mode, left of the stims (or of where they'd be: hiding the
+  -- stims keeps them); the custom layouts place them with their icons part
+  local way = cfg.mode_icons
+  if way and way > 1 and N.mode_icons then
+    local list = N.mode_icons()
+    if list then
+      local tw = 2 * #N.STIM[1] * cell
+      local ty0 = iy + math.floor((S - tw) / 2)
+      local ix = x0
+      local keys = {}
+      for i = #list, 1, -1 do
+        local e = list[i]
+        ix = ix - tw - math.floor(4 * k)
+        local ok, why = mode_icon(e, ix, ty0, tw, L, e.word)
+        keys[#keys + 1] = e[6] .. (ok and '+' or ('-' .. tostring(why)))
+      end
+      mode_icons_said(way, keys)
+    end
   end
   local x = x0 - gap
   if cfg.show_stims then x = icon_count(x0, N.STIM, items.s) end

@@ -25,6 +25,8 @@ ROLES = {
     'rpm': ('q', 0x4cbcc2a2), 'options': ('x', 0x31f86165), 'held': ('y', 0x3132608f),
     'lock': ('z', 0x9b738dca), 'locked': ('w', 0x1ddc206a), 'guide': ('v', 0xf8d23bd2),
     'pos': ('t', 0x8bbeb160), 'owner': ('n', 0x3ccffa7f),
+    # (1.5.18) a support weapon's link to its pickup on the ground: a goid while it lies there, none in a hand
+    'floor': ('j', 0xc3a3f66c),
 }
 WEAPON = {ROLES['rounds'][1], ROLES['slot0'][1], ROLES['heat'][1]}
 BACKPACK = {ROLES['remaining'][1]}

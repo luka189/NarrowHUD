@@ -20,7 +20,7 @@ local ALIGNS = { bottom_left = { 0, 0 }, bottom = { 0.5, 0 }, bottom_right = { 1
 -- after: right after another part (drawn before it), gap pixels (at 1440p, Medium) from its right edge, its x then
 -- not used: a count that grows ("100%") pushes the magazines along instead of running over them
 local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, modes = 1, rpm = 1, stims = 1, grenades = 1, pack = 1,
-  health = 1, stamina = 1, stim = 1 }
+  health = 1, stamina = 1, stim = 1, icons = 1 }
 local COMMON = { on = { 'boolean', true }, anchor = { 'choice', 'center', ANCHORS }, x = { 'number', 0, -100, 100 },
   y = { 'number', 0, -100, 100 }, align = { 'choice', 'bottom_left', ALIGNS }, size = { 'number', 1, 0.3, 4 },
   opacity = { 'number', 100, 0, 100 }, after = { 'choice', 'none', AFTER }, gap = { 'number', 8, -500, 500 } }
@@ -35,6 +35,8 @@ local ELEMENTS = {
   { id = 'mags', fields = { style = { 'choice', 'number', { number = 1, squares = 1 } },
       empty = { 'choice', 'shown', { shown = 1, hidden = 1 } }, divider = { 'boolean', false } } },
   { id = 'modes', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
+  -- (1.5.18) the game's own icons of the weapon's mode and fire mode (an F9 Show setting; docs/ICONS.md)
+  { id = 'icons', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
   { id = 'rpm', fields = {} },
   { id = 'stims', fields = {} },
   { id = 'grenades', fields = {} },
@@ -56,6 +58,7 @@ local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   count = { anchor = 'center', x = 9.9, y = -8.5, align = 'left' },
   mags = { anchor = 'center', x = 13.3, y = -9.47, align = 'bottom_left', divider = true, after = 'count', gap = 8 },
   modes = { anchor = 'center', x = -9.7, y = -8.5, align = 'right' },
+  icons = { anchor = 'center', x = -9.4, y = -9.6, align = 'top_right' },
   rpm = { anchor = 'center', x = 9.9, y = -9.9, align = 'top_left' },
   stims = { anchor = 'center', x = -9, y = -9.6, align = 'top_left' },
   grenades = { anchor = 'center', x = -4.6, y = -9.6, align = 'top_left' },
@@ -65,17 +68,18 @@ local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   stamina = { anchor = 'center', x = 0, y = -6.78, align = 'bottom' },
   stim = { anchor = 'center', x = 0, y = -6.36, align = 'bottom' } } }
 
--- (1.5.13) Position: Curved pair, a built-in layout: the ammo bar as a ) right of the crosshair with the charge meter
--- outside it, the count and magazines under it, the modes and rate of fire above; the backpack bar as a ( on the
--- left with stims and grenades under; health, stamina and the stim timer in a stack over the crosshair. The same
--- layout is the editor's Curved pair preset (editor/editor.html: PRESETS); the editor's "flipped" one has the sides
--- the other way round, as 1.0.6 to 1.5.12 had it.
+-- (1.5.13, luka's 1.5.22 version) Position: Curved pair, a built-in layout: every arc centred on the crosshair: the
+-- ammo bar as a ) on the right with the charge meter outside it and the backpack inside, health as a ( on the left
+-- with stamina outside and the stim timer inside; the text in a column right of the arcs, the icons beside it,
+-- stims and grenades under the crosshair. 8 px between a bar and its meter on both sides. The same layout is the
+-- editor's Curved pair preset (editor/editor.html: PRESETS).
 local CURVED_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   bar = { anchor = 'center', x = 6, y = 0, align = 'left', style = 'curved_right', fill = 'auto', length = 300, radius = 160, thickness = 10 },
   charge = { anchor = 'center', x = 6.78, y = 0, align = 'left', style = 'curved_right', length = 330, radius = 176, thickness = 4 },
   count = { anchor = 'center', x = 9.7, y = -8.4, align = 'top_left' },
   mags = { anchor = 'center', x = 9.7, y = -10.6, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'none' },
   modes = { anchor = 'center', x = 10.6, y = 8, align = 'bottom_left', style = 'stacked' },
+  icons = { anchor = 'center', x = 15.8, y = 8, align = 'bottom_left', style = 'stacked' },
   rpm = { anchor = 'center', x = 10.6, y = 11.4, align = 'bottom_left' },
   stims = { anchor = 'center', x = -4.7, y = -9.2, align = 'top_right' },
   grenades = { anchor = 'center', x = -8.7, y = -9.2, align = 'top_right' },
@@ -83,6 +87,80 @@ local CURVED_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   health = { anchor = 'center', x = 0, y = -12, align = 'top', style = 'horizontal', length = 220, thickness = 5 },
   stamina = { anchor = 'center', x = 0, y = -12.7, align = 'top', style = 'horizontal', length = 220, thickness = 3 },
   stim = { anchor = 'center', x = 0, y = -13.2, align = 'top', style = 'horizontal', length = 220, thickness = 3 } } }
+-- (1.5.24) the Preview positions: luka's four layouts of 2026-10-28, aligned by the arcs' geometry and the bars'
+-- edges (8 px between a bar and its meter, the set's thicknesses: bar 11, charge 4, backpack and stim timer 5,
+-- health 7, stamina 4). Preview 3, the curved pair: every arc centred on the crosshair, the backpack arc inside
+-- the bar and the stim timer inside the health arc. Kept apart from the Positions people have set up until the
+-- offsets and the pinning of parts to each other are redone for presets.
+local PREVIEW_CURVED = { _v = LAYOUT_VERSION, elements = {
+  bar = { anchor = 'center', x = 6.35, y = 0, align = 'left', style = 'curved_right', fill = 'auto', length = 300, radius = 160, thickness = 11 },
+  charge = { anchor = 'center', x = 7.15, y = 0, align = 'left', style = 'curved_right', length = 330, radius = 176, thickness = 4 },
+  pack = { anchor = 'center', x = 9.24, y = 0, align = 'left', style = 'curved_right', length = 100, radius = 144, thickness = 5 },
+  count = { anchor = 'center', x = 11.3, y = -7.3, align = 'top_left' },
+  mags = { anchor = 'center', x = 11.3, y = -9.5, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'none' },
+  modes = { anchor = 'center', x = 11.3, y = 7.3, align = 'bottom_left', style = 'stacked' },
+  rpm = { anchor = 'center', x = 11.3, y = 10.1, align = 'bottom_left' },
+  icons = { anchor = 'center', x = 13.7, y = 0, align = 'center', style = 'stacked' },
+  stims = { anchor = 'center', x = -1.8, y = -8.6, align = 'center' },
+  grenades = { anchor = 'center', x = 1.8, y = -8.6, align = 'center' },
+  health = { anchor = 'center', x = -6.43, y = 0, align = 'right', style = 'curved_left', length = 300, radius = 160, thickness = 7 },
+  stamina = { anchor = 'center', x = -7.07, y = 0, align = 'right', style = 'curved_left', length = 326, radius = 174, thickness = 4 },
+  stim = { anchor = 'center', x = -9.24, y = 0, align = 'right', style = 'curved_left', length = 100, radius = 144, thickness = 5 } } }
+-- Preview 4, the vertical pair, luka's layout: the ammo bar standing right of the crosshair with the charge
+-- meter outside it and the backpack inside, health standing on the left with stamina outside and the stim timer
+-- inside, the text in a column right of the bars, stims and grenades under the crosshair. The spacing: the bar's
+-- edges mirrored exactly (the health bar thinner), 8 px between a bar and its meter on both sides.
+local PREVIEW_VERTICAL = { _v = LAYOUT_VERSION, elements = {
+  bar = { anchor = 'center', x = 7.6, y = -6.5, align = 'bottom_left', style = 'vertical', fill = 'auto', length = 190, thickness = 11 },
+  charge = { anchor = 'center', x = 9.2, y = -6.5, align = 'bottom_right', style = 'vertical', length = 190, thickness = 4 },
+  pack = { anchor = 'center', x = 6.6, y = 2.8, align = 'top_left', style = 'vertical', length = 80, thickness = 5 },
+  count = { anchor = 'center', x = 9.8, y = -7.6, align = 'bottom_left' },
+  mags = { anchor = 'center', x = 14.33, y = -6.69, align = 'center', style = 'number', empty = 'shown', divider = true, after = 'count', gap = 6 },
+  rpm = { anchor = 'center', x = 9.8, y = -4.9, align = 'bottom_left' },
+  modes = { anchor = 'center', x = 9.8, y = 7.6, align = 'top_left', style = 'stacked' },
+  icons = { anchor = 'center', x = 9.4, y = 4.5, align = 'top_left', style = 'stacked' },
+  stims = { anchor = 'center', x = -1.0, y = -8.1, align = 'top_right' },
+  grenades = { anchor = 'center', x = 1.0, y = -8.1, align = 'top_left' },
+  health = { anchor = 'center', x = -7.6, y = -6.5, align = 'bottom_right', style = 'vertical', length = 190, thickness = 7 },
+  stamina = { anchor = 'center', x = -8.64, y = -6.5, align = 'bottom_right', style = 'vertical', length = 190, thickness = 4 },
+  stim = { anchor = 'center', x = -6.6, y = 2.8, align = 'top_right', style = 'vertical', length = 80, thickness = 5 } } }
+
+-- Preview 2, the compact block, luka's layout: one block right of the crosshair with the
+-- short standing ammo bar as its spine (the charge meter 8 px left of it), the text in a column right of it (the
+-- icons and modes in a line on top, the rate of fire, the count with the magazines, stims and grenades), and
+-- under the bar three rows the block's width: stamina, health, then the backpack and stim timer side by side.
+local PREVIEW_COMPACT = { _v = LAYOUT_VERSION, elements = {
+  bar = { anchor = 'center', x = 10.7, y = -2.2, align = 'bottom_left', style = 'vertical', fill = 'auto', length = 107, thickness = 11 },
+  charge = { anchor = 'center', x = 10.14, y = -2.2, align = 'bottom_right', style = 'vertical', length = 107, thickness = 4 },
+  icons = { anchor = 'center', x = 12.1, y = 5.5, align = 'top_left', style = 'line' },
+  modes = { anchor = 'center', x = 15, y = 5.5, align = 'top_left', style = 'line', after = 'icons', gap = 8 },
+  rpm = { anchor = 'center', x = 12.1, y = 3.73, align = 'top_left' },
+  count = { anchor = 'center', x = 12.1, y = 0.4, align = 'bottom_left' },
+  mags = { anchor = 'center', x = 12.9, y = 1.5, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'count', gap = 8 },
+  stims = { anchor = 'center', x = 12.1, y = -0.15, align = 'top_left' },
+  grenades = { anchor = 'center', x = 15, y = -0.15, align = 'top_left' },
+  stamina = { anchor = 'center', x = 9.86, y = -3.03, align = 'bottom_left', style = 'horizontal', length = 128, thickness = 4 },
+  health = { anchor = 'center', x = 9.86, y = -4.08, align = 'bottom_left', style = 'horizontal', length = 128, thickness = 7 },
+  pack = { anchor = 'center', x = 9.86, y = -4.98, align = 'bottom_left', style = 'horizontal', length = 60, thickness = 5 },
+  stim = { anchor = 'center', x = 18.75, y = -4.98, align = 'bottom_right', style = 'horizontal', length = 60, thickness = 5 } } }
+
+-- Preview 1, the horizontal stack, luka's layout: the bars under the crosshair 8 px apart (ammo, charge, health,
+-- stamina), the backpack and stim timer in two rows under the right half, stims and grenades under the left, the
+-- count and rate of fire right of the bars, modes and icons mirrored on the left.
+local PREVIEW_HORIZONTAL = { _v = LAYOUT_VERSION, elements = {
+  bar = { anchor = 'center', x = 0, y = -11, align = 'bottom', style = 'horizontal', fill = 'auto', length = 260, thickness = 11 },
+  charge = { anchor = 'center', x = 0, y = -9.68, align = 'bottom', style = 'horizontal', length = 260, thickness = 4 },
+  health = { anchor = 'center', x = 0, y = -8.85, align = 'bottom', style = 'horizontal', length = 260, thickness = 7 },
+  stamina = { anchor = 'center', x = 0, y = -7.8, align = 'bottom', style = 'horizontal', length = 260, thickness = 4 },
+  pack = { anchor = 'center', x = 0.28, y = -11.9, align = 'bottom_left', style = 'horizontal', length = 126, thickness = 5 },
+  stim = { anchor = 'center', x = 0.28, y = -12.8, align = 'bottom_left', style = 'horizontal', length = 126, thickness = 5 },
+  count = { anchor = 'center', x = 10.1, y = -10.62, align = 'left' },
+  mags = { anchor = 'center', x = 13.3, y = -11.27, align = 'bottom_left', style = 'number', empty = 'shown', divider = true, after = 'count', gap = 8 },
+  rpm = { anchor = 'center', x = 10.1, y = -11.7, align = 'top_left' },
+  modes = { anchor = 'center', x = -10.1, y = -10.62, align = 'right', style = 'line' },
+  icons = { anchor = 'center', x = -10.1, y = -11.7, align = 'top_right', style = 'line' },
+  stims = { anchor = 'center', x = -9, y = -11.56, align = 'top_left' },
+  grenades = { anchor = 'center', x = -5.6, y = -11.56, align = 'top_left' } } }
 
 -- a layout table as read: every known field checked (type, range, choice), what doesn't fit dropped and counted,
 -- Under's look's values (or the field's default) for the rest
@@ -112,9 +190,10 @@ local function read_layout(t)
 end
 local layout = { els = nil, said = nil, builtin = {} }
 -- a built-in layout (Position: Curved pair) as read, once; F9's offsets move it, as they move Under and Beside
+local BUILTIN = { curved = CURVED_LAYOUT, preview1 = PREVIEW_HORIZONTAL, preview2 = PREVIEW_COMPACT, preview3 = PREVIEW_CURVED, preview4 = PREVIEW_VERTICAL }
 local function builtin_layout(name)
   local l = layout.builtin[name]
-  if not l then l = { els = read_layout(CURVED_LAYOUT) } layout.builtin[name] = l end
+  if not l then l = { els = read_layout(BUILTIN[name] or CURVED_LAYOUT) } layout.builtin[name] = l end
   return l
 end
 local function load_layout(why)
@@ -400,7 +479,7 @@ function EL_DRAW.modes(e, k, d, x, y, dry)
   if not d then return nil end
   local parts = {}
   if d.kind == 'heat' and cfg.show_heat then parts[#parts + 1] = 'HEAT' end
-  if d.underbarrel then if cfg.show_mode then parts[#parts + 1] = 'UB' end
+  if d.underbarrel then if cfg.show_mode then parts[#parts + 1] = d.ub_label or 'UB' end
   elseif d.mode then parts[#parts + 1] = d.mode end
   if d.fmode and not d.underbarrel then parts[#parts + 1] = d.fmode end
   if #parts == 0 then return nil end
@@ -425,20 +504,56 @@ function EL_DRAW.rpm(e, k, d, x, y, dry)
   if not dry then txt(x, y, d.setting, tiny, col(CREAM, 190), L_CUSTOM) end
   return txt_width(d.setting, tiny), tiny
 end
+local icon_el_said = false
 local function icon_el(rows, n, k, x, y, dry)
   local cell = math.max(1, math.floor(1.6 * k + 0.5))
   local small = math.max(7, math.floor(16 * k + 0.5))
   local S = #N.GRENADE * cell
-  local iw = #rows[1] * cell
+  local name = rows == N.STIM and 'stim' or 'grenade'
+  -- (1.5.18) the icon's texture when it draws (its own width), the pixel sprite otherwise
+  local g = TEXTURES[name .. '_game'] and TEXTURES[name .. '_game'][1]
+  local tex_on = g and (cfg.icon_tex or 7) > 1 and chef.bitmap_uv
+  if not tex_on and cfg.research and not icon_el_said then
+    icon_el_said = true
+    log('research: the %s icon drawn as the pixel sprite in this layout: %s', name, not g and 'no texture table' or (not chef.bitmap_uv and 'no uv call' or ('way ' .. tostring(cfg.icon_tex))))
+  end
+  local iw = tex_on and math.max(1, math.floor(S * g[4] / g[1] + 0.5)) or #rows[1] * cell
   local str = tostring(n)
   local w = iw + math.floor(4 * k) + txt_width(str, small)
   if dry then return w, S end
   local c = n == 0 and RED or CREAM
   local p = rows == N.STIM and n == 0 and N.warn_stims or 1
-  chef.sprite(x, y + math.floor((S - #rows * cell) / 2), rows, cell,
-    { ['#'] = col(c, 220 * p), ['+'] = col({ 40, 40, 40 }, 210 * p), o = col({ 0, 0, 0 }, 110 * p) }, L_CUSTOM)
+  local drawn = tex_on and N.icon_texture(name, x, y, S, c, p, L_CUSTOM)
+  if not drawn then
+    iw = #rows[1] * cell
+    chef.sprite(x, y + math.floor((S - #rows * cell) / 2), rows, cell,
+      { ['#'] = col(c, 220 * p), ['+'] = col({ 40, 40, 40 }, 210 * p), o = col({ 0, 0, 0 }, 110 * p) }, L_CUSTOM)
+  end
   txt(x + iw + math.floor(4 * k), y + math.floor((S - small) / 2), str, small, col(c, 220 * p), L_CUSTOM)
   return w, S
+end
+-- (1.5.18) the game's own icons of the weapon's mode and fire mode: squares of twice the stim's width (the sprites
+-- have a lot of padding), in a line or stacked (the fire mode first, under or right of it the ammo kind)
+function EL_DRAW.icons(e, k, d, x, y, dry)
+  if not d or not (cfg.mode_icons and cfg.mode_icons > 1) or not N.mode_icons then return nil end
+  local list = N.mode_icons()
+  if not list then return nil end
+  local cell = math.max(1, math.floor(1.6 * k + 0.5))
+  local tw = 2 * #N.STIM[1] * cell
+  local gap = math.floor(4 * k)
+  local n = #list
+  local w, h
+  if e.style == 'stacked' then w, h = tw, n * tw + (n - 1) * gap else w, h = n * tw + (n - 1) * gap, tw end
+  if dry then return w, h end
+  local keys = {}
+  for i = 1, n do
+    local ex, ey
+    if e.style == 'stacked' then ex, ey = x, y + h - i * tw - (i - 1) * gap else ex, ey = x + (i - 1) * (tw + gap), y end
+    local ok, why = N.mode_icon(list[i], ex, ey, tw, L_CUSTOM, list[i].word)
+    keys[#keys + 1] = list[i][6] .. (ok and '+' or ('-' .. tostring(why)))
+  end
+  N.mode_icons_said(cfg.mode_icons, keys)
+  return w, h
 end
 function EL_DRAW.stims(e, k, d, x, y, dry, items)
   if not items or not cfg.show_stims then return nil end

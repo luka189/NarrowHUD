@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.5.26
+
+**The game's own icons** (nothing of the game's art shipped)
+- **The mode icons**: beside the stims (or wherever a layout puts them), the game's own icons for the fire mode
+  (AUTO, SEMI, BURST, VOLLEY, SAFE / UNSAFE) and the weapon's mode (APHET / FLAK, HEAT / HE, FLECHETTE / STUN,
+  GUIDED / UNGUIDED, LASER, DEPLOY / DETONATE, CLUSTER, BURST / ARTILLERY) and the underbarrel in hand (the One-Two's
+  launcher, the Arbitrator's shotgun, the Stoker's flamer), drawn straight from the game's HUD sprite pages through
+  the game's own icon shader, in the HUD's cream, or each in its mode's colour with "Modes in their own colours".
+  A Show setting (on by default) and a part of the layout editor.
+- **New stim and grenade icons**: the stim drawn by luka189, the grenade traced by dogo314 (used with his
+  permission), as textures in the game's own icon layout, sharp at any size; the old pixel icons stay as the
+  fallback.
+- **The icon strobe is gone**: with Extended Pickup Icons Range's ammo markers on the screen, a texture drawn through
+  Chef's bitmap call flickered to a white square (the loader keeps an engine temporary across the frame). NarrowHUD
+  draws its textures through the loader's uv call now, which doesn't; the loader's author has the write-up.
+
+**Weapons**
+- A support weapon of yours **lying on the ground** (from an earlier life, say) is never taken for the weapon in your
+  hand any more (it carries a link to its pickup while it lies there).
+- **The AR/GL-21 One-Two** is named; its launcher has a drop line (the grenade pistol's round). The Stoker's two
+  fires read 12MM and FLAME, the Arbitrator's 4MM and 10G, the One-Two's 8MM and 40MM HE, as the game names them.
+- The Breacher's drop line drops a fifth more, as its shots do.
+- The throw line knows the **throw-range armours**: Servo-Assisted (SA-25, SA-12, SA-32, FS-61, SC-37, TR-62, CW-36)
+  and Desert Stormer (DS-10, DS-42, DS-191) throw farther, and the line with them (first numbers from Stratagem and
+  C4 Trajectory's measurements; to be fitted from our own throws).
+
+**Layouts**
+- **Preview 1 to 4** in Position: four new built-in layouts (a horizontal stack under the crosshair, a compact block
+  beside it, a curved pair with every arc centred on the crosshair, a vertical pair), designed by luka189 and
+  aligned to the pixel. Previews while the way F9's offsets move a preset is being redone; the five Positions you
+  have stay as they were.
+- The layout editor: the **mode icons** as a part (in a line or stacked), the new stim and grenade icons in the
+  preview, the four previews as presets, and a click on empty screen deselects everything.
+
+**Testing rows** (with the research log on): the stim texture's ways and the mode icons' ways, with short names, since
+the F9 menu shows about twelve characters of a choice.
+
 ## 1.5.15
 
 - The layout editor: **undo and redo** (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z, and two buttons in the screen bar); a slider

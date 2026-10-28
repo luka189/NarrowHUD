@@ -288,7 +288,7 @@ const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right'];
 const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
   y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
   opacity: ['number', 100, 0, 100],
-  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'modes', 'rpm', 'stims', 'grenades', 'pack', 'health', 'stamina', 'stim']],
+  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'modes', 'icons', 'rpm', 'stims', 'grenades', 'pack', 'health', 'stamina', 'stim']],
   gap: ['number', 8, -500, 500] };
 const ELEMENTS = [
   { id: 'bar', name: 'Ammo / heat bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], fill: ['choice', 'auto', ['auto', 'ticks', 'solid']],
@@ -299,6 +299,7 @@ const ELEMENTS = [
   { id: 'mags', name: 'Spare magazines', fields: { style: ['choice', 'number', ['number', 'squares']], empty: ['choice', 'shown', ['shown', 'hidden']],
       divider: ['boolean', false] } },
   { id: 'modes', name: 'Modes', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
+  { id: 'icons', name: 'Mode icons', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
   { id: 'rpm', name: 'Rate of fire', fields: {} },
   { id: 'stims', name: 'Stims', fields: {} },
   { id: 'grenades', name: 'Grenades', fields: {} },
@@ -318,6 +319,7 @@ const UNDER = { _v: 1, elements: {
   count: { anchor: 'center', x: 9.9, y: -8.5, align: 'left' },
   mags: { anchor: 'center', x: 13.3, y: -9.47, align: 'bottom_left', divider: true, after: 'count', gap: 8 },
   modes: { anchor: 'center', x: -9.7, y: -8.5, align: 'right' },
+  icons: { anchor: 'center', x: -9.4, y: -9.6, align: 'top_right' },
   rpm: { anchor: 'center', x: 9.9, y: -9.9, align: 'top_left' },
   stims: { anchor: 'center', x: -9, y: -9.6, align: 'top_left' },
   grenades: { anchor: 'center', x: -4.6, y: -9.6, align: 'top_left' },
@@ -327,45 +329,76 @@ const UNDER = { _v: 1, elements: {
   stim: { anchor: 'center', x: 0, y: -6.36, align: 'bottom' } } };
 const PRESETS = [
   { name: 'Under the crosshair', note: 'The mod\'s default look', t: UNDER },
-  { name: 'Beside the crosshair', note: 'A vertical bar right of the middle', t: { _v: 1, elements: {
-    bar: { anchor: 'center', x: 8.5, y: -6.5, align: 'bottom_left', style: 'vertical', length: 190, thickness: 11 },
-    charge: { anchor: 'center', x: 7.8, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 4 },
-    count: { anchor: 'center', x: 9.9, y: -6.5, align: 'bottom_left' },
-    mags: { anchor: 'center', x: 9.9, y: -8.2, align: 'top_left', style: 'squares', after: 'none' },
-    modes: { anchor: 'center', x: 9.9, y: 6.7, align: 'top_left', style: 'stacked' },
-    rpm: { anchor: 'center', x: 9.9, y: -4, align: 'bottom_left' },
-    stims: { anchor: 'center', x: 8.5, y: -9.4, align: 'top_left' },
-    grenades: { anchor: 'center', x: 12.9, y: -9.4, align: 'top_left' },
-    pack: { anchor: 'center', x: 8.5, y: -12.6, align: 'top_left', length: 150 },
-    health: { anchor: 'center', x: -8.5, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 5 },
-    stamina: { anchor: 'center', x: -9.1, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 3 },
-    stim: { anchor: 'center', x: -9.6, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 3 } } } },
   { name: 'Curved pair', note: 'As F9\'s Position: Curved pair: a ) bar right of the crosshair, the backpack as a ( on the left', t: { _v: 1, elements: {
-    bar: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', fill: 'auto', length: 300, radius: 160, thickness: 10 },
-    charge: { anchor: 'center', x: 6.78, y: 0, align: 'left', style: 'curved_right', length: 330, radius: 176, thickness: 4 },
-    count: { anchor: 'center', x: 9.7, y: -8.4, align: 'top_left' },
-    mags: { anchor: 'center', x: 9.7, y: -10.6, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'none' },
-    modes: { anchor: 'center', x: 10.6, y: 8, align: 'bottom_left', style: 'stacked' },
-    rpm: { anchor: 'center', x: 10.6, y: 11.4, align: 'bottom_left' },
-    stims: { anchor: 'center', x: -4.7, y: -9.2, align: 'top_right' },
-    grenades: { anchor: 'center', x: -8.7, y: -9.2, align: 'top_right' },
-    pack: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 240, radius: 160, thickness: 8 },
-    health: { anchor: 'center', x: 0, y: -12, align: 'top', style: 'horizontal', length: 220, thickness: 5 },
-    stamina: { anchor: 'center', x: 0, y: -12.7, align: 'top', style: 'horizontal', length: 220, thickness: 3 },
-    stim: { anchor: 'center', x: 0, y: -13.2, align: 'top', style: 'horizontal', length: 220, thickness: 3 } } } },
-  { name: 'Curved pair, flipped', note: 'The same the other way round: the ( bar on the left, the backpack as a ) on the right', t: { _v: 1, elements: {
-    bar: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 300, radius: 160, thickness: 10 },
-    charge: { anchor: 'center', x: -6.78, y: 0, align: 'right', style: 'curved_left', length: 330, radius: 176, thickness: 4 },
-    count: { anchor: 'center', x: -6.4, y: -10.2, align: 'top_right' },
-    mags: { anchor: 'center', x: -6.4, y: -12.4, align: 'top_right', divider: false, after: 'none' },
-    modes: { anchor: 'center', x: -6.4, y: 10.2, align: 'bottom_right', style: 'stacked' },
-    rpm: { anchor: 'center', x: -6.4, y: 13.6, align: 'bottom_right' },
-    stims: { anchor: 'center', x: 6.4, y: -10.2, align: 'top_left' },
-    grenades: { anchor: 'center', x: 10.4, y: -10.2, align: 'top_left' },
-    pack: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', length: 240, radius: 160, thickness: 8 },
-    health: { anchor: 'center', x: 0, y: -12, align: 'top', length: 220, thickness: 5 },
-    stamina: { anchor: 'center', x: 0, y: -12.7, align: 'top', length: 220, thickness: 3 },
-    stim: { anchor: 'center', x: 0, y: -13.2, align: 'top', length: 220, thickness: 3 } } } },
+  bar: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', fill: 'auto', length: 300, radius: 160, thickness: 10 },
+  charge: { anchor: 'center', x: 6.78, y: 0, align: 'left', style: 'curved_right', length: 330, radius: 176, thickness: 4 },
+  count: { anchor: 'center', x: 9.7, y: -8.4, align: 'top_left' },
+  mags: { anchor: 'center', x: 9.7, y: -10.6, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'none' },
+  modes: { anchor: 'center', x: 10.6, y: 8, align: 'bottom_left', style: 'stacked' },
+  icons: { anchor: 'center', x: 15.8, y: 8, align: 'bottom_left', style: 'stacked' },
+  rpm: { anchor: 'center', x: 10.6, y: 11.4, align: 'bottom_left' },
+  stims: { anchor: 'center', x: -4.7, y: -9.2, align: 'top_right' },
+  grenades: { anchor: 'center', x: -8.7, y: -9.2, align: 'top_right' },
+  pack: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 240, radius: 160, thickness: 8 },
+  health: { anchor: 'center', x: 0, y: -12, align: 'top', style: 'horizontal', length: 220, thickness: 5 },
+  stamina: { anchor: 'center', x: 0, y: -12.7, align: 'top', style: 'horizontal', length: 220, thickness: 3 },
+  stim: { anchor: 'center', x: 0, y: -13.2, align: 'top', style: 'horizontal', length: 220, thickness: 3 } } } },
+  { name: 'Preview 1 (horizontal stack)', note: 'As F9\'s Position: Preview 1: the bars stacked under the crosshair, 8 px apart', t: { _v: 1, elements: {
+  bar: { anchor: 'center', x: 0, y: -11, align: 'bottom', style: 'horizontal', fill: 'auto', length: 260, thickness: 11 },
+  charge: { anchor: 'center', x: 0, y: -9.68, align: 'bottom', style: 'horizontal', length: 260, thickness: 4 },
+  health: { anchor: 'center', x: 0, y: -8.85, align: 'bottom', style: 'horizontal', length: 260, thickness: 7 },
+  stamina: { anchor: 'center', x: 0, y: -7.8, align: 'bottom', style: 'horizontal', length: 260, thickness: 4 },
+  pack: { anchor: 'center', x: 0.28, y: -11.9, align: 'bottom_left', style: 'horizontal', length: 126, thickness: 5 },
+  stim: { anchor: 'center', x: 0.28, y: -12.8, align: 'bottom_left', style: 'horizontal', length: 126, thickness: 5 },
+  count: { anchor: 'center', x: 10.1, y: -10.62, align: 'left' },
+  mags: { anchor: 'center', x: 13.3, y: -11.27, align: 'bottom_left', style: 'number', empty: 'shown', divider: true, after: 'count', gap: 8 },
+  rpm: { anchor: 'center', x: 10.1, y: -11.7, align: 'top_left' },
+  modes: { anchor: 'center', x: -10.1, y: -10.62, align: 'right', style: 'line' },
+  icons: { anchor: 'center', x: -10.1, y: -11.7, align: 'top_right', style: 'line' },
+  stims: { anchor: 'center', x: -9, y: -11.56, align: 'top_left' },
+  grenades: { anchor: 'center', x: -5.6, y: -11.56, align: 'top_left' } } } },
+  { name: 'Preview 2 (compact block)', note: 'As F9\'s Position: Preview 2: one block right of the crosshair, the short standing ammo bar its spine', t: { _v: 1, elements: {
+  bar: { anchor: 'center', x: 10.7, y: -2.2, align: 'bottom_left', style: 'vertical', fill: 'auto', length: 107, thickness: 11 },
+  charge: { anchor: 'center', x: 10.14, y: -2.2, align: 'bottom_right', style: 'vertical', length: 107, thickness: 4 },
+  icons: { anchor: 'center', x: 12.1, y: 5.5, align: 'top_left', style: 'line' },
+  modes: { anchor: 'center', x: 15, y: 5.5, align: 'top_left', style: 'line', after: 'icons', gap: 8 },
+  rpm: { anchor: 'center', x: 12.1, y: 3.73, align: 'top_left' },
+  count: { anchor: 'center', x: 12.1, y: 0.4, align: 'bottom_left' },
+  mags: { anchor: 'center', x: 12.9, y: 1.5, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'count', gap: 8 },
+  stims: { anchor: 'center', x: 12.1, y: -0.15, align: 'top_left' },
+  grenades: { anchor: 'center', x: 15, y: -0.15, align: 'top_left' },
+  stamina: { anchor: 'center', x: 9.86, y: -3.03, align: 'bottom_left', style: 'horizontal', length: 128, thickness: 4 },
+  health: { anchor: 'center', x: 9.86, y: -4.08, align: 'bottom_left', style: 'horizontal', length: 128, thickness: 7 },
+  pack: { anchor: 'center', x: 9.86, y: -4.98, align: 'bottom_left', style: 'horizontal', length: 60, thickness: 5 },
+  stim: { anchor: 'center', x: 18.75, y: -4.98, align: 'bottom_right', style: 'horizontal', length: 60, thickness: 5 } } } },
+  { name: 'Preview 3 (curved pair)', note: 'As F9\'s Position: Preview 3: arcs centred on the crosshair, the meters outside, the backpack and stim timer inside', t: { _v: 1, elements: {
+  bar: { anchor: 'center', x: 6.35, y: 0, align: 'left', style: 'curved_right', fill: 'auto', length: 300, radius: 160, thickness: 11 },
+  charge: { anchor: 'center', x: 7.15, y: 0, align: 'left', style: 'curved_right', length: 330, radius: 176, thickness: 4 },
+  pack: { anchor: 'center', x: 9.24, y: 0, align: 'left', style: 'curved_right', length: 100, radius: 144, thickness: 5 },
+  count: { anchor: 'center', x: 11.3, y: -7.3, align: 'top_left' },
+  mags: { anchor: 'center', x: 11.3, y: -9.5, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'none' },
+  modes: { anchor: 'center', x: 11.3, y: 7.3, align: 'bottom_left', style: 'stacked' },
+  rpm: { anchor: 'center', x: 11.3, y: 10.1, align: 'bottom_left' },
+  icons: { anchor: 'center', x: 13.7, y: 0, align: 'center', style: 'stacked' },
+  stims: { anchor: 'center', x: -1.8, y: -8.6, align: 'center' },
+  grenades: { anchor: 'center', x: 1.8, y: -8.6, align: 'center' },
+  health: { anchor: 'center', x: -6.43, y: 0, align: 'right', style: 'curved_left', length: 300, radius: 160, thickness: 7 },
+  stamina: { anchor: 'center', x: -7.07, y: 0, align: 'right', style: 'curved_left', length: 326, radius: 174, thickness: 4 },
+  stim: { anchor: 'center', x: -9.24, y: 0, align: 'right', style: 'curved_left', length: 100, radius: 144, thickness: 5 } } } },
+  { name: 'Preview 4 (vertical pair)', note: 'As F9\'s Position: Preview 4: the ammo bar standing right of the crosshair, health on the left, the meters outside', t: { _v: 1, elements: {
+  bar: { anchor: 'center', x: 7.6, y: -6.5, align: 'bottom_left', style: 'vertical', fill: 'auto', length: 190, thickness: 11 },
+  charge: { anchor: 'center', x: 9.2, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 4 },
+  pack: { anchor: 'center', x: 6.6, y: 2.8, align: 'top_left', style: 'vertical', length: 80, thickness: 5 },
+  count: { anchor: 'center', x: 9.8, y: -7.6, align: 'bottom_left' },
+  mags: { anchor: 'center', x: 14.33, y: -6.69, align: 'center', style: 'number', empty: 'shown', divider: true, after: 'count', gap: 6 },
+  rpm: { anchor: 'center', x: 9.8, y: -4.9, align: 'bottom_left' },
+  modes: { anchor: 'center', x: 9.8, y: 7.6, align: 'top_left', style: 'stacked' },
+  icons: { anchor: 'center', x: 9.4, y: 4.5, align: 'top_left', style: 'stacked' },
+  stims: { anchor: 'center', x: -1.0, y: -8.1, align: 'top_right' },
+  grenades: { anchor: 'center', x: 1.0, y: -8.1, align: 'top_left' },
+  health: { anchor: 'center', x: -7.6, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 7 },
+  stamina: { anchor: 'center', x: -8.64, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 4 },
+  stim: { anchor: 'center', x: -6.6, y: 2.8, align: 'top_right', style: 'vertical', length: 80, thickness: 5 } } } },
 ];
 
 function fieldOk(f, v) {
@@ -602,6 +635,44 @@ function outlined(rows) {
 const GRENADE = outlined(['.##.......', '#..#......', '.######...', '...####...', '...####.#.', '..+++++++.', '.########.',
   '##########', '##########', '##########', '.########.', '..######..']);
 const STIM = outlined(['#..#........', '#..#######..', '####+++++###', '#..#######..', '#..#........']);
+// (1.5.18) the icons as the mod draws them now: luka189's stim and dogo314's grenade (art/icons, as 64 px masks),
+// a square of the line's height with the icon centred, the line advancing by the icon's own width (as in the game)
+const ICON_ART = {
+  stim: { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAACh0lEQVR42u2bQW4TMRRAnyeTNqpa2lRQZcG6UjZFXAJWZF1xBw7ACViw5BKsYVX1Ei1dtAdgRRFdgERppzWLfCuWlUw7CFtx/S1FHjv/O/bz9/+e8cRYayk5VRSeFIACSJ9qyV8DVnK/vhgL2Azy4pbAVpAXB2BYOoCtAEQxAOyCJWBLAxA6QQVQAgAjAzXAhtRtBPVFOMHVAMBqaVFgTT7hdRFLoA1AMUtgHRjI9UDKRVhAFTjAJnCEySck9R1Y44U+4/3+pkSB5qECcGFuCNzImj8DroAVKT8CesCFJx+/YwmeCdYysx+Afbk2krvY3wduRfYj8MbTyxpAT2b8FfCpg94E+OzpZwnAhbQnwDGwIzPe5uhuRe8b8Aw4j71Njul1K+n4e2Akg+vJABd9eiI3Ej0buY9RG3ezNu64z3cOcJziJilF3P3zDzs8I3oPYiNkEutlsRVemqQAFIACUAAKQAEoAAWgABSAAlAACkABKAAFUFyqI7ZbMXsSjJfflXx5v50mJwB+Zy+AX1JX31O3Fr1sT4beAddyPWZ6+uue8bc97LTMDkd+AqdS3wfe5mQBz4GX/7G9g9wsYAgcAo+Znfsbpsdjbb7ghumxmLMEC3wHXgA/cgLgrGvFM+0B8AV4KoPzI5ArfwX2gEtvqVzF9AWxloA7/m4C53YXbSsO83pOezYnAP5ZoOt83aFPTTBom5sFhJ22HQZhUww85U7QP/6OIb+0FuA7OD+/j7wl0TtCVaLf6PIKXFf5pQTgYv1EdnMnwBHTNz+YY96uPBK5E9GbdLyPWKowCLAN7LZ8H5b7gfz2AvlsfMAl8Fviej3H4swCH9AIjOhviRj973DhSQGUDuAvXzWRqZjxtXoAAAAASUVORK5CYII=', w: 21, h: 56 },
+  grenade: { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAEuUlEQVR42u2aTagcRRDHfz27EqMJKGhUNOAHEhCC4mc0moAoiYiieNGTeBAJggoGTyFG8CKJvKBRQw4hCZ4ELx7ES0Tx40nEyAPjJYogUcQ8TJ5f0bc7Ux6mmi2G3X3ZmZ7pxd2CZoaZ6Z7qf9dXV5cTESaZEiacpgBMAaiHWnrdBAjQ1euoLdW+z+t450yaBCSAA3YCTwMdoD1pKuBUGvYAz6pEBAOh3cAErEi7Ae+H9fWLlAK7dYzdynt33AHwItxeYoWHvct0nERBmNHnMyFAcDUFQl5sVwLXqFFMgW3AI3rvdFLPAR+bb5y25cBbwFoj9qKAtICtwKuVQRCRJtubklNHRLp6v3nI95eKyJzpIyKSmb5b9bt2WZ7G0Qh6cW8Dv6grnTMr7Yw67ARe0OetcbIBg1RglXnvdX+NTrQFLALHVMy9qHsQPgBuMOqQ6P0r+u2ucVKBll7vk9FoQURWal9XGGuViBztow7+fsc4qkBWiAQHuTr/3WKf96lKwq8qCUeNOoje/wl8O26BUKKMu4LI91MX21p9+PIgnAQ2A1/pxB3wF/AQ8M64AOCNWAYslAiaThv9d0NA+FqfPQgcLrtPCA1AS5nvADerj5clgp2i0dwBXGFEPOkDwjzwALAR+FCfdWIbQW+srhKRt9VAibmOQvMisk1ElhXGpmAgEZGkCt8hJu4Mg48p88WAZRTqmPsvRWTtEBCSqvyHnPz2AZMoQ9a9nRKRTQNAIDYAPgR9SZntikgq4chL0D8ick8dIFTZDPno7nHggAlHXWDD6g3fKeA24LjxMtVD1pIAJGqhr9XAZPkSvj4UCLPABhM4SQifXSXRMQOcf5aurqp77QK3A0+aHEE0CQC4E/jErE7dlCnIJ4DrNAKkqhRUQXFLKDEcgdcMWK2hr4QAviwAFwP3mti9SRLgUSMVUQBYryDUrfuDcoy3AhcYtWgcgJv052nJA4+yza/6ReqBiAXAGpO2cg03LwVXhtjQlU2Jtcy2tem8ok+JLYvpBlc0dKgyjM4A/8aMA/4XNPHH42XF+G7gkghuEGN3jgDfm2xSoypwBLgl8uI9A7xOxaOxshJwWn8a0wucmdqAiDbgwohu0P/3vJgA7AWujmwEZ0NsiCY+DmhX6Oci856G2A5PJaBkvzeAOyK5QZ+CexF4j152ulEAVpMXK8SkFTHzAccU9UV61RxNtNQkYX5QXiSGCszROwRpUgW8210AvgvhBssy/ynwB70DkiZjACE/jDkZ4v9lATgBfESvvKVJcsC7oUL5KgPsazgW8MUSv9Erh4mWFk+A93VbXMkNjej+HPCain87ZiDkJ70O+NzEA3Ufjh4HbgT+JvLhqGfoC2A7vcPLOi1/F3iCvCTOEcj4JgFW5WXgEHmVViewV8iM7j8FfBZa5ZIADCa6MgfplaqFYLBr1GoLsF/1Pqy9CVQk5UydUGrKW7ojVollhT4/i8j9VSvC664SK1ZsbRSR2T61PqlOLCtMOB1QW3RQRC6vqzgqRI3QMO+QAA+r3t4FnHuW/efVve41GZ9a3Wwd+YAiw9eT1xJsID/RvYy8rCYDfgd+BL4hL3c9DPxkxqk90pwejTHhNAVg0gH4D/si9ZUx1AugAAAAAElFTkSuQmCC', w: 38, h: 56 } };
+const iconImgs = {}, tinted = {};
+function iconImg(name) {
+  if (!iconImgs[name]) { const im = new Image(); im.onload = () => render(); im.src = ICON_ART[name].src; iconImgs[name] = im; }
+  return iconImgs[name];
+}
+function drawMask(name, x, y, S, c) {
+  const im = iconImg(name);
+  if (!im.complete || !im.naturalWidth) return false;
+  const key = name + '|' + c;
+  let t = tinted[key];
+  if (!t) {
+    t = document.createElement('canvas'); t.width = t.height = 64;
+    const tg = t.getContext('2d'); tg.drawImage(im, 0, 0, 64, 64); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = c; tg.fillRect(0, 0, 64, 64);
+    tinted[key] = t;
+  }
+  g.imageSmoothingEnabled = true; g.drawImage(t, x, SCR.H - y - S, S, S);
+  return true;
+}
+// the game's own mode icons stand in as two glyphs of our own (the fire mode, the ammo kind): the editor can't
+// carry the game's artwork; their size and spacing are the game's
+function modeGlyph(kind, x, y, tw, c) {
+  const m = tw * 0.28, cx = x + tw / 2, top = SCR.H - y - tw;
+  g.fillStyle = c; g.beginPath();
+  if (kind === 'fire') {
+    const w = tw - 2 * m, bx = cx - w / 2, by = top + m, h = tw - 2 * m;
+    g.moveTo(bx, by + h); g.lineTo(bx, by + h * 0.4); g.quadraticCurveTo(bx, by, cx, by); g.quadraticCurveTo(bx + w, by, bx + w, by + h * 0.4); g.lineTo(bx + w, by + h); g.closePath();
+  } else {
+    const r = (tw - 2 * m) / 2, cy = top + tw / 2;
+    for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g[i ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+    g.closePath();
+  }
+  g.fill();
+}
 function sprite(x, y, rows, cell, colors) {
   for (let r = 0; r < rows.length; r++) {
     for (let c = 0; c < rows[r].length; c++) {
@@ -812,6 +883,21 @@ const EL_DRAW = {
     if (!dry) txtModes(x, y, s, small, 200);
     return [txtWidth(s, small), small];
   },
+  icons(e, k, d, x, y, dry) {
+    if (!d) return null;
+    const kinds = [];
+    if (d.mode) kinds.push('mode');
+    if (d.fmode) kinds.push('fire');
+    if (!kinds.length) return null;
+    const cell = Math.max(1, fl(1.6 * k + 0.5)), tw = 2 * STIM[0].length * cell, gap = fl(4 * k), n = kinds.length;
+    const w = e.style === 'stacked' ? tw : n * tw + (n - 1) * gap, h = e.style === 'stacked' ? n * tw + (n - 1) * gap : tw;
+    if (dry) return [w, h];
+    kinds.forEach((kind, i) => {
+      const ex = e.style === 'stacked' ? x : x + i * (tw + gap), ey = e.style === 'stacked' ? y + h - (i + 1) * tw - i * gap : y;
+      modeGlyph(kind, ex, ey, tw, col(P.CREAM, 220));
+    });
+    return [w, h];
+  },
   rpm(e, k, d, x, y, dry) {
     if (!d || !d.setting) return null;
     const tiny = Math.max(6, fl(12 * k + 0.5));
@@ -883,11 +969,14 @@ EL_DRAW.stim = function (e, k, d, x, y, dry, items) {
 };
 function iconEl(rows, n, k, x, y, dry) {
   const cell = Math.max(1, fl(1.6 * k + 0.5)), small = Math.max(7, fl(16 * k + 0.5));
-  const S = GRENADE.length * cell, iw = rows[0].length * cell, s = String(n);
+  const name = rows === STIM ? 'stim' : 'grenade', art = ICON_ART[name];
+  const S = GRENADE.length * cell, iw = Math.max(1, fl(S * art.w / 64 + 0.5)), s = String(n);
   const w = iw + fl(4 * k) + txtWidth(s, small);
   if (dry) return [w, S];
   const c = n === 0 ? P.RED : P.CREAM;
-  sprite(x, y + fl((S - rows.length * cell) / 2), rows, cell, { '#': col(c, 220), '+': col([40, 40, 40], 210), o: col([0, 0, 0], 110) });
+  if (!drawMask(name, x - fl((S - iw) / 2), y, S, col(c, 220))) {
+    sprite(x, y + fl((S - rows.length * cell) / 2), rows, cell, { '#': col(c, 220), '+': col([40, 40, 40], 210), o: col([0, 0, 0], 110) });
+  }
   txt(x + iw + fl(4 * k), y + fl((S - small) / 2), s, small, col(c, 220));
   return [w, S];
 }
@@ -1034,7 +1123,7 @@ function overlay() {
     g.strokeRect(ob.x - 4 * unit, H - ob.y - ob.h - 4 * unit, ob.w + 8 * unit, ob.h + 8 * unit);
     g.setLineDash([]);
   }
-  const b = boxes[sel];
+  const b = sel && boxes[sel];
   if (!b) return;
   const e = els[sel];
   const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
@@ -1176,9 +1265,15 @@ function setField(name, v) { for (const id of targetsOf(name)) els[id][name] = v
 function mixed(name) { const ids = targetsOf(name); return ids.some(id => els[id][name] !== els[ids[0]][name]); }
 const helpOpen = new Set();                        // (the fields whose ? hint is open; kept across rebuilds)
 function buildFields() {
+  const box = $('fields'); box.replaceChildren();
+  if (!sel) {
+    $('fieldtitle').textContent = 'Nothing picked';
+    const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Click a part on the screen or in the list.'; box.append(p);
+    renderList();
+    return;
+  }
   const el = BY_ID[sel], e = els[sel];
   $('fieldtitle').textContent = el.name;
-  const box = $('fields'); box.replaceChildren();
   const group = (text) => { const g = document.createElement('div'); g.className = 'grp'; g.textContent = text; box.append(g); };
   const many = selSet.size > 1;
   const row = (name, build, help) => {
@@ -1300,9 +1395,9 @@ function histMark(key) {
 function histApply(s) {
   const t = JSON.parse(s);
   els = t.e; useOffsets = t.o; hist.last = s; hist.key = null;
-  if (!els[sel]) sel = 'bar';
+  if (sel && !els[sel]) sel = 'bar';
   for (const id of [...selSet]) if (!els[id]) selSet.delete(id);
-  if (!selSet.size) selSet.add(sel);
+  if (!selSet.size && sel) selSet.add(sel);
   syncOffsets(); buildFields(); saveDraft(); updateFile(); render(); histButtons();
 }
 function undo() { if (!hist.undo.length) return; hist.redo.push(snap()); histApply(hist.undo.pop()); }
@@ -1341,7 +1436,7 @@ function toScreen(ev) {
 function hit(x, y) {
   const pad = 8 * viewRect().w / cv.getBoundingClientRect().width;
   const order = ELEMENTS.map(e => e.id).reverse();
-  if (boxes[sel]) order.unshift(sel);
+  if (sel && boxes[sel]) order.unshift(sel);
   for (const id of order) {
     const b = boxes[id];
     if (b && x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad) return id;
@@ -1416,11 +1511,11 @@ function endDrag() {
     const m = marquee; marquee = null;
     const x0 = Math.min(m.x0, m.x1), x1 = Math.max(m.x0, m.x1), y0 = Math.min(m.y0, m.y1), y1 = Math.max(m.y0, m.y1);
     const got = Object.entries(boxes).filter(([, b]) => b.x <= x1 && b.x + b.w >= x0 && b.y <= y1 && b.y + b.h >= y0).map(([id]) => id);
-    if (Math.abs(m.x1 - m.x0) + Math.abs(m.y1 - m.y0) < 4) { if (!m.add) { /* a click on nothing keeps the selection */ } render(); return; }
+    if (Math.abs(m.x1 - m.x0) + Math.abs(m.y1 - m.y0) < 4) { if (!m.add) { selSet.clear(); sel = null; buildFields(); } render(); return; }   // (a click on nothing picks nothing, as a desktop's icons)
     if (!m.add) selSet.clear();
     for (const id of got) selSet.add(id);
     if (got.length) sel = got.includes(sel) ? sel : got[0];
-    if (!selSet.size) selSet.add(sel);
+    if (!selSet.size) sel = null; else if (!selSet.has(sel)) sel = [...selSet][0];
     buildFields(); render();
     return;
   }
@@ -1556,7 +1651,7 @@ for (const b of $('zoom').querySelectorAll('button')) {
   b.addEventListener('click', () => {
     view.z = Number(b.dataset.z);
     // (zoomed on the selected part, else the crosshair)
-    const bx = boxes[sel];
+    const bx = sel && boxes[sel];
     view.vx = bx ? bx.x + bx.w / 2 : SCR.W / 2; view.vy = bx ? SCR.H - (bx.y + bx.h / 2) : SCR.H / 2;
     if (view.z > 1 && bx) { view.vx = (view.vx + SCR.W / 2) / 2; view.vy = (view.vy + SCR.H / 2) / 2; }
     for (const o of $('zoom').querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b));
@@ -1610,7 +1705,7 @@ function loadText(text, from) {
     els = r.els;
     if (t.use_offsets !== undefined && typeof t.use_offsets !== 'boolean') r.dropped.push('use_offsets');
     useOffsets = t.use_offsets === true; syncOffsets();
-    select(sel); changed();
+    select(sel || 'bar'); changed();
     if (r.dropped.length) { stat.className = 'status err'; stat.textContent = from + ': read. ' + r.dropped.length + ' value(s) that don\'t fit were left at Under\'s: ' + r.dropped.join(', ') + '.'; }
     else { stat.className = 'status ok'; stat.textContent = from + ': read.'; }
   } catch (e) {

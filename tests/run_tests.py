@@ -50,7 +50,7 @@ def setup(rt, game_font=True, chef11=False, seeded=False):
            and t not in ('8fcdd35c', '17783758', '30294946', 'a4eff4fa', '56e55184', 'f94a73b3', '17b02218')][3]
     arc = [n for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
            if 'y' in roles and 'k' in roles and not set('rahl') & set(roles)][0]
-    g.NAMES = rt.table_from({'stalwart': type_name('521229d8'), 'gl': type_name('8c0aee6e'), 'rr': type_name('b2bfd847'), 'crem': type_name('15f1a9f0'), 'crempack': type_name('6c17c3b1'), 'pack2': type_name('447380d4'), 'verdict': type_name('c7dfd9eb'), 'seaf': type_name('aca39ec2'), 'dog': type_name('530e19df'), 'arc': arc, 'commando': type_name('3d538455'), 'spear': type_name('83d1036e'), 'rail': type_name('26acc614'), 'rr': type_name('b2bfd847'), 'ac': type_name('7bfb2e06'), 'acfed': type_name('903649ec'), 'acpack': type_name('94ff3b20'), 'scythe': type_name('42a6b5ba'), 'c4': type_name('6b2c3bed'), 'c4pack': type_name('66d03a73'), 'laser': type_name('d100e0c8'), 'warrant': type_name('c920c2d3'), 'unk2': unk2, 'ub2': ub2[1], 'ub2id': ub2[0], 'fed': type_name('b3246bb7'), 'pack': 'raqnyi', 'ubgl': type_name('da0f356e'), 'player': type_name('803159b3') if False else 'un6y1d', 'avatar': 'vvhx8ga',
+    g.NAMES = rt.table_from({'stalwart': type_name('521229d8'), 'gl': type_name('8c0aee6e'), 'rr': type_name('b2bfd847'), 'crem': type_name('15f1a9f0'), 'crempack': type_name('6c17c3b1'), 'pack2': type_name('447380d4'), 'verdict': type_name('c7dfd9eb'), 'seaf': type_name('aca39ec2'), 'dog': type_name('530e19df'), 'arc': arc, 'commando': type_name('3d538455'), 'spear': type_name('83d1036e'), 'rail': type_name('26acc614'), 'rr': type_name('b2bfd847'), 'ac': type_name('7bfb2e06'), 'acfed': type_name('903649ec'), 'acpack': type_name('94ff3b20'), 'scythe': type_name('42a6b5ba'), 'c4': type_name('6b2c3bed'), 'c4pack': type_name('66d03a73'), 'laser': type_name('d100e0c8'), 'warrant': type_name('c920c2d3'), 'unk2': unk2, 'ub2': ub2[1], 'ub2id': ub2[0], 'fed': type_name('b3246bb7'), 'pack': 'raqnyi', 'ubgl': type_name('16425925'), 'ubsg': type_name('da0f356e'), 'player': type_name('803159b3') if False else 'un6y1d', 'avatar': 'vvhx8ga',
                              'arb': type_name('8fcdd35c'), 'nova': type_name('17783758'), 'de': type_name('960653cb'), 'talon': type_name('4e87d68d'), 'unk': unknown_name})
     rt.execute(r"""
 T = 0
@@ -63,7 +63,7 @@ WORLD = 1             -- the world's id (a new one each mission)
 HOST = '0b99cf5492296d6e'   -- the session's host (you, unless a test joins someone's game)
 HOSTS = {}            -- objects the host owns (in someone else's game)
 GUIS = 0
-OPTS, CHANGE, BINDS = { research = true }, {}, {}   -- the F9 menu's values (the tests run with the research log on)
+OPTS, CHANGE, BINDS = { research = true, mode_icon = false }, {}, {}   -- the F9 menu's values (the tests run with the research log on; the mode icons off unless a test turns them on)
 OBJINFO = nil           -- Network.object_info, when a test gives one
 PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
 KEYS, WHEEL = {}, 0   -- keys pressed this frame, the mouse wheel
@@ -125,6 +125,7 @@ chef = {
   line = function(x1, y1, z1, x2, y2, z2, c) rec({ 'line', x1, y1, z1, x2, y2, c[1], c[2], c[3], c[4], z2 = z2 }) end,
   -- (BITMAP false: the texture can't be drawn, as Chef answers when it isn't loaded)
   bitmap = function(tex, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex }) return true end,
+  bitmap_uv = function(tex, u0, v0, u1, v1, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex, uv = true }) return true end,
   texture_sizes = function(map) TEX_SIZES = map end,
   -- (a flat stand-in projection: 1000 px a metre of x over y metres ahead, from the screen's centre; nil behind)
   world_to_screen = function(x, y, z)
@@ -160,7 +161,7 @@ chef = {
     if name == 'Unit.has_animation_state_machine' or name == 'Unit.animation_has_variable' then return true end
     if name == 'Unit.animation_find_variable' then return 3 end
     if name == 'Unit.animation_get_variable' then return GRIP end
-    if name == 'Application.can_get' then return GAME_FONT end
+    if name == 'Application.can_get' then if s == 'material' and MAT_OK ~= nil and type(a) == 'string' and a:sub(1, 3) == 'id:' then return MAT_OK end return GAME_FONT end
     if name == 'Network.object_info' and OBJINFO then return OBJINFO(s) end
     if name == 'Mouse.button_index' then return s == 'right' and 1 or 0 end
     if name == 'Mouse.button' then if s == 1 then return AIM and 1 or 0 end return (FIRE and not PAD) and 1 or 0 end
@@ -198,6 +199,15 @@ chef = {
       rec({ 'text', e[1], e[2], a, math.floor(c * 0.70 / 7 + 0.5), f[1], f[2], f[3], f[4], game = true, size = c })
       return true
     end
+    -- (1.5.18: the game's own icon material on a GUI of ours; MAT_OK false: the material isn't loaded)
+    if name == 'IdString64.from_hex' then return 'id:' .. s end
+    if name == 'Vector2' then return { s, a } end
+    if name == 'Gui.material' then return 'mat:' .. tostring(a) end
+    if name == 'Material.set_texture' then return true end
+    if name == 'Quaternion.from_elements' then return { s, a, b, c } end
+    if name == 'Material.set_vector4' then VECS = VECS or {} VECS[#VECS + 1] = { a, b } return true end
+    -- Gui.bitmap_uv(gui, material, uv00, uv11, pos, size, color)
+    if name == 'Gui.bitmap_uv' then rec({ 'bitmap', d[1], d[2], e[1], e[2], 0, 0, 0, 0, tex = a, uv = true, own = true }) return true end
     error('unexpected call ' .. name)
   end,
 }
@@ -380,7 +390,7 @@ def main():
       OBJ[3].fields[ROLE.underbarrel] = 11 OBJ[3].fields[ROLE.fire_mode] = 9 OBJ[3].fields[ROLE.rounds] = 30 GRIP = 10 run(1.5)''')
     rt.execute('OBJ[11].fields[ROLE.rounds] = 90 run(0.5) OBJ[11].fields[ROLE.rounds] = 80 run(0.5)')
     t = rt.eval('texts()')
-    check('firing the underbarrel: UB stays, its 80 shown [%s]' % t, '80' in t and 'UB' in t)
+    check('firing the underbarrel: its name (the Arbitrator\'s 10G) stays, its 80 shown [%s]' % t, '80' in t and '10G' in t)
     check('the underbarrel never learned as a weapon', rt.eval('saved == nil or saved.grip == nil or saved.grip["%s"] == nil' % rt.eval('NAMES.ub2id')) is True)
     rt.execute('OBJ[3].fields[ROLE.fire_mode] = 1 run(0.3)')
     t = rt.eval('texts()')
@@ -490,6 +500,11 @@ def main():
     t = rt.eval('texts()')
     check('Autocannon after the reload: 8 x25 [%s]' % t, t.startswith('8 | x25'))
     check('research log: a reload line', any(l.startswith('reload 7bfb2e06:') for l in logs))
+    # (1.5.18) its mode icons: the ammo kind (options 4 = FLAK) and the fire mode, both from the game's atlas
+    rt.execute('M.debug_cfg("mode_icons", 2) OBJ[17].fields[ROLE.options] = 4 OBJ[17].fields[ROLE.fire_mode] = 2 run(0.5) OBJ[17].fields[ROLE.fire_mode] = 1 run(1)')
+    said = [l for l in rt.eval('logs').values() if 'mode sprites' in l]
+    rt.execute('M.debug_cfg("mode_icons", 1)')
+    check('Autocannon: FLAK and AUTO icons both drawn %s' % said[-1:], any('6115051c9558c50e+ 9dcc0312a14e11e6+' in l for l in said))
     rt.execute('OBJ[17] = nil OBJ[18] = nil OBJ[19] = nil GRIP = 10 run(1.5)')
 
     # a single-shot launcher (the Recoilless): magazine 0, one in the chamber: one full tick, normal color, HEAT
@@ -745,6 +760,14 @@ def main():
     check('cold: the Stalwart\'s field 630 shown as its 700 setting [%s]' % t, '700 RPM' in t)
     rt6.execute('OBJ[41].fields[ROLE.rpm] = 850 run(0.3)')
     check('warm again: 850 as it is [%s]' % rt6.eval('texts()'), '850 RPM' in rt6.eval('texts()'))
+
+    # (1.5.18) a Stalwart of yours lying on the ground (its floor field a pickup goid) isn't the weapon in hand at its
+    # pose; once the field is none (picked up) it is
+    rt6.execute('''OBJ[41].fields[ROLE.floor] = 404 OBJ[41].fields[ROLE.rounds] = 150 run(2.5)''')
+    check('a weapon on the ground: not shown (%s) %s' % (rt6.eval('texts()'), [l for l in rt6.eval('logs').values() if 'ground' in l][-1:]),
+          '150' not in rt6.eval('texts()') and any('lies on the ground (pickup 404)' in l for l in rt6.eval('logs').values()))
+    rt6.execute('OBJ[41].fields[ROLE.floor] = 32767 run(1)')
+    check('picked up: shown again [%s]' % rt6.eval('texts()'), rt6.eval('texts()').startswith('150 |'))
 
     # a controller: its right trigger is the fire button (the mouse untouched)
     rt7 = lua51.LuaRuntime()
@@ -1149,6 +1172,19 @@ def main():
     check('a grenade out: an arc of %d segments from the hand (y %.1f), rising to %.1f then down (%d from a gun)' % (
           len(ls), ls[0][3] if ls else 0, top, r.eval('n_gun')),
           r.eval('n_gun') == 0 and len(ls) > 30 and 1.5 < ls[0][3] < 2.5 and top > 0.5 and ls[-1][4] < -10)
+    # 1.5.16: the same grenade with Servo-Assisted armour (SA-12, armor_set f2b7d3f5): a longer arc
+    def landing(lines_):
+        # the distance along the throw where the arc comes back down to the hand's height (a line's start: x y z)
+        for l in lines_[2:]:
+            if l[4] <= lines_[0][4]:
+                return l[3] - lines_[0][3]
+        return None
+    d0 = landing(ls)
+    r.execute('OBJ[1].fields.armor_set = 4072133621 run(1.5)')
+    ls2 = list(r.eval('lines()').values())
+    d1 = landing(ls2)
+    check('a grenade with Servo-Assisted armour flies farther (%.1f m against %.1f m)' % (d1 or 0, d0 or 0), d0 and d1 and d1 > d0 * 1.4)
+    r.execute('OBJ[1].fields.armor_set = 0 run(1.5)')
     r.execute('GRIP = 0 run(0.15)')     # (the hand pose is read every 0.1 s)
     clear = [l for l in r.eval('lines()').values() if l[10] == 0]
     r.execute('run(0.5)')
@@ -1178,9 +1214,63 @@ def main():
     bm = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
     sp = [d for d in r.eval('draws').values() if d[1] == 'sprite']
     ladder = r.eval('TEX_SIZES')
-    check('the stim drawn as a texture (%d bitmaps, %d sprites; ladder %s)' % (len(bm), len(sp), ladder is not None),
-          len(bm) == 1 and len(sp) == 1 and ladder is not None and bm[0][4] == bm[0][5])
-    r.execute('BITMAP = false run(0.2)')
+    check('the stim and grenade drawn as textures (%d bitmaps, %d sprites; ladder %s)' % (len(bm), len(sp), ladder is not None),
+          len(bm) == 2 and len(sp) == 0 and ladder is not None and bm[0][4] == bm[0][5])
+    r.execute('M.debug_cfg("icon_tex", 7) run(0.2)')
+    bm7 = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
+    r.execute('M.debug_cfg("icon_tex", 8) run(0.2)')
+    bm8 = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
+    t7, t8 = sorted(d.tex for d in bm7), sorted(d.tex for d in bm8)
+    check('ways 7 and 8 (1.5.17): the uv call, the game-layout textures and the ladder\'s size for the line (%s, %s)' % (t7, t8),
+          len(bm7) == 2 and all(d.uv for d in bm7) and t7 == ['241e0d9906daae59', '4c6c95419a57eff1'] and len(bm8) == 2 and all(d.uv for d in bm8) and t8 == ['1f09d2d7afc81813', 'ebf6c256d2ff13ca'])
+    # 1.5.18: ways 9 to 11 draw the game's own sprite from its atlas page by uv; the fire-mode icon the same way
+    # (the fire mode shows once two modes were seen: the weapon switched once)
+    r.execute('M.debug_cfg("icon_tex", 9) M.debug_cfg("mode_icons", 2) OBJ[3].fields[ROLE.fire_mode] = 2 run(0.5) OBJ[3].fields[ROLE.fire_mode] = 1 run(2)')
+    bm9 = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
+    r.execute('M.debug_cfg("icon_tex", 11) run(0.2)')
+    bm11 = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
+    pages = sorted(set(d.tex for d in bm9 + bm11))
+    check('ways 9 and 11 (1.5.18): the stim and grenade sprites by uv from the game\'s pages, the fire-mode icon beside, our grenade (%d, %d; pages %s)' % (len(bm9), len(bm11), pages),
+          len(bm9) == 3 and len(bm11) == 3 and all(d.uv for d in bm9 + bm11) and pages == ['18edbed388a3d706', '4c6c95419a57eff1', 'f9a3f22a93eedcbd'])
+    r.execute('M.debug_cfg("icon_tex", 1) M.debug_cfg("mode_icons", 4) run(0.2)')
+    own = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    # (1.5.20: the icon shader tints by the vertex colour; no material variables are set any more)
+    check('no material variables set (the vertex colour is the tint)', r.eval('VECS') is None)
+    r.execute('M.debug_cfg("mode_icons", 3) run(0.2)')
+    own = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    # (1.5.21) the icons take the mode colours as the text does: AUTO blue with Modes in their own colours
+    r.execute('CHANGE.mode_colors(true) M.debug_cfg("mode_icons", 2) run(0.2)')
+    blue = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.uv and d.tex == 'f9a3f22a93eedcbd']
+    r.execute('CHANGE.mode_colors(false) run(0.2)')
+    cream = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.uv and d.tex == 'f9a3f22a93eedcbd']
+    check('the AUTO icon in the mode colour (%s) and cream without (%s)' % (blue and (blue[0][6], blue[0][7], blue[0][8]), cream and (cream[0][6], cream[0][7], cream[0][8])),
+          blue and (blue[0][6], blue[0][7], blue[0][8]) == (86, 180, 233) and cream and (cream[0][6], cream[0][7], cream[0][8]) == (236, 229, 206))
+    r.execute('M.debug_cfg("mode_icons", 1)')
+    r2 = lua51.LuaRuntime()
+    setup(r2)
+    r2.execute('run(2) MAT_OK = false M.debug_cfg("mode_icons", 3) OBJ[3].fields[ROLE.fire_mode] = 2 run(0.5) OBJ[3].fields[ROLE.fire_mode] = 1 run(2)')
+    own3 = [d for d in r2.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    said = [l for l in r2.eval('logs').values() if 'mode sprites' in l]
+    check('the icon\'s own material on a GUI of ours (way 3: %d drawn through %s; with it unloaded: %d) %s' % (len(own), own and own[0].tex, len(own3), said[-1:]),
+          len(own) == 1 and own[0].tex == 'id:6115051c9558c50e' and len(own3) == 0 and any('not loaded' in l for l in said))
+    # a weapon with an underbarrel and one fire mode (the Stoker): its fire-mode icon shows without a second mode seen,
+    # the text doesn't; the Show setting on by default (way 4)
+    r3 = lua51.LuaRuntime()
+    setup(r3)
+    r3.execute('OPTS.mode_icon = nil M = (function(...) ' + SRC + ' end)(chef) run(2.5)')
+    none = [d for d in r3.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    r3.execute('''OBJ[3].fields[ROLE.underbarrel] = 8 OBJ[8] = { name = NAMES.ubgl, fields = {} } OBJ[8].fields[ROLE.slot0] = 0 OBJ[8].fields[ROLE.slot1] = 0
+      OBJ[8].fields[ROLE.selected] = 0 OBJ[8].fields[ROLE.chamber] = false OBJ[8].fields[ROLE.spare] = 4 run(1)''')
+    own = [d for d in r3.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    check('one-mode weapon: no icon without an underbarrel fitted (%d); with one, the AUTO icon by default and no AUTO text (%d, %s) [%s]' % (len(none), len(own), own and own[0].tex, r3.eval('texts()')),
+          len(none) == 0 and len(own) == 1 and own[0].tex == 'id:6115051c9558c50e' and 'AUTO' not in r3.eval('texts()'))
+    r3.execute('CHANGE.show_stims(false) run(0.5)')
+    own = [d for d in r3.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    check('the stims hidden: the mode icon stays (%d)' % len(own), len(own) == 1)
+    r3.execute('CHANGE.show_stims(true) OBJ[3].fields[ROLE.fire_mode] = 8 run(1)')
+    own = [d for d in r3.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    check('the underbarrel selected: its icon (%s) [%s]' % (own and own[0].tex, r3.eval('texts()')), len(own) == 1 and own[0].tex == 'id:b019df1ca8b6d4a2' and '10G' in r3.eval('texts()'))
+    r.execute('M.debug_cfg("icon_tex", 2) BITMAP = false run(0.2)')
     bm = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
     sp = [d for d in r.eval('draws').values() if d[1] == 'sprite']
     check('the texture refused: both sprites again (%d, %d) %s' % (len(bm), len(sp), [l for l in r.eval('logs').values() if 'icons:' in l]),
@@ -1347,14 +1437,45 @@ def main():
     r.execute('run(3) CHANGE.position(5) run(0.5)')
     logs = list(r.eval('logs').values())
     tri = [d for d in r.eval('draws').values() if d[1] == 'tri']
-    spr = [d for d in r.eval('draws').values() if d[1] == 'sprite']
+    spr = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
     cnt = [d for d in r.eval('draws').values() if d[1] == 'text' and d[4] == '45']
     check('curved pair: no layout file touched %s' % [l for l in logs if 'layout' in l], not any('layout file' in l for l in logs) and r.eval('LAYOUT') is None)
     check('curved pair: curved bars (%d triangles), the items left of the middle (%s), the count right (%s)' % (len(tri), [s_[2] for s_ in spr], [c[2] for c in cnt]),
           len(tri) > 10 and len(spr) == 2 and all(s_[2] < 1720 for s_ in spr) and cnt and all(c[2] > 1720 for c in cnt))
+    # (1.5.18) the icons part: the mode icons at their own place in the layout (stacked in the curved pair)
+    r.execute('M.debug_cfg("mode_icons", 4) OBJ[3].fields[ROLE.underbarrel] = 8 OBJ[8] = { name = NAMES.ubgl, fields = {} } OBJ[8].fields[ROLE.slot0] = 0 OBJ[8].fields[ROLE.slot1] = 0 OBJ[8].fields[ROLE.selected] = 0 OBJ[8].fields[ROLE.chamber] = false OBJ[8].fields[ROLE.spare] = 4 run(1)')
+    own = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.own]
+    check('curved pair: the icons part draws the fire-mode icon right of the crosshair (%s)' % [(o[2], o[3], o[4]) for o in own],
+          len(own) == 1 and own[0].tex == 'id:6115051c9558c50e' and own[0][2] > 1720 and own[0][4] == own[0][5])
+    r.execute('M.debug_cfg("mode_icons", 1) OBJ[3].fields[ROLE.underbarrel] = 32767 OBJ[8] = nil run(1)')
     r.execute('CHANGE.off_x(10) run(0.5)')
-    spr2 = [d for d in r.eval('draws').values() if d[1] == 'sprite']
+    spr2 = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
     check('curved pair: F9\'s offset moves it (%s)' % [s_[2] for s_ in spr2], len(spr2) == 2 and all(abs(b[2] - a[2] - 344) < 2 for a, b in zip(spr, spr2)))
+    # (1.5.24) with the research log off (no Testing rows at all): the stim and grenade still draw as textures through
+    # the uv call, and the mode icons through the icon's own material. Luka's 23:22 log had pixel sprites here.
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('OPTS.research = false OPTS.mode_icon = nil M = (function(...) ' + SRC + ' end)(chef) run(3)')
+    bm = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
+    check('research off: the stim and grenade as textures by the uv call (%s), no pixel sprites (%d)' % (sorted(d.tex for d in bm if not d.own), r.eval('count("sprite")')),
+          sorted(d.tex for d in bm if not d.own) == ['241e0d9906daae59', '4c6c95419a57eff1'] and all(d.uv for d in bm) and r.eval('count("sprite")') == 0)
+    # (1.5.24) the Preview positions, built in: 6 the horizontal stack, 7 the compact block, 8 the curved pair
+    # (every arc centred on the crosshair: the items either side), 9 the vertical pair; no layout file touched
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('run(3) CHANGE.position(9) run(0.5)')
+    rects = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[5] > 100 and d[4] < 20]
+    check('preview 4 (vertical pair): the ammo bar standing 7.6 %% right of the middle (%s), no layout file' % sorted((b[2], b[4]) for b in rects),
+          rects and all(b[2] == 1829 and b[4] == 11 for b in rects) and r.eval('LAYOUT') is None)
+    r.execute('CHANGE.position(7) run(0.5)')
+    tall = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[5] > 80 and d[4] == 11]
+    check('preview 2 (compact block): the standing bar at 10.7 %% (%s)' % sorted(set(d[2] for d in tall)), tall and all(d[2] == 1720 + round(1440 * 0.107) for d in tall))
+    r.execute('CHANGE.position(8) run(0.5)')
+    spr = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
+    check('preview 3 (curved pair): the items either side of the middle (%s)' % [s_[2] for s_ in spr], len(spr) == 2 and min(s_[2] for s_ in spr) < 1720 < max(s_[2] for s_ in spr))
+    r.execute('CHANGE.position(6) run(0.5)')
+    bars = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[4] == 260]
+    check('preview 1 (horizontal stack): the 260 px bars under the middle (%s)' % sorted(set((b[3], b[5]) for b in bars)), bars and all(b[2] == 1590 for b in bars))
     # Position: Custom, no layout file yet: one with Under's look written, and drawn from it
     r = lua51.LuaRuntime()
     setup(r)
@@ -1366,7 +1487,7 @@ def main():
           any('none yet' in l for l in logs) and r.eval('LAYOUT and LAYOUT.elements and LAYOUT.elements.bar.y') == -9)
     check('custom, no file: the bar under the crosshair (%s)' % [(b[2], b[3]) for b in bar], bar and bar[0][2] == 1590 and bar[0][3] == 590)
     t = r.eval('texts()')
-    check('custom, no file: count, magazines, items [%s]' % t, '45' in t and 'x7' in t and r.eval('count("sprite")') == 2)
+    check('custom, no file: count, magazines, items [%s]' % t, '45' in t and 'x7' in t and r.eval('count("bitmap")') == 2 and r.eval('count("sprite")') == 0)
     # a layout of your own: a vertical bar bottom left, the count top right, the magazines as squares, no stims;
     # read with the reload key
     r.execute('''LAYOUT = { _v = 1, elements = {
@@ -1384,8 +1505,8 @@ def main():
           cnt and cnt[0][2] > 3000 and cnt[0][3] > 1200 and cnt[0].size == 80)
     sq = [d for d in dr if d[1] == 'rect' and d[4] == d[5] == 6]
     check('custom: 7 magazine squares (%d)' % len(sq), len(sq) == 7)
-    spr = [d for d in dr if d[1] == 'sprite']
-    check('custom: no stims, the grenade at the middle (%s)' % [(s_[2], s_[3]) for s_ in spr], len(spr) == 1 and abs(spr[0][2] - 1720) < 5)
+    spr = [d for d in dr if d[1] == 'bitmap']
+    check('custom: no stims, the grenade at the middle (%s)' % [(s_[2], s_[3]) for s_ in spr], len(spr) == 1 and abs(spr[0][2] + (spr[0][4] - round(spr[0][4] * 149 / 256)) // 2 - 1720) < 6)
     check('custom: read again with the key', any('layout file: read (the reload key)' in l for l in r.eval('logs').values()))
     # values that don't fit: left at their defaults, counted
     r.execute('''LAYOUT = { _v = 1, elements = { bar = { length = 'long', size = 99, anchor = 'middle', thickness = 10 }, count = 5 } }
@@ -1595,7 +1716,7 @@ def main():
     rt10.execute('CHANGE.pack(false) run(0.5)')
     check('the backpack bar off too: none', rt10.eval(packbar) is None)
     rt10.execute('CHANGE.show_grenades(true) CHANGE.pack(true) run(0.5)')
-    check('grenades on, stims off: one icon', rt10.eval('count("sprite")') == 1)
+    check('grenades on, stims off: one icon (a texture)', rt10.eval('count("bitmap")') == 1 and rt10.eval('count("sprite")') == 0)
     rt10.execute('CHANGE.show_stims(true) run(0.5)')
 
     # two weapons on one pose at a mission's start, none fired yet: the one on swap key 1 (the primary)
@@ -1709,7 +1830,10 @@ def main():
     # options: colours, opacity, fade, text toggles, the fire button, beside up / down
     rt18 = lua51.LuaRuntime()
     setup(rt18)
-    cnt = "(function() for _, d in ipairs(draws) do if d[1] == 'text' and d[4] == '%s' then return d[6] .. ',' .. d[7] .. ',' .. d[8] .. ',' .. d[9] end end end)()"
+    # (a text equal to it, or, for the modes drawn as one string ("4MM  AUTO": the Arbitrator's 4MM is named now), containing it)
+    class Cnt(str):
+        def __mod__(self, name): return str.__mod__(self, (name, name) if isinstance(name, str) else name)
+    cnt = Cnt("(function() for _, d in ipairs(draws) do if d[1] == 'text' and (d[4] == '%s' or string.find(d[4], '%s', 1, true)) then return d[6] .. ',' .. d[7] .. ',' .. d[8] .. ',' .. d[9] end end end)()")
     rt18.execute('GRIP = 10 run(2)')
     std = rt18.eval(cnt % '45')
     rt18.execute('CHANGE.palette(2) run(0.3)')

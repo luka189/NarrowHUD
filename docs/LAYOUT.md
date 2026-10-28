@@ -56,6 +56,7 @@ Sizes are in pixels at 1440p for Medium; they scale with the screen's height and
 | `count` | rounds, or heat % | — |
 | `mags` | spare magazines | `style` `number` (x7) / `squares`; `empty` `shown` / `hidden` (squares); `divider` `true` / `false` (a line before the number) |
 | `modes` | HEAT, UB, the weapon mode and the fire mode | `style` `line` / `stacked` |
+| `icons` | the game's own icons of the weapon mode and the fire mode (1.5.18; shown when F9 › Show: the game's icons for the modes is on): squares of twice the stim's width, the ammo kind then the fire mode | `style` `line` / `stacked` |
 | `rpm` | the rate of fire setting | — |
 | `stims` | the stim icon and count | — |
 | `grenades` | the grenade icon and count | — |

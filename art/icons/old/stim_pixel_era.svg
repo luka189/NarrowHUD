@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 50" width="120" height="50">
+  <!-- NarrowHUD stim icon (luka189): a syringe, white on transparent (a mask: tinted when drawn) -->
+  <g fill="#fff">
+    <!-- plunger handle and rod -->
+    <rect x="2" y="14" width="6" height="22" rx="1.5"/>
+    <rect x="8" y="21" width="22" height="8"/>
+    <!-- barrel flange -->
+    <rect x="28" y="10" width="7" height="30" rx="1.5"/>
+    <!-- barrel -->
+    <rect x="35" y="15" width="56" height="20" rx="4"/>
+    <!-- nozzle and needle -->
+    <rect x="90" y="21" width="8" height="8"/>
+    <rect x="97" y="23.5" width="21" height="3" rx="1.5"/>
+  </g>
+  <!-- the stim inside the barrel: a see-through window (the dark part of the sprite) -->
+  <rect x="41" y="19" width="40" height="12" rx="2" fill="#000"/>
+</svg>

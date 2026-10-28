@@ -83,7 +83,7 @@ local function draw(d, items)
       txt(rx + math.floor(7 * k), ny, 'x' .. tostring(d.reserve), small, col(CREAM, 220), L)
       ex = rx + math.floor(7 * k) + txt_width('x' .. tostring(d.reserve), small)
     end
-    local left = (d.underbarrel and (cfg.show_mode and 'UB' or nil)) or (not d.underbarrel and d.mode) or nil
+    local left = (d.underbarrel and (cfg.show_mode and (d.ub_label or 'UB') or nil)) or (not d.underbarrel and d.mode) or nil
     if d.fmode and not d.underbarrel then left = left and (left .. '  ' .. d.fmode) or d.fmode end
     if d.kind == 'heat' and cfg.show_heat then left = left and ('HEAT  ' .. left) or 'HEAT' end
     if left then label(left) end

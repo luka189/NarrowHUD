@@ -14,7 +14,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '1.5.15' }
+local M = { version = '1.5.26' }
 if type(chef.own_log) == 'function' then chef.own_log('narrowhud') end
 local log = function(fmt, ...) chef.log(fmt, ...) end
 -- (research log only: the game's GameSession table as Chef gives it to this mod, for game_object_field_batched, which

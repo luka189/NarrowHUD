@@ -1,17 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 50" width="120" height="50">
-  <!-- NarrowHUD stim icon (luka189): a syringe, white on transparent (a mask: tinted when drawn) -->
-  <g fill="#fff">
-    <!-- plunger handle and rod -->
-    <rect x="2" y="14" width="6" height="22" rx="1.5"/>
-    <rect x="8" y="21" width="22" height="8"/>
-    <!-- barrel flange -->
-    <rect x="28" y="10" width="7" height="30" rx="1.5"/>
-    <!-- barrel -->
-    <rect x="35" y="15" width="56" height="20" rx="4"/>
-    <!-- nozzle and needle -->
-    <rect x="90" y="21" width="8" height="8"/>
-    <rect x="97" y="23.5" width="21" height="3" rx="1.5"/>
-  </g>
-  <!-- the stim inside the barrel: a see-through window (the dark part of the sprite) -->
-  <rect x="41" y="19" width="40" height="12" rx="2" fill="#000"/>
-</svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="71.264381mm"
+   height="194.16791mm"
+   viewBox="0 0 71.264381 194.16791"
+   version="1.1"
+   id="svg1"
+   xml:space="preserve"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   sodipodi:docname="stim2.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.70710678"
+     inkscape:cx="380.42345"
+     inkscape:cy="586.89863"
+     inkscape:window-width="3440"
+     inkscape:window-height="1417"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" /><defs
+     id="defs1" /><g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-118.3597,-24.374207)"><path
+       d="m 178.69865,175.2508 h -51.17723 v -0.001 h -9.16172 v 1.19579 l 4.28759,7.34839 h 6.65748 v -0.002 h 1.71256 7.9344 v 0.003 5.1e-4 24.89926 h -11.62358 v 9.84436 h 18.68981 7.95042 v 0.003 h 7.14582 v -5.2e-4 h 19.54144 v -9.84436 h -11.62358 v -24.90235 h 9.64696 v 0.002 h 6.65747 l 4.28759,-7.34839 v -1.19579 h -10.92543 z"
+       style="display:inline;fill:#012130;stroke-width:0.279419"
+       id="path15" /><path
+       d="m 161.06304,79.951709 v 0.0026 h -14.19552 v -0.0052 h -9.06921 L 129.32337,92.5158 h -0.0382 v 81.72886 h 49.41352 V 92.518384 h -0.0382 l -8.47493,-12.566675 z"
+       style="display:inline;fill:#012130;stroke-width:0.279419"
+       id="path17" /><path
+       d="m 151.16855,24.374223 -3.41478,54.808024 h 12.47573 l -3.41427,-54.80544 h -2.56263 v -0.0026 z"
+       style="display:inline;fill:#012130;stroke-width:0.279419"
+       id="path16" /></g></svg>

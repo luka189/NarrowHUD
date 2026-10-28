@@ -2,7 +2,7 @@
 -- (tools/build.py puts src/narrowhud.lua and these modules together, each module in a function of its own; N holds
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local TYPES, HANDHELD, AVATAR_RESOURCE, GRIP_VARIABLE, THROWABLE, call = N.TYPES, N.HANDHELD, N.AVATAR_RESOURCE, N.GRIP_VARIABLE, N.THROWABLE, N.call
-local blocked, alive, field, cfg, MOUSE_BUTTONS, learned = N.blocked, N.alive, N.field, N.cfg, N.MOUSE_BUTTONS, N.learned
+local blocked, alive, field, cfg, MOUSE_BUTTONS, learned, NO_OBJECT = N.blocked, N.alive, N.field, N.cfg, N.MOUSE_BUTTONS, N.learned, N.NO_OBJECT
 local CHARGE_WEAPONS, learn, keys, distrust, has_pose, forget_poses = N.CHARGE_WEAPONS, N.learn, N.keys, N.distrust, N.has_pose, N.forget_poses
 local objs, me, as_peer, session = N.objs, N.me, N.as_peer, N.session
 
@@ -143,19 +143,33 @@ N.read_aim_button = read_aim_button
 -- (blind: your weapon in hand keeps firing and no fire input of any kind has been seen for a while: a controller
 -- NarrowHUD can't read. Shots aren't checked from then on, as when nothing can be read)
 local function pressed_recently(now) return input.ok ~= true or input.blind or now - input.last <= 0.4 end
+-- (1.5.16 research: why the hand pose can't be read, once per world and step: a player with a transmog mod had no
+-- hand pose in any mission with it on and every one without it; this says which step fails, and how many Helldiver
+-- units the watch lists)
+local pose_said = {}
+local function pose_fail(why)
+  if not cfg.research then return nil end
+  local wid = chef.world_id and chef.world_id() or 0
+  if pose_said[wid .. why] then return nil end
+  pose_said[wid .. why] = true
+  local n = watch and watch.items and #watch.items or 0
+  log('research: hand pose not read: %s (%d Helldiver units listed%s)', why, n, n > 0 and string.format(', the nearest %s', tostring(watch.items[1].kind)) or '')
+  return nil
+end
 local function hand_pose(s)
   local u = my_unit(s)
-  if u == nil or chef.unit_alive(u) ~= true then return nil end
+  if u == nil then return pose_fail('no Helldiver unit') end
+  if chef.unit_alive(u) ~= true then return pose_fail('the Helldiver unit is not alive') end
   local idx = grip_index[u]
   if idx == nil then
-    if call('asm', 'Unit.has_animation_state_machine', u) ~= true then return nil end
-    if call('hasvar', 'Unit.animation_has_variable', u, GRIP_VARIABLE) ~= true then return nil end
+    if call('asm', 'Unit.has_animation_state_machine', u) ~= true then return pose_fail('the unit has no animation state machine') end
+    if call('hasvar', 'Unit.animation_has_variable', u, GRIP_VARIABLE) ~= true then return pose_fail('the unit has no hand pose variable') end
     idx = call('findvar', 'Unit.animation_find_variable', u, GRIP_VARIABLE)
-    if type(idx) ~= 'number' then return nil end
+    if type(idx) ~= 'number' then return pose_fail('the hand pose variable has no index') end
     grip_index[u] = idx
   end
   local v = call('getvar', 'Unit.animation_get_variable', u, idx)
-  if type(v) ~= 'number' then return nil end
+  if type(v) ~= 'number' then return pose_fail('the hand pose variable reads ' .. type(v)) end
   return math.floor(v + 0.5)
 end
 
@@ -305,6 +319,17 @@ local function research_switch(s, from, to, grip, now)
 end
 local HOLD_FIRST = { ['26acc614'] = true, ['314a1bf5'] = true }   -- (the Railgun, the Epoch: charged first)
 N.HOLD_FIRST = HOLD_FIRST
+-- (1.5.18) a support weapon lying on the ground keeps a link to its pickup there (the floor field, a goid; none
+-- while it's in a hand: every held one in 22 logs, every one on the ground with a goid). One of yours from an
+-- earlier life, far away, was shown at drop-in as the weapon in hand for its learned pose until the first shot.
+local floor_said = {}
+local function on_floor(s, goid, t)
+  if not t.has.floor then return false end
+  local v = field(s, goid, t, 'floor')
+  local yes = type(v) == 'number' and v ~= NO_OBJECT
+  if yes and cfg.research and not floor_said[goid] then floor_said[goid] = true log('research: weapon %s (object %s) lies on the ground (pickup %s): not in your hand', t.id, tostring(goid), tostring(v)) end
+  return yes
+end
 local function pick(s, grip, now)
   now = now or chef.time()
   if grip == nil or grip == 0 or THROWABLE[grip] then return nil end   -- grenades and stratagems: no weapon
@@ -312,7 +337,7 @@ local function pick(s, grip, now)
   for goid, o in pairs(objs) do
     local t = o.t and TYPES[o.t]
     if t and HANDHELD[t.id] and not t.pack and not t.player and not t.avatar and not t.other and o.on and not o.ub
-       and not o.notmine then
+       and not o.notmine and not on_floor(s, goid, t) then
       if has_pose(t.id, grip) then same[#same + 1] = goid
       elseif learned.grip[t.id] == nil and learned.poses[t.id] == nil then unknown[#unknown + 1] = goid end
     end

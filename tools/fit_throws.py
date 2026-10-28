@@ -50,7 +50,7 @@ class _Shift:
 def main():
     text = open(sys.argv[1], encoding='utf-8', errors='ignore').read()
     by_kind = defaultdict(list)
-    for m in re.finditer(r'research: throw flight: (\w+) (\w+); aim (\w+)(?: \((\w+)\))? pitch ([-\d.]+) speed ([-\d.]+) at ([-\d.]+) s before(?: from ([-\d.,?]+))?; feet ([-\d.,?]+); (.*)', text):
+    for m in re.finditer(r'research: throw flight: (\w+) (\w+); aim (\w+)(?: \((\w+)\))? pitch ([-\d.]+) speed ([-\d.]+) at ([-\d.]+) s before(?: from ([-\d.,?]+))?; feet ([-\d.,?]+); (?:armour [^;]*; )?(.*)', text):
         m = _Shift(m)
         kind, aim_kind, aim_pitch, aim_speed = m.group(2), m.group(3) + (' ' + m.group(0) if m.group(0) else ''), float(m.group(4)), float(m.group(5))
         release = [float(v) for v in m.group(7).split(',')] if m.group(7) and m.group(7) != '?' else None

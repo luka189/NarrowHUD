@@ -126,6 +126,16 @@ Both only change the preview: nothing of them goes into the layout file.
 
 ## To do
 
+- **Throw-range armours** (tomorrow): the Servo-Assisted and Desert Stormer factors are Stratagem and C4 Trajectory's
+  measurements (ball 1.2 / 1.1, C4 1.3 / 1.2, grenades as C4); a few throws with each armour and the research log on,
+  then `tools/fit_throws.py` (it reads the log's armour field) gives our own.
+- **The Halt's icons** (when there's time; mister Halt will tell us): FLECHETTE and STUN should be ammo_flechettes
+  and ammo_stun; mapped, never seen by eye.
+- **Presets vs offsets and pinning**: a preset (the Previews) should move with F9's offsets and keep its parts pinned
+  to each other as it moves; a custom file is fixed by design. Then the Previews replace Under / Beside / Curved pair.
+- **For Th3chef**: menu headings per mod, the choice width (about twelve characters show), a material argument (and
+  the layer colours) on bitmap_uv so the loader owns the icon GUI, the lines staying on screen.
+
 - Weapons added with the Evictor: the P-34 Breacher is named (1.5.15, from logs); any other new weapon shows up as
   `weapon <id>: no projectile numbers known` in a log and needs a name.
 

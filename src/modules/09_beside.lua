@@ -124,7 +124,7 @@ local function draw_side(d, items)
       end
     end
     if d.underbarrel then
-      if cfg.show_mode then labels[#labels + 1] = 'UB' end
+      if cfg.show_mode then labels[#labels + 1] = d.ub_label or 'UB' end
     elseif d.mode then labels[#labels + 1] = d.mode end
     if d.fmode and not d.underbarrel then labels[#labels + 1] = d.fmode end
     if d.kind == 'heat' and cfg.show_heat then table.insert(labels, 1, 'HEAT') end

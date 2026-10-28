@@ -5,6 +5,93 @@ local TYPES, NO_OBJECT, blocked, field, learned, HEAT_RANGE = N.TYPES, N.NO_OBJE
 local learn, objs, read_weapon, pack_ammo, planet = N.learn, N.objs, N.read_weapon, N.pack_ammo, N.planet
 
 local MODE_NAMES = { [1] = 'AUTO', [2] = 'SEMI', [3] = 'BURST', [4] = 'VOLLEY', [5] = 'SAFE', [6] = 'UNSAFE', [7] = 'TOTAL' }
+-- (1.5.18) the game's own HUD icons: sprites on its texture-atlas pages (docs/ICONS.md; the records read from the
+-- installed game by tools/atlas_sprites.py, 2026-10-28: a sprite is named by the murmur64 of its path, e.g.
+-- content/ui/mission/hud/weapon_function/firemode_single is 3efff09cd12fb89a). Each entry: the page texture's id
+-- and the sprite's uv rectangle on it; drawn with chef.bitmap_uv, nothing shipped. The rectangles move when
+-- Arrowhead repacks an atlas: rerun the tool after a patch and compare.
+N.ATLAS = {
+  -- weapon_function/* (128 px) on the mission atlas page f9a3f2 (4096x2048 BC1, 13 mips), the page 10a081
+  -- (2048x1024 BC1, 4 mips) and 7b1eef (256x256); the sixth value is the sprite's id (the path's murmur64), which
+  -- also names the game's own icon material for it (the mask shader: black is empty, R and G the icon's white, B
+  -- its shadow; HD2Runtime's finding). Drawn in game 2026-10-28: every one of these, through that material.
+  AUTO     = { 'f9a3f22a93eedcbd', 0.223388671875, 0.2265625, 0.254638671875, 0.2890625, '6115051c9558c50e' },
+  SEMI     = { 'f9a3f22a93eedcbd', 0.943115234375, 0.1640625, 0.974365234375, 0.2265625, '3efff09cd12fb89a' },
+  BURST    = { 'f9a3f22a93eedcbd', 0.786865234375, 0.1640625, 0.818115234375, 0.2265625, '131742904d846798' },
+  VOLLEY   = { 'f9a3f22a93eedcbd', 0.634521484375, 0.0078125, 0.665771484375, 0.0703125, '16413ee2e6725687' },
+  UNDERBARREL = { 'f9a3f22a93eedcbd', 0.301513671875, 0.2265625, 0.332763671875, 0.2890625, 'b019df1ca8b6d4a2' },
+  UNDERBARREL_SHOTGUN = { 'f9a3f22a93eedcbd', 0.947021484375, 0.0859375, 0.978271484375, 0.1484375, '067bb0962f896bbb' },
+  UNDERBARREL_FLAMER = { 'f9a3f22a93eedcbd', 0.340576171875, 0.2265625, 0.371826171875, 0.2890625, 'cd87fdddec2a6bfc' },
+  APHET    = { 'f9a3f22a93eedcbd', 0.379638671875, 0.1484375, 0.410888671875, 0.2109375, 'f8ede5f922c05cb6' },
+  FLAK     = { 'f9a3f22a93eedcbd', 0.457763671875, 0.1484375, 0.489013671875, 0.2109375, '9dcc0312a14e11e6' },
+  FRAG     = { 'f9a3f22a93eedcbd', 0.496826171875, 0.1484375, 0.528076171875, 0.2109375, '8dc0ec9ce217ab7f' },
+  HEAT     = { 'f9a3f22a93eedcbd', 0.630615234375, 0.1640625, 0.661865234375, 0.2265625, '4b867645db9f364e' },
+  HE       = { 'f9a3f22a93eedcbd', 0.535888671875, 0.1484375, 0.567138671875, 0.2109375, '081dcaf42dc2ecbb' },
+  FLECHETTE = { 'f9a3f22a93eedcbd', 0.712646484375, 0.0859375, 0.743896484375, 0.1484375, '3b975896bc689499' },
+  STUN     = { 'f9a3f22a93eedcbd', 0.708740234375, 0.1640625, 0.739990234375, 0.2265625, '2d9268907fb9420e' },
+  LASER    = { 'f9a3f22a93eedcbd', 0.829833984375, 0.0078125, 0.861083984375, 0.0703125, 'c1028550c62fc4fa' },
+  NO_LASER = { 'f9a3f22a93eedcbd', 0.790771484375, 0.0078125, 0.822021484375, 0.0703125, 'a9f9bf81827c51e5' },
+  GUIDED   = { '10a0814c0fad8650', 0.6328125, 0.578125, 0.6953125, 0.703125, '7db70e669d8034c9' },
+  UNGUIDED = { '10a0814c0fad8650', 0.7109375, 0.578125, 0.7734375, 0.703125, 'bc7975e05284cf57' },
+  DEPLOY   = { '10a0814c0fad8650', 0.8671875, 0.578125, 0.9296875, 0.703125, '38adabc6a32af014' },
+  DETONATE = { '10a0814c0fad8650', 0.7890625, 0.578125, 0.8515625, 0.703125, '55374383474193f8' },
+  AIRSTRIKE = { '10a0814c0fad8650', 0.2421875, 0.578125, 0.3046875, 0.703125, 'f83f6f461ed94e4b' },
+  BURST_FIRE = { '7b1eef337fc5f1bf', 0.0625, 0.0625, 0.5625, 0.5625, '62d0512daebb0be0' },
+  -- unnamed sprites that look like the HUD's stim, stims and grenade icons (the stim page isn't loaded in a mission)
+  stim     = { '18edbed388a3d706', 0.155517578125, 0.89208984375, 0.171142578125, 0.92333984375, 'a0e91aa5aab7b94d' },   -- 64 px
+  stims    = { '1667261d881bd08a', 0.94921875, 0.4169921875, 0.98046875, 0.4482421875, '55decfa1c7de5d20' },             -- 128 px
+  grenade  = { 'f9a3f22a93eedcbd', 0.095947265625, 0.76171875, 0.111572265625, 0.79296875, 'e1ebfa9b2ca0963c' },         -- 64 px
+}
+-- the words of what's shown -> the sprite the game's HUD uses for them (the fire modes; the weapon's own modes: the
+-- WASP's BURST is burst_fire, its ARTILLERY the airstrike, the Airburst's CLUSTER the frag; the Railgun's SAFE the
+-- single, UNSAFE the burst; seen against the HUD 2026-10-28)
+local FIRE_SPRITES = { AUTO = 'AUTO', SEMI = 'SEMI', BURST = 'BURST', VOLLEY = 'VOLLEY', SAFE = 'SEMI', UNSAFE = 'BURST' }
+local OPTION_SPRITES = { APHET = 'APHET', FLAK = 'FLAK', HEAT = 'HEAT', HE = 'HE', FLECHETTE = 'FLECHETTE', STUN = 'STUN',
+  LASER = 'LASER', ['NO LASER'] = 'NO_LASER', GUIDED = 'GUIDED', UNGUIDED = 'UNGUIDED', DEPLOY = 'DEPLOY', DETONATE = 'DETONATE',
+  CLUSTER = 'FRAG', ARTILLERY = 'AIRSTRIKE', BURST = 'BURST_FIRE' }
+-- the underbarrel selected, by its type: the grenade launcher's icon, the shotgun's, the flamer's (the Arbitrator's
+-- shotgun: to be learned from the research log, "underbarrel type")
+-- (luka's logs, 2026-10-28: the One-Two's launcher 16425925, the Arbitrator's shotgun da0f356e, the Stoker's flamer 2166c7a1)
+local UNDERBARREL_SPRITES = { ['16425925'] = 'UNDERBARREL', da0f356e = 'UNDERBARREL_SHOTGUN', ['2166c7a1'] = 'UNDERBARREL_FLAMER' }
+local ub_said = {}
+-- a sprite entry with the word it stands for (the icon takes the word's colour, as the text does); made once per
+-- sprite and word
+local worded = {}
+local function with_word(e, word)
+  local key = e[6] .. word
+  local w = worded[key]
+  if not w then
+    w = { e[1], e[2], e[3], e[4], e[5], e[6], word = word }
+    worded[key] = w
+  end
+  return w
+end
+N.mode_icons = function()
+  local d = N.shown_d
+  if not d then return nil end
+  local out = {}
+  if d.mode then
+    local rest = d.mode
+    while rest and rest ~= '' do
+      local word, more = string.match(rest, '^(.-)  (.*)$')
+      word = word or rest
+      rest = more
+      local e = OPTION_SPRITES[word] and N.ATLAS[OPTION_SPRITES[word]]
+      if e then out[#out + 1] = with_word(e, word) end
+    end
+  end
+  if d.underbarrel then
+    local name = UNDERBARREL_SPRITES[d.tid]
+    if not name and not ub_said[d.tid] then ub_said[d.tid] = true log('research: underbarrel type %s: no sprite known for it (the generic underbarrel icon)', tostring(d.tid)) end
+    out[#out + 1] = with_word(N.ATLAS[name or 'UNDERBARREL'], d.ub_label or 'UB')
+  else
+    -- (a weapon with an underbarrel shows its fire mode's icon even with one mode: the switch is to the underbarrel,
+    -- as the game's HUD shows it; the text keeps its two-modes rule)
+    local fm = d.fmode or d.fmode_ub
+    if fm and FIRE_SPRITES[fm] then out[#out + 1] = with_word(N.ATLAS[FIRE_SPRITES[fm]], fm) end
+  end
+  return out[1] and out or nil
+end
 -- (seen against the game's own display, 2026-10-24: Pummeler, Autocannon, Bushwhacker, Railgun)
 local function seen(kind, id, value)
   local list = learned[kind][id] or ''
@@ -89,6 +176,12 @@ local OPTION_NAMES = {
 -- Weapons with two loaded ammo types, chosen by the selected field (slot0 / slot1): the Halt's flechette and stun rounds
 -- (a player's log, 2026-10-26: selected 0 on flechette, 1 on stun)
 local SELECTED_NAMES = { ['9c06f074'] = { [0] = 'FLECHETTE', [1] = 'STUN' } }
+-- (the game's HUD names for a weapon's two fires; luka, 2026-10-28)
+local UB_NAMES = {
+  cd0e4b4a = { main = '12MM', ub = 'FLAME' },          -- the Stoker
+  ['8fcdd35c'] = { main = '4MM', ub = '10G' },         -- the Arbitrator (its underbarrel shotgun)
+  ['3244dc49'] = { main = '8MM', ub = '40MM HE' },     -- the One-Two (its underbarrel launcher)
+}
 local function option_mode(t, w)
   local v = tonumber(w.options)
   if not v then return nil end
@@ -110,8 +203,18 @@ local function shown(s, goid, t, w, o)
   local d = { kind = nil }
   d.setting = setting_label(t, w)
   d.fmode = fire_mode_label(t, w)
+  -- (most weapon types declare the underbarrel field; one is fitted only when it holds an object)
+  local ub = t.has.underbarrel and field(s, goid, t, 'underbarrel')
+  d.has_ub = type(ub) == 'number' and ub ~= NO_OBJECT
+  if not d.fmode and d.has_ub and type(w.fire_mode) == 'number' and math.floor(w.fire_mode / 8) % 2 == 0 then
+    d.fmode_ub = MODE_NAMES[w.fire_mode % 8]
+  end
+  -- the names the game's HUD gives a weapon's two fires (the Stoker: 12MM and FLAME; luka, 2026-10-28)
+  local un = UB_NAMES[t.id]
+  if un then d.ub_label = un.ub end
   d.t0, d.goid0 = t, goid                                        -- (the weapon itself, for its charge meter)
   d.mode = option_mode(t, w)
+  if un and un.main and not d.mode then d.mode = un.main end
   local sn = SELECTED_NAMES[t.id]
   if sn and t.has.selected then
     local m = sn[tonumber(w.selected) or 0]
@@ -123,9 +226,8 @@ local function shown(s, goid, t, w, o)
     d.mode = d.mode and (d.mode .. '  ' .. g) or g
   end
   -- the underbarrel, when the fire mode selects it
-  if t.has.underbarrel and type(w.fire_mode) == 'number' and math.floor(w.fire_mode / 8) % 2 == 1 then
-    local ub = field(s, goid, t, 'underbarrel')
-    local o = type(ub) == 'number' and ub ~= NO_OBJECT and objs[ub]
+  if d.has_ub and type(w.fire_mode) == 'number' and math.floor(w.fire_mode / 8) % 2 == 1 then
+    local o = objs[ub]
     local ut = o and o.t and TYPES[o.t]
     if ut then
       t, w, goid = ut, read_weapon(s, ub, ut), ub

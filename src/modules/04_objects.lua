@@ -93,6 +93,12 @@ local function classify(s)
       local n, known = 0, 0
       for _, o in pairs(objs) do n = n + 1 if o.t then known = known + 1 end end
       log('objects sorted: %d of yours, %d of them known types (%.1f s into this world)', n, known, chef.time() - (classify_said.t0 or 0))
+      -- (1.5.16 research: what tells one map from another in the log, for the icon strobe: the world id and where you
+      -- landed; chef_loader.log's world line has the unit and level counts)
+      if cfg.research and chef.camera then
+        local cam = chef.camera()
+        if cam then log('research: this world: id %s, landed near %.0f,%.0f,%.0f (chef_loader.log has its unit and level counts)', tostring(wid), cam.x, cam.y, cam.z) end
+      end
     end
     if budget > 0 then classify_list(s, queue_b, ORDER_B, budget) end
   end

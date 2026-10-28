@@ -92,8 +92,11 @@ local function read_forget_keys(now)
   if keys.log_mark and keys.log_mark.pressed and keys.log_mark.pressed() == true then
     marks = marks + 1
     local o = hand.goid and objs[hand.goid]
-    log('==== MARK %d ==== hand pose %s, shown: %s (object %s), fire button %.1f s ago, swap %.1f s ago', marks,
-      tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100))
+    -- (1.5.16: the camera too, for the icon strobe that comes with one half of a map's view)
+    local cam = chef.camera and chef.camera()
+    local where = cam and string.format(', camera at %.0f,%.0f,%.0f yaw %.0f', cam.x, cam.y, cam.z, math.deg(cam.yaw or 0)) or ''
+    log('==== MARK %d ==== hand pose %s, shown: %s (object %s), fire button %.1f s ago, swap %.1f s ago%s', marks,
+      tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100), where)
     flash.text, flash.till = string.format('NarrowHUD: mark %d in the log', marks), now + 1.5
   end
   if N.startup_flash then flash.text, flash.till, N.startup_flash = N.startup_flash, now + 8, nil end
@@ -258,7 +261,9 @@ function M.update(dt)
         hand.said = said
         -- (the drop line needs each type's weapon name once, from a tester: which weapon this is)
         local b = o and BALLISTICS[TYPES[o.t].id]
-        if o and (not b or b.guess) and not (hand.named or {})[o.t] then
+        -- (a heat weapon with no rounds, a laser, has no drop to draw: no name asked for it)
+        local laser = o and TYPES[o.t].has.heat and not TYPES[o.t].has.rounds
+        if o and (not b or b.guess) and not laser and not (hand.named or {})[o.t] then
           hand.named = hand.named or {}
           hand.named[o.t] = true
           log('weapon %s: %s (for the drop line, tell which weapon this is, with the magazine it shows)', TYPES[o.t].id,
@@ -280,6 +285,7 @@ function M.update(dt)
     local full = o and o.prev and not o.prev.lite and o.prev or (o and o.t and read_weapon(s, goid, TYPES[o.t]))
     shown_now = o and o.t and shown(s, goid, TYPES[o.t], full, o) or nil
     if shown_now and shown_now.kind == nil then shown_now = nil end
+    N.shown_d = shown_now                            -- (1.5.16 research: the fire-mode icon test reads its label)
   end
 
   if me.avatar and now >= next_items and alive(s, me.avatar, TYPES[2]) then

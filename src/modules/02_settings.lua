@@ -9,7 +9,7 @@ local cfg = { size = 1, side_size = 1.25, off_x = 0, off_y = 0, right = false, c
               show_stims = true, show_grenades = true, pack = true, font = true, custom = false,
               research = false, any_build = false, opacity = 1, idle = 1, idle_secs = 4, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1, wheel = 1, health = 2, stamina = 2, stim_timer = false, stim_secs = 1, warn = false,
-              reload_line = false, hide_strat = true, hide_emote = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_thick = 2, throw_line = true, icon_tex = 1, builtin = nil }
+              reload_line = false, hide_strat = true, hide_emote = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_thick = 2, throw_line = true, icon_tex = 7, builtin = nil }
 N.apply_palette = nil                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
 if chef.has and chef.has('menu') then
@@ -30,8 +30,11 @@ if chef.has and chef.has('menu') then
   -- game's weapon panel (bottom left), or the curved pair around the crosshair (a built-in layout, 1.5.13; after
   -- Custom in the list so that the saved choices keep their meaning); and the layout file. One X / Y offset moves any
   -- of them anywhere on the screen.
-  local function position(v) cfg.right, cfg.corner, cfg.custom, cfg.builtin = v == 2 or v == 3, v == 3, v == 4 or v == 5, v == 5 and 'curved' or nil end
-  position(chef.option('position', { type = 'choice', label = 'Position', choices = { 'Under the crosshair', 'Beside the crosshair (compact)', 'Screen corner, by the game\'s weapon panel', 'Custom (the layout file, from the layout editor)', 'Curved pair around the crosshair' }, default = 1 }))
+  -- (1.5.24) the Positions people have set up stay as they are (1 to 5); 6 to 9 are the Preview layouts (built in,
+  -- 10_custom), kept apart until the offsets and the pinning of parts are redone for presets
+  local BUILTIN = { [5] = 'curved', [6] = 'preview1', [7] = 'preview2', [8] = 'preview3', [9] = 'preview4' }
+  local function position(v) cfg.right, cfg.corner, cfg.custom, cfg.builtin = v == 2 or v == 3, v == 3, v == 4 or BUILTIN[v] ~= nil, BUILTIN[v] end
+  position(chef.option('position', { type = 'choice', label = 'Position', choices = { 'Under the crosshair', 'Beside the crosshair (compact)', 'Screen corner, by the game\'s weapon panel', 'Custom (the layout file, from the layout editor)', 'Curved pair around the crosshair', 'Preview 1 (horizontal stack)', 'Preview 2 (compact block)', 'Preview 3 (curved pair)', 'Preview 4 (vertical pair)' }, default = 1 }))
   chef.on_change('position', position)
   cfg.off_x = chef.option('off_x', { type = 'slider', label = 'Offset left (-) or right (+), % of the screen', min = -50, max = 50, step = 0.5, default = 0 }) or 0
   chef.on_change('off_x', function(v) cfg.off_x = v or 0 end)
@@ -53,6 +56,10 @@ if chef.has and chef.has('menu') then
   toggle('show_heat', 'Show: HEAT label')
   toggle('show_mode', 'Show: weapon modes (UNGUIDED, APHET, UB ...)')
   toggle('show_fmode', 'Show: fire mode (AUTO, SEMI ...)')
+  -- (1.5.18) the game's own icons for the modes, drawn from its atlas through its icon material (docs/ICONS.md):
+  -- cfg.mode_icons is the way: 1 off, 3 the icon's own material in the HUD's colour (shipped); the research row sets 2 and 4
+  cfg.mode_icons = chef.option('mode_icon', { type = 'toggle', label = 'Show: the game\'s icons for the modes (beside the stim)', default = true }) ~= false and 3 or 1
+  chef.on_change('mode_icon', function(v) cfg.mode_icons = v ~= false and 3 or 1 end)
   toggle('show_rpm', 'Show: rate of fire')
   toggle('show_charge', 'Show: charge and lock-on meter (Railgun, Epoch, Spear ...)')
   toggle('show_stims', 'Show: stims')
@@ -117,6 +124,14 @@ if chef.has and chef.has('menu') then
   function N.settings_testing()
     toggle('research', 'Testing: research log (for bug reports; from the next start)', false)
     toggle('any_build', 'Testing: run on a game version it wasn\'t made for (may crash the game)', false)
+    -- (1.5.16) the icon texture test rows, only with the research log on (docs/ICONS.md: the strobe on one map)
+    if cfg.research then
+      cfg.icon_tex = chef.option('icon_tex', { type = 'choice', label = 'Testing: stim icon way', choices = { '1 Pixel', '2 Ladder', '3 Ladder top', '4 One size', '5 Game bmp', '6 Game top', '7 Game uv', '8 Ladder uv', '9 Atlas stim', '10 Atlas stims', '11 Atlas gren' }, default = 7 }) or 7
+      chef.on_change('icon_tex', function(v) cfg.icon_tex = v or 7 end)
+      local way = chef.option('mode_icons', { type = 'choice', label = 'Testing: how the mode icons are drawn', choices = { '1 As Show', '2 Chef plain', '3 Own cream', '4 Own blue' }, default = 1 })
+      if way and way > 1 then cfg.mode_icons = way end
+      chef.on_change('mode_icons', function(v) if v and v > 1 then cfg.mode_icons = v else cfg.mode_icons = cfg.mode_icons == 1 and 1 or 3 end end)
+    end
   end
 end
 -- Packs that aren't ammo backpacks but have something to show (seen in the research log, 2026-10-24): the warp pack's

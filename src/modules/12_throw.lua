@@ -117,15 +117,34 @@ local function research_flights(now, fx, fy, fz)
         if p[1] >= from then l[#l + 1] = string.format('%.2f:%.2f,%.2f,%.2f', p[1] - f.t0, p[2], p[3], p[4]) end
       end
       local a = f.aim
-      log('research: throw flight: %s %s; aim %s%s pitch %.3f speed %.1f at %.2f s before from %s; feet %s; %s', f.kind,
+      log('research: throw flight: %s %s; aim %s%s pitch %.3f speed %.1f at %.2f s before from %s; feet %s; armour %s; %s', f.kind,
         GRENADES[f.kind] and 'grenade' or (f.kind == STRAT_BALL and 'ball' or (f.kind == C4_CHARGE and 'C4' or '?')),
         a and a.kind or 'none', a and (a.aiming and ' (aimed)' or ' (quick)') or '', a and a.pitch or 0, a and a.speed or 0, a and ((f.flying or f.t0) - a.t) or 0,
         a and string.format('%.2f,%.2f,%.2f', a.x, a.y, a.z) or '?',
-        fx and string.format('%.2f,%.2f,%.2f', fx, fy, fz) or '?', table.concat(l, ' '))
+        fx and string.format('%.2f,%.2f,%.2f', fx, fy, fz) or '?', tostring(N.state8 and N.state8.armor) .. ((N.armour_up and select(2, N.armour_up('c4'))) and (' ' .. select(2, N.armour_up('c4'))) or ''), table.concat(l, ' '))
     end
   end
   if said >= 40 then log('research: throw flights: 40 logged, no more this session') end
 end
+-- The throw-range armour passives (1.5.16): Servo-Assisted throws 30 % farther, Desert Stormer 20 % (the Helldivers
+-- wiki; HD2Runtime's armour passive catalog: throw_range x1.3 and x1.2). The armours, by the id your player object's
+-- armor_set holds (HD2Runtime's armour catalogue, as the stim timer's Med-Kit list). The game reaches the range with a
+-- faster throw, more than the square root of the range bonus: Stratagem and C4 Trajectory (Nexus 17945) measured the
+-- ball 1.2x and C4 1.3x with Servo-Assisted, 1.1x and 1.2x with Desert Stormer; those are the first numbers here,
+-- grenades taken as C4, to be fitted from our own research log (each throw flight line says the armour).
+local SERVO, STORMER = {}, {}
+for id in string.gmatch('dae4a744 f2b7d3f5 3c3ebaf0 537e8e45 14209e3a 7346edc6 0b5cd386', '%x+') do SERVO[id] = true end
+for id in string.gmatch('c60c706d 4a545f06 0ade6719', '%x+') do STORMER[id] = true end
+local THROW_UP = { ball = { 1.2, 1.1 }, c4 = { 1.3, 1.2 }, grenade = { 1.3, 1.2 } }   -- { Servo-Assisted, Desert Stormer }
+local function armour_up(kind)
+  local a = N.state8 and N.state8.armor
+  local up = THROW_UP[kind]
+  if not (a and up) then return 1, nil end
+  if SERVO[a] then return up[1], 'Servo-Assisted' end
+  if STORMER[a] then return up[2], 'Desert Stormer' end
+  return 1, nil
+end
+N.armour_up = armour_up
 -- the arc, from the release point along the throw
 local function draw_arc(kind, ox, oy, oz, cam, now, feet_z)
   local p = THROW[kind]
@@ -135,7 +154,7 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z)
   local pitch = math.atan2(cam.fz, fh) + p.lift
   local mx, my = my_speed(now)
   local carried = math.max(-CARRY_MOST, math.min(CARRY_MOST, CARRY * (mx * hx + my * hy)))
-  local speed = p.speed + carried
+  local speed = p.speed * armour_up(kind) + carried
   -- (an aimed throw (the aim button held) and a quick one differ a little: a tester's 1.5.3 round had quick grenade
   -- throws 0.2 m past the line over 25 m)
   if kind == 'grenade' and not input.aiming then speed = speed * 1.004 end
