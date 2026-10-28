@@ -169,21 +169,22 @@ if N.settings_testing then N.settings_testing() end
 -- A weapon can have several hand poses (with a shield in the other hand: the Verdict at 1, 30 and 36): a set per type
 -- ("10,30"), next to the single pose older versions kept (learned.grip).
 local distrust = {}                                 -- types with an object that fired without your fire button
--- A type learned for 4 or more hand poses that didn't ship with NarrowHUD isn't a weapon of yours: every real one
+-- A type learned for 4 or more hand poses that didn't ship with NarrowHUD isn't one weapon's set: every real one
 -- has 1 to 3 (the Verdict's 3, with a shield). As host, SEAF soldiers' guns got learned for every pose you fired at
--- (a 2026-10-25 log: five types, up to 7 poses each). Never in your hand from then on.
-local many_said = {}
+-- (a 2026-10-25 log: five types, up to 7 poses each), and 1.0.6 learned swaps wrong (a player's Liberator Legacy
+-- got the grenade pistol's pose and two more within a second, and was never shown again: a 2026-10-28 report).
+-- Until 1.5.14 such a type was never shown again; now its poses are forgotten and it's learned again from your next
+-- shot (whether a gun is yours is the aim field's and the trigger's call since 1.2.5).
 local function many_poses(id)
   local l = learned.poses[id]
   if not l or (SEED and ((SEED.poses and SEED.poses[id]) or (SEED.grip and SEED.grip[id]))) or SEED_GRIPS[id] then return false end
   local n = 1
   for _ in string.gmatch(l, ',') do n = n + 1 end
   if n < 4 then return false end
-  if not many_said[id] then
-    many_said[id] = true
-    log('type %s: learned for %d hand poses (%s): not a weapon of yours (a SEAF soldier\'s?), never shown', id, n, l)
-  end
-  return true
+  log('type %s: learned for %d hand poses (%s): not one weapon\'s set (an older version learned swaps wrong?): forgotten, learned again from your next shot', id, n, l)
+  learn('grip', id, nil)
+  learn('poses', id, nil)
+  return false
 end
 local function has_pose(id, grip)
   if not HANDHELD[id] or many_poses(id) then return false end

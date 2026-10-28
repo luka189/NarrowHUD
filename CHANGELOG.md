@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.15
+
+- **The Liberator Legacy showed no ammo** (a player's report with his logs): it's new, with a hand pose NarrowHUD
+  had never seen (90), and 1.0.6 learned it right, then learned three wrong poses for it during quick swaps (the
+  grenade pistol's among them, within a second). Four poses tripped the "not one weapon's set, never shown" guard,
+  and that verdict sat in his learned file through every update since. Now: the Legacy ships in the seed (pose 90),
+  and a type caught by that guard has its poses forgotten and is learned again from the next shot, instead of being
+  hidden for good (whether a gun is yours is the aim field's and the trigger's call since 1.2.5). Anyone with an old
+  learned file that hid a weapon this way gets it back on the next shot.
+
 ## 1.5.14
 
 The layout editor only; the mod is unchanged.

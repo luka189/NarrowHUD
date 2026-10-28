@@ -39,6 +39,10 @@ def ser(v, ind=''):
     return str(v)
 
 
+# weapons known from players' logs, not luka189's own play: kept in the seed on every run
+EXTRA = { 'grip': { 'c4235b66': 90 } }      # Liberator Legacy, hand pose 90 (a 2026-10-28 report)
+
+
 def main():
     data = to_py(lua51.LuaRuntime().execute(open(sys.argv[1], encoding='utf-8').read()))
     drop = set(sys.argv[sys.argv.index('--drop') + 1].split(',')) if '--drop' in sys.argv else set()
@@ -48,6 +52,8 @@ def main():
         for k in list(table):
             if k in drop:
                 del table[k]
+    for kind, extra in EXTRA.items():
+        data.setdefault(kind, {}).update({k: v for k, v in extra.items() if k not in data.get('poses', {})})
     (ROOT / 'src' / 'learned_seed.lua').write_text(HEADER + 'return ' + ser(data) + '\n', encoding='utf-8')
     n = len(set(data.get('grip', {})) | set(data.get('poses', {})))
     print('src/learned_seed.lua: %d weapons with a hand pose' % n)

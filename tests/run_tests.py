@@ -789,7 +789,8 @@ def main():
     setup(r)
     r.execute('''run(3) FIRE = false run(25) for i = 1, 3 do OBJ[3].fields[ROLE.rounds] = 44 - i run(0.6) end''')
     check('fire button seen once: never blind', not any("shots aren't checked from now on" in l for l in r.eval('logs').values()))
-    # a type learned for 4 hand poses (a SEAF gun, from an older version's learned file): never shown
+    # a type learned for 4 hand poses (from an older version's learned file): its poses forgotten, learned again from
+    # the next shot (1.5.14; before, never shown again: a player's Liberator Legacy was lost that way)
     r = lua51.LuaRuntime()
     setup(r)
     r.execute('''OBJ[3] = nil saved = { poses = { aca39ec2 = '70,52,1,10' } } M = (function(...) ''' + SRC + ''' end)(chef)
@@ -797,8 +798,8 @@ def main():
       OBJ[82].fields[ROLE.chamber] = true OBJ[82].fields[ROLE.carry] = 0 GRIP = 10 run(3)
       for i = 1, 4 do OBJ[82].fields[ROLE.rounds] = 30 - i run(0.3) end''')
     logs = list(r.eval('logs').values())
-    check('4 poses learned (not shipped): never shown, said once [%s]' % r.eval('texts()'), not r.eval('texts()').startswith('2')
-          and sum(1 for l in logs if 'learned for 4 hand poses' in l) == 1 and not any('learned: type aca39ec2' in l for l in logs))
+    check('4 poses learned (not shipped): forgotten once, learned again, shown [%s] %s' % (r.eval('texts()'), [l for l in logs if 'aca39ec2' in l][:3]), r.eval('texts()').startswith('2')
+          and sum(1 for l in logs if 'learned for 4 hand poses' in l) == 1 and any('learned: type aca39ec2 goes with hand pose 10' in l for l in logs))
     # a SEAF gun holding its trigger while you don't fire (a 2026-10-26 log: held=true with no input): not yours, and
     # the hand pose it taught taken back
     r = lua51.LuaRuntime()

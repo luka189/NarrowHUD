@@ -59,6 +59,7 @@ return {
     b2bfd847 = 20,
     b3246bb7 = 50,
     ba161726 = 14,
+    ["c4235b66"] = 90,   -- Liberator Legacy (a player's 2026-10-28 log; tools/make_seed.py EXTRA)
     c7dfd9eb = 36,
     c920c2d3 = 1,
     cfaa9ddc = 10,
