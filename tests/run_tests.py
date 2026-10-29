@@ -85,7 +85,7 @@ local function rec(t) draws[#draws + 1] = t end
 chef = {
   log = function(fmt, ...) logs[#logs + 1] = string.format(fmt, ...) end,
   own_log = function() return true end,
-  time = function() return T end, in_mission = function() return true end,
+  time = function() return T end, in_mission = function() return MISSION ~= false end,
   screen = function() return 3440, 1440 end,
   world = function() return 'W' end, world_id = function() return WORLD end,
   setting = function(path)
@@ -1451,6 +1451,13 @@ def main():
     r.execute('CHANGE.off_x(10) run(0.5)')
     spr2 = [d for d in r.eval('draws').values() if d[1] == 'bitmap']
     check('curved pair: F9\'s offset moves it (%s)' % [s_[2] for s_ in spr2], len(spr2) == 2 and all(abs(b[2] - a[2] - 344) < 2 for a, b in zip(spr, spr2)))
+    # (1.5.27) the vitals line a minute (the Lua heap, stalled frames) and the mission-end line, always on
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('run(30) T = T + 0.6 M.update(0.6) run(31) T = T + 1.5 M.update(1.5) run(5) MISSION = false run(1) MISSION = nil')
+    vit = [l for l in r.eval('logs').values() if l.startswith('a minute') or l.startswith('mission world ended')]
+    check('vitals: a minute line with the stall, then the mission end with the last stalls %s' % vit,
+          len(vit) == 2 and '1 frame(s) stalled' in vit[0] and '0.60 s' in vit[0] and vit[1].startswith('mission world ended after') and '1.50 s' in vit[1] and 'lua heap' in vit[1])
     # (1.5.24) with the research log off (no Testing rows at all): the stim and grenade still draw as textures through
     # the uv call, and the mode icons through the icon's own material. Luka's 23:22 log had pixel sprites here.
     r = lua51.LuaRuntime()

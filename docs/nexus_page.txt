@@ -153,6 +153,12 @@ the game's own, drawn from its HUD sprites in play; none of the game's art is in
 [/list]
 Not affiliated with Arrowhead Game Studios.
 
+Changelog for the Nexus "Changelogs" tab (1.5.27)
+-------------------------------------------------
+- For the disconnect reports: every narrowhud.log has a line a minute with the game's Lua heap and any frames where
+  the whole game stalled, and a summary when a mission ends. Nothing to turn on: if you get dropped, post your
+  narrowhud.log and chef_loader.log with the clock time of the drop.
+
 Changelog for the Nexus "Changelogs" tab (1.5.26)
 -------------------------------------------------
 - NEW: the game's own icons for the fire mode, the weapon's mode and the underbarrel in hand, beside the stims (or

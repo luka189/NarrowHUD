@@ -10,7 +10,7 @@ import lua_scope
 
 ROOT = Path(__file__).resolve().parent.parent
 OK = set('N chef M log ENGINE_GS DATA SEED BALLISTICS TEXTURES math string table pairs ipairs tostring tonumber type pcall setmetatable getmetatable '
-         'next select unpack error rawget rawset os print _G xpcall assert loadstring setfenv'.split())
+         'next select unpack error rawget rawset os print _G xpcall assert loadstring setfenv collectgarbage'.split())
 
 
 def main():

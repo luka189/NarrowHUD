@@ -19,6 +19,46 @@ local world_seen = nil
 -- over a minute come out right)
 local clock = os and os.clock
 local perf = { t = {}, frames = 0, at = nil, watched = 0, n = 0, reads0 = 0, tests0 = 0 }
+-- (1.5.27) the game's own health, for the disconnect reports (players dropped from a host's mission, Nexus
+-- 2026-10-29): a line a minute with the Lua heap (the game's one VM: a heap growing across missions makes every
+-- collection longer) and the frames the whole game stalled (dt of a quarter second or more: a stall anywhere, not
+-- just in NarrowHUD, and a client stalled for seconds is dropped by its host), and the last stalls when a mission
+-- world ends. Always on: one line a minute, a reporter needn't have turned anything on.
+local vital = { at = nil, frames = 0, stalls = 0, worst = 0, heap0 = nil, mission = false, last = {}, started = nil }
+local function heap_kb()
+  if type(collectgarbage) ~= 'function' then return nil end
+  local ok, v = pcall(collectgarbage, 'count')
+  return ok and type(v) == 'number' and v or nil
+end
+local function vitals(now, dt)
+  vital.frames = vital.frames + 1
+  if type(dt) == 'number' and dt >= 0.25 then
+    vital.stalls = vital.stalls + 1
+    if dt > vital.worst then vital.worst = dt end
+    local l = vital.last
+    l[#l + 1] = string.format('%.2f s at %.0f s', dt, now)
+    if #l > 8 then table.remove(l, 1) end
+  end
+  local mission = chef.in_mission() == true
+  if mission ~= vital.mission then
+    vital.mission = mission
+    if mission then vital.started, vital.heap0 = now, heap_kb()
+    else
+      local h = heap_kb()
+      log('mission world ended after %.0f s: lua heap %s, %d stalled frame(s) this minute (worst %.2f s), the last stalls: %s',
+        now - (vital.started or now), h and string.format('%.1f MB (%+.1f since the mission started)', h / 1024, (h - (vital.heap0 or h)) / 1024) or 'unknown',
+        vital.stalls, vital.worst, #vital.last > 0 and table.concat(vital.last, ', ') or 'none')
+    end
+  end
+  vital.at = vital.at or now
+  if now - vital.at >= 60 then
+    local h = heap_kb()
+    log('a minute: %d frames, lua heap %s, %d frame(s) stalled a quarter second or more (worst %.2f s)%s', vital.frames,
+      h and string.format('%.1f MB%s', h / 1024, vital.heap0 and string.format(' (%+.1f this mission)', (h - vital.heap0) / 1024) or '') or 'unknown',
+      vital.stalls, vital.worst, vital.stalls > 0 and (': ' .. table.concat(vital.last, ', ')) or '')
+    vital.at, vital.frames, vital.stalls, vital.worst = now, 0, 0, 0
+  end
+end
 local function lap(name, t0)
   if not t0 then return nil end
   local t1 = clock()
@@ -159,6 +199,7 @@ end
 function M.update(dt)
   N.frame = N.frame + 1
   local now = chef.time()
+  vitals(now, dt)
   if N.dirty_at and now >= N.dirty_at then
     N.dirty_at = nil
     save_learned()

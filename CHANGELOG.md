@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.27
+
+- For the **disconnect reports** (clients dropped from a host's mission): every narrowhud.log now has a line a minute
+  with the game's Lua heap and any frames where the whole game stalled, and a summary when a mission ends. Nothing to
+  turn on. If you get dropped, post your narrowhud.log and chef_loader.log with the clock time of the drop.
+
 ## 1.5.26
 
 **The game's own icons** (nothing of the game's art shipped)
