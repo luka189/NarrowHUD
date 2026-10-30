@@ -8,15 +8,16 @@ Thanks for all the reports! To get your problem fixed quickly, please include [b
 [*][b]Chef Shared Loader must have the highest priority[/b] in your mod manager (then Purge and Deploy). Some mods bring their own boot script (HD2 Transmog, for one): with a higher priority than Chef, theirs replaces Chef's and no Chef mod runs, NarrowHUD included. Chef runs Transmog itself, so both work with Chef on top.
 [*][b]No other loader needed:[/b] the "look-alike: CowboyBingusModLoader" line in chef_loader.log is Chef offering other loaders' features to their mods. NarrowHUD only needs Chef.
 [*][b]Only in missions:[/b] nothing shows on the ship or in menus.
-[*][b]Hidden while you hold a grenade or a stratagem ball[/b], on purpose.
+[*][b]Hidden while you hold the stratagem key[/b] (set yours in F9 > Keys) and while emoting, on purpose.
 [*][b]A weapon doesn't show?[/b] Fire it once: NarrowHUD learns it from the first shot.
 [*][b]Not showing in the middle of an operation?[/b] Try the next mission, or restart the game. (Being looked into.)
-[*][b]Settings missing or moved?[/b] 1.0.3 reorganised the F9 menu. Placement is now Position plus two Offset sliders, and every part has its own "Show ..." toggle. Try the F9 menu's search ( [b]/[/b] ).
+[*][b]Settings missing or moved?[/b] 2.0 regrouped the F9 menu: Layout / Size / Sideways / Up-down / Spread / Opacity, then Show (a rule per part), Look, Extras, Motion, World, Keys, Testing. Your values carried over, except the layout: the old Under / Beside / Corner / Curved pair are replaced by four new layouts, so pick yours in F9 (Custom: pick Custom layout again; your file is untouched).
+[*][b]Colours or opacity look different in 2.0?[/b] The HUD is drawn in the game's UI layer now, so the colours are the ones meant and opacity works across its range. "Look: in the game's UI layer" off brings 1.5's in-world look back.
 [/list]
 
 [size=3][b]2. Turn on the research log[/b][/size]
 [list=1]
-[*]Press [b]F9[/b] > NarrowHUD > [b]Research log[/b] > on.
+[*]Press [b]F9[/b] > NarrowHUD > [b]Testing: research log[/b] > on.
 [*][b]Restart the game[/b] (it only takes effect from the next start).
 [*]Play until the problem happens. Fire each of your weapons a few times.
 [*]Quit the game.

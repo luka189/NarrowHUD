@@ -14,8 +14,9 @@ reads it needs or take some smaller missions for the ship, where NarrowHUD stays
 **[Open the NarrowHUD layout editor](https://luka189.github.io/NarrowHUD/editor/)** to place every part of the HUD
 anywhere on the screen: drag the bar, the count, the magazines, the modes, stims, grenades and the backpack bar around a
 game screen (or a screenshot of your own game, read in the browser only), make bars vertical or curved, and see how each kind of weapon will look. Then download (or copy) the file,
-pick **Position: Custom** in F9, and press the "Read the layout file again" key. Under, the curved pair and the four
-Preview layouts are there to start from, and the game's mode icons are a part you can place. The file's format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
+pick **Layout: Custom layout** in F9, and press the "Keys: reload layout file" key. The four built-in layouts are there
+to start from, parts pin to each other so a layout holds together, and the Help button explains the rest. The file's
+format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
 
 ## Install
 
@@ -47,27 +48,29 @@ Preview layouts are there to start from, and the game's mode icons are a part yo
   where it enters the ground (while aiming down the sights by default; or whenever the weapon is in hand).
 - A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
 
-Four built-in layouts: **under the crosshair** (a wide bar), **beside it** (a short vertical bar, the count, your
-magazines as small squares), **a screen corner** by the game's weapon panel (best with the bar and items turned
-off), or a **curved pair** around the crosshair (the ammo bar as a ) on the right, the backpack as a ( on the left).
-Or **Custom**: your own, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
+Four built-in layouts: the **horizontal** stack (the bars under the crosshair), the **arcs** (centred on the
+crosshair, the meters and the backpack inside), the **vertical pair** (the ammo bar standing right of the crosshair,
+health on the left) and the **block** (one block right of the crosshair). Or **Custom**: your own, made in
+the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 
 ## Settings (F9, NarrowHUD)
 
-- Size; position (under or beside the crosshair, a screen corner by the game's weapon panel, the curved pair, or
-  Custom: every part placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
-  and Preview 1 to 4, four new built-in layouts (a horizontal stack, a compact block, a curved pair centred on the
-  crosshair, a vertical pair) to try before they replace the old ones);
-  one offset left / right and down / up that moves the built-in ones anywhere (a Custom layout only when its file
-  says so).
-- Every part shown or hidden on its own: the bar, the count, the spare magazines, the HEAT label, weapon modes, the
-  game's mode icons, the
-  fire mode, the rate of fire, the charge meter, stims, grenades, the backpack bar.
-- Spare magazines beside and in the corner: squares or a number; the empty squares shown or hidden.
-- Empty parts (of the ammo bar, the magazine squares, the backpack bar) faint, or as outlines.
-- Opacity, and dimming or hiding when nothing has changed for a few seconds.
-- Colours: standard, or colourblind (white, sky blue, yellow, magenta: told apart by brightness too).
-- The world: the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its length), the
+- Layout: four built-in ones (the horizontal stack, the arcs, the vertical pair, the block) or Custom: every part
+  placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
+  size; one sideways and one up / down offset that moves any of them; Spread (the two sides of the crosshair closer
+  or farther apart); opacity.
+- Show: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon and fire
+  modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina): off, always,
+  while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming; a part held
+  back hidden or dimmed.
+- Look: the empty magazine squares shown or hidden; bar edges (none, an outline or
+  the game's brackets) and the shade behind the bars; the modes in their own colours; colours standard or
+  colourblind (white, sky blue, yellow, magenta: told apart by brightness too); drawn in the game's UI layer (the
+  colours exact on every planet).
+- Extras: a stim timer, warning pulses, a reload line, and dimming or hiding when nothing has changed for a while.
+- Motion: parts sliding, bars easing and one-shot pulses, off, quick or normal; the Spread and the opacity while
+  aiming.
+- The world: the sniper crosshair, the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its length), the
   throw line, and the lines' thickness.
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).
@@ -105,7 +108,8 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
   network config (`tools/parse_netcfg.py`, `tools/make_data.py`; the engine knows them only by a 32-bit hash, so the
   names are stand-ins with the same hashes, from `tools/crack_thin.c`). `src/learned_seed.lua`: the shipped knowledge.
 - The learned file is `chef_data_luka189_2fnarrowhud__learned.lua` (Chef 1.0.0: `..._narrowhud_learned.lua`) in
-  `%APPDATA%\Arrowhead\Helldivers2`; the log is `narrowhud.log` next to it.
+  `%APPDATA%\Arrowhead\Helldivers2`; the log is `narrowhud.log` next to it (and `narrowhud_research.log` for the
+  research rows' field dumps).
 - After a game patch: [PATCHING.md](PATCHING.md). Release history: [CHANGELOG.md](CHANGELOG.md).
 - The layout editor: `editor/editor.html` (one page, no build step; `tools/build.py` wraps it as `editor/index.html`
   for GitHub Pages). It draws the parts with the mod's own drawing code ported to JavaScript.
@@ -115,7 +119,8 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
 - Weapon heat and charge values, stim durations, each projectile's speed, mass, drag and gravity: the [Helldivers 2 wiki](https://helldivers.wiki.gg).
 - Uses research from [HD2Runtime by SkyeShade](https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line).
 - The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used here.
-- The grenade icon was traced by dogo314 and is used with his permission. The stim icon is luka189's.
+- The grenade icon was traced by dogo314 and is used with his permission. The stim icon and the sniper crosshair (a
+  tracing of the game's default reticle) are luka189's.
 - Chef Shared Loader by Th3chef runs it; filediver (BSD) takes the network config out of the game files.
 
 ## License

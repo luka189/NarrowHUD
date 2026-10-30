@@ -1,0 +1,17 @@
+For the Nexus pinned post / replies to the disconnect reports (1.5.29)
+
+If you get dropped from a host's mission while the others stay in, this is what would help most, in this order:
+
+1. Update to 1.5.29 and play as before. Then post the two logs from %APPDATA%\Arrowhead\Helldivers2\ (narrowhud.log
+   and chef_loader.log) with the clock time of the drop, the exact text of the error, and whether the rest of the
+   squad stayed in. 1.5.29 logs more than 1.5.27 did: whether the mission froze for you before the drop and for how
+   long, what the engine was doing, and the ping to the host if the game lets us read it.
+
+2. If you drop every time: two research builds are in the Files tab, R0 and R1. Install one of them instead of
+   the mod (one at a time), play one mission with each, and post the logs from both. R0 reads nothing and draws
+   nothing (you'll see no HUD at all; the loader is there and the mod counts frames). R1 reads everything and draws
+   nothing (no HUD either). If you still drop with R0, it's the loader being there at all; with R1 but not R0, it's
+   the mod's reads of the game; only with the normal build, it's the drawing. Put the normal build back afterwards.
+
+Nothing in this touches the game's network: the mod only reads and draws. These builds exist so the logs can tell us
+which part the game minds.

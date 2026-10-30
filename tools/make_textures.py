@@ -192,7 +192,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     lua = ['-- NarrowHUD icon textures, made by tools/make_textures.py from art/icons/*.svg: each icon in a ladder of sizes',
            "-- (size, the icon's height in it, the resource id, its width), smallest first, for chef.texture_sizes and chef.bitmap,",
-           "-- and once in the game's icon layout. The stim is luka189's; the grenade was traced by dogo314 (used with permission).", 'return {']
+           "-- and once in the game's icon layout. The stim and the reticle are luka189's; the grenade was traced by dogo314 (used with permission).", 'return {']
     for svg in sorted((ROOT / 'art' / 'icons').glob('*.svg')):
         name = svg.stem
         entries = []

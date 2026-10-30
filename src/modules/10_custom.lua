@@ -8,159 +8,197 @@ local MARK_COLORS, heat_tone, pack_state = N.MARK_COLORS, N.heat_tone, N.pack_st
 ------------------------------------------------------------------------------------------------ a custom layout
 -- Each part of the HUD an element of its own, placed, sized and styled by the layout file
 -- (chef_data_luka189_2fnarrowhud__layout.lua in %APPDATA%\Arrowhead\Helldivers2, made by the layout editor or by
--- hand). Position "Custom" draws from it; the F9 toggles, colours, opacity, idle dimming, Size and the offsets apply
+-- hand). Layout "Custom layout" draws from it; the F9 toggles, colours, opacity, idle dimming, Size and the offsets apply
 -- on top. Every element: on, anchor (a point of the screen), x / y (from there, % of the screen's height: right and
 -- up), align (which point of the element sits there), size (x the HUD's), opacity (%), and its own style fields.
 local LAYOUT_VERSION = 1
 local ANCHORS = { center = { 0.5, 0.5 }, top = { 0.5, 1 }, bottom = { 0.5, 0 }, left = { 0, 0.5 }, right = { 1, 0.5 },
   top_left = { 0, 1 }, top_right = { 1, 1 }, bottom_left = { 0, 0 }, bottom_right = { 1, 0 } }
 local ALIGNS = { bottom_left = { 0, 0 }, bottom = { 0.5, 0 }, bottom_right = { 1, 0 }, left = { 0, 0.5 },
-  center = { 0.5, 0.5 }, right = { 1, 0.5 }, top_left = { 0, 1 }, top = { 0.5, 1 }, top_right = { 1, 1 } }
+  center = { 0.5, 0.5 }, right = { 1, 0.5 }, top_left = { 0, 1 }, top = { 0.5, 1 }, top_right = { 1, 1 },
+  -- (1.5.74) arc: a curved bar's own centre (the point its radius is measured from) sits on the anchor, so arcs
+  -- around the crosshair stay concentric at every Size (a box's edge can't: the box grows with the radius); for
+  -- anything else, or a pinned part, as center
+  arc = { 0.5, 0.5 } }
 -- the elements in drawing order, each field: { kind, default, min / choices, max }
 -- after: right after another part (drawn before it), gap pixels (at 1440p, Medium) from its right edge, its x then
 -- not used: a count that grows ("100%") pushes the magazines along instead of running over them
-local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, modes = 1, rpm = 1, stims = 1, grenades = 1, pack = 1,
-  health = 1, stamina = 1, stim = 1, icons = 1 }
+local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, rpm = 1, stims = 1, grenades = 1, pack = 1,
+  health = 1, stamina = 1, stim = 1, mode1 = 1, mode2 = 1, icon1 = 1, icon2 = 1, zoom = 1, zoomicon = 1 }
+-- (1.5.53) pin: how a part sits against the one it's after — none: the old way (its x from that part's right edge
+-- plus the gap, its y its own); right / left / above / below: its whole place from that part's box (the gap between
+-- them, the align choosing the edge they line up on, x / y then small nudges). A part that isn't drawn (off, or
+-- nothing to show: no backpack, a rifle with no charge meter) leaves its place to what's pinned to it.
+-- side: left or right of the crosshair, for F9's Spread slider (auto: by the part's x from the centre anchor).
+local PINS = { none = 1, right = 1, left = 1, above = 1, below = 1 }
+-- (1.5.53) a bar's edge and shade: F9's ('auto'), or its own
+local EDGES = { auto = 1, none = 1, outline = 1, brackets = 1 }
+local SHADES = { auto = 1, on = 1, off = 1 }
+local BAR_LOOK = { edge = { 'choice', 'auto', EDGES }, shade = { 'choice', 'auto', SHADES } }
+local EDGE_OF = { none = 1, outline = 2, brackets = 3 }
+local function look_of(e)
+  local edge = e.edge == 'auto' and (cfg.edge or 1) or EDGE_OF[e.edge]
+  local shade = e.shade == 'auto' and cfg.shade ~= false or e.shade == 'on'
+  return edge, shade
+end
+local SIDES = { auto = 1, none = 1, left = 1, right = 1 }
 local COMMON = { on = { 'boolean', true }, anchor = { 'choice', 'center', ANCHORS }, x = { 'number', 0, -100, 100 },
   y = { 'number', 0, -100, 100 }, align = { 'choice', 'bottom_left', ALIGNS }, size = { 'number', 1, 0.3, 4 },
-  opacity = { 'number', 100, 0, 100 }, after = { 'choice', 'none', AFTER }, gap = { 'number', 8, -500, 500 } }
+  opacity = { 'number', 100, 0, 100 }, after = { 'choice', 'none', AFTER }, gap = { 'number', 8, -500, 500 },
+  pin = { 'choice', 'none', PINS }, side = { 'choice', 'auto', SIDES }, hold = { 'boolean', false } }
+-- (1.5.72) hold: a part with nothing to show for the moment (the weapon put away, a stratagem ball in hand, no
+-- weapon seated) keeps the place it had, so the parts pinned to it stay where they are; off, they take its place
+-- (as a part that's Off, or one this loadout never has — no backpack, no charge meter — always does). On in Under's
+-- look for the parts that only vanish for a moment — the ammo bar and the count (the weapon put away), health and
+-- stamina — and off for the ones a weapon or loadout may not have (the charge meter, the magazines, the backpack,
+-- the modes, the rate of fire), which give their place away (luka, 1.5.72 / 1.5.75)
 local ELEMENTS = {
   { id = 'bar', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
       fill = { 'choice', 'auto', { auto = 1, ticks = 1, solid = 1 } }, length = { 'number', 260, 10, 2000 },
       radius = { 'number', 150, 10, 2000 },
-      thickness = { 'number', 14, 1, 200 }, ticks_max = { 'number', 30, 1, 200 } } },
+      thickness = { 'number', 14, 1, 200 }, ticks_max = { 'number', 30, 1, 200 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   { id = 'charge', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
-      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 4, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 4, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   { id = 'count', fields = {} },
   { id = 'mags', fields = { style = { 'choice', 'number', { number = 1, squares = 1 } },
       empty = { 'choice', 'shown', { shown = 1, hidden = 1 } }, divider = { 'boolean', false } } },
-  { id = 'modes', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
+  -- (1.5.54) the modes as two parts, to pin apart: the weapon mode (HEAT, UB, APHET ...) and the fire mode (AUTO ...,
+  -- with the zeroing text). (1.5.66: the grouped "modes" part is gone — luka: pin these two instead; a file that
+  -- still has it is read without it)
+  { id = 'mode1', fields = {} },
+  { id = 'mode2', fields = {} },
+  -- (1.5.65) the scope's zeroing as parts of its own, text ("100 M") and icon. (1.5.69: parts like any other — the
+  -- fire mode and its icon never carry the zeroing in a layout; off is off. Under and Beside keep it with the fire
+  -- mode, by F9's zeroing-text toggle)
+  { id = 'zoom', fields = {} },
+  { id = 'zoomicon', fields = {} },
   -- (1.5.18) the game's own icons of the weapon's mode and fire mode (an F9 Show setting; docs/ICONS.md)
-  { id = 'icons', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
+  -- (1.5.57 the two apart; 1.5.66 the grouped "icons" part gone, as the modes)
+  { id = 'icon1', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
+  { id = 'icon2', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
   { id = 'rpm', fields = {} },
   { id = 'stims', fields = {} },
   { id = 'grenades', fields = {} },
   { id = 'pack', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
-      length = { 'number', 120, 10, 2000 }, thickness = { 'number', 7, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+      length = { 'number', 120, 10, 2000 }, thickness = { 'number', 7, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   -- (1.1.0) your health and stamina: shown when F9's Health bar / Stamina bar say so (off by default)
   { id = 'health', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
-      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 5, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 5, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   { id = 'stamina', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
-      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   -- (1.2.0) the stim timer: shown when F9's Stim timer is on, while a stim of yours works
   { id = 'stim', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
-      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 } } },
+      length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
 }
 -- the layout written the first time Custom is chosen and there's no file: Under's look, to start from
 local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
-  bar = { anchor = 'center', x = 0, y = -9, align = 'bottom' },
+  bar = { anchor = 'center', x = 0, y = -9, align = 'bottom', hold = true },
   charge = { anchor = 'center', x = 0, y = -7.75, align = 'bottom' },   -- (over the bar: 14 px and 4 px above -9 %)
-  count = { anchor = 'center', x = 9.9, y = -8.5, align = 'left' },
-  mags = { anchor = 'center', x = 13.3, y = -9.47, align = 'bottom_left', divider = true, after = 'count', gap = 8 },
-  modes = { anchor = 'center', x = -9.7, y = -8.5, align = 'right' },
-  icons = { anchor = 'center', x = -9.4, y = -9.6, align = 'top_right' },
-  rpm = { anchor = 'center', x = 9.9, y = -9.9, align = 'top_left' },
+  count = { anchor = 'center', x = 9.9, y = -8.5, align = 'left', hold = true },
+  mags = { anchor = 'center', x = 0, y = 0, align = 'bottom_left', divider = true, after = 'count', pin = 'right', gap = 8 },
+  zoom = { anchor = 'center', x = -9.7, y = -8.5, align = 'right' },
+  mode2 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoom', pin = 'left', gap = 8 },
+  mode1 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'mode2', pin = 'left', gap = 8 },
+  zoomicon = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoom', pin = 'below', gap = 2 },
+  icon2 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoomicon', pin = 'left', gap = 4 },
+  icon1 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'icon2', pin = 'left', gap = 4 },
+  rpm = { anchor = 'center', x = 0, y = 0, align = 'bottom_left', after = 'count', pin = 'below', gap = 6 },
   stims = { anchor = 'center', x = -9, y = -9.6, align = 'top_left' },
-  grenades = { anchor = 'center', x = -4.6, y = -9.6, align = 'top_left' },
+  grenades = { anchor = 'center', x = 0, y = 0, align = 'top_left', after = 'stims', pin = 'right', gap = 8 },
   pack = { anchor = 'center', x = -0.4, y = -10.6, align = 'left', length = 135 },
   -- (over the charge meter, as Under draws them)
-  health = { anchor = 'center', x = 0, y = -7.33, align = 'bottom' },
-  stamina = { anchor = 'center', x = 0, y = -6.78, align = 'bottom' },
+  health = { anchor = 'center', x = 0, y = -7.33, align = 'bottom', hold = true },
+  stamina = { anchor = 'center', x = 0, y = -6.78, align = 'bottom', hold = true },
   stim = { anchor = 'center', x = 0, y = -6.36, align = 'bottom' } } }
 
--- (1.5.13, luka's 1.5.22 version) Position: Curved pair, a built-in layout: every arc centred on the crosshair: the
--- ammo bar as a ) on the right with the charge meter outside it and the backpack inside, health as a ( on the left
--- with stamina outside and the stim timer inside; the text in a column right of the arcs, the icons beside it,
--- stims and grenades under the crosshair. 8 px between a bar and its meter on both sides. The same layout is the
--- editor's Curved pair preset (editor/editor.html: PRESETS).
-local CURVED_LAYOUT = { _v = LAYOUT_VERSION, elements = {
-  bar = { anchor = 'center', x = 6, y = 0, align = 'left', style = 'curved_right', fill = 'auto', length = 300, radius = 160, thickness = 10 },
-  charge = { anchor = 'center', x = 6.78, y = 0, align = 'left', style = 'curved_right', length = 330, radius = 176, thickness = 4 },
-  count = { anchor = 'center', x = 9.7, y = -8.4, align = 'top_left' },
-  mags = { anchor = 'center', x = 9.7, y = -10.6, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'none' },
-  modes = { anchor = 'center', x = 10.6, y = 8, align = 'bottom_left', style = 'stacked' },
-  icons = { anchor = 'center', x = 15.8, y = 8, align = 'bottom_left', style = 'stacked' },
-  rpm = { anchor = 'center', x = 10.6, y = 11.4, align = 'bottom_left' },
-  stims = { anchor = 'center', x = -4.7, y = -9.2, align = 'top_right' },
-  grenades = { anchor = 'center', x = -8.7, y = -9.2, align = 'top_right' },
-  pack = { anchor = 'center', x = -6, y = 0, align = 'right', style = 'curved_left', length = 240, radius = 160, thickness = 8 },
-  health = { anchor = 'center', x = 0, y = -12, align = 'top', style = 'horizontal', length = 220, thickness = 5 },
-  stamina = { anchor = 'center', x = 0, y = -12.7, align = 'top', style = 'horizontal', length = 220, thickness = 3 },
-  stim = { anchor = 'center', x = 0, y = -13.2, align = 'top', style = 'horizontal', length = 220, thickness = 3 } } }
--- (1.5.24) the Preview positions: luka's four layouts of 2026-10-28, aligned by the arcs' geometry and the bars'
--- edges (8 px between a bar and its meter, the set's thicknesses: bar 11, charge 4, backpack and stim timer 5,
--- health 7, stamina 4). Preview 3, the curved pair: every arc centred on the crosshair, the backpack arc inside
--- the bar and the stim timer inside the health arc. Kept apart from the Positions people have set up until the
--- offsets and the pinning of parts to each other are redone for presets.
-local PREVIEW_CURVED = { _v = LAYOUT_VERSION, elements = {
-  bar = { anchor = 'center', x = 6.35, y = 0, align = 'left', style = 'curved_right', fill = 'auto', length = 300, radius = 160, thickness = 11 },
-  charge = { anchor = 'center', x = 7.15, y = 0, align = 'left', style = 'curved_right', length = 330, radius = 176, thickness = 4 },
-  pack = { anchor = 'center', x = 9.24, y = 0, align = 'left', style = 'curved_right', length = 100, radius = 144, thickness = 5 },
-  count = { anchor = 'center', x = 11.3, y = -7.3, align = 'top_left' },
-  mags = { anchor = 'center', x = 11.3, y = -9.5, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'none' },
-  modes = { anchor = 'center', x = 11.3, y = 7.3, align = 'bottom_left', style = 'stacked' },
-  rpm = { anchor = 'center', x = 11.3, y = 10.1, align = 'bottom_left' },
-  icons = { anchor = 'center', x = 13.7, y = 0, align = 'center', style = 'stacked' },
-  stims = { anchor = 'center', x = -1.8, y = -8.6, align = 'center' },
-  grenades = { anchor = 'center', x = 1.8, y = -8.6, align = 'center' },
-  health = { anchor = 'center', x = -6.43, y = 0, align = 'right', style = 'curved_left', length = 300, radius = 160, thickness = 7 },
-  stamina = { anchor = 'center', x = -7.07, y = 0, align = 'right', style = 'curved_left', length = 326, radius = 174, thickness = 4 },
-  stim = { anchor = 'center', x = -9.24, y = 0, align = 'right', style = 'curved_left', length = 100, radius = 144, thickness = 5 } } }
--- Preview 4, the vertical pair, luka's layout: the ammo bar standing right of the crosshair with the charge
--- meter outside it and the backpack inside, health standing on the left with stamina outside and the stim timer
--- inside, the text in a column right of the bars, stims and grenades under the crosshair. The spacing: the bar's
--- edges mirrored exactly (the health bar thinner), 8 px between a bar and its meter on both sides.
-local PREVIEW_VERTICAL = { _v = LAYOUT_VERSION, elements = {
-  bar = { anchor = 'center', x = 7.6, y = -6.5, align = 'bottom_left', style = 'vertical', fill = 'auto', length = 190, thickness = 11 },
-  charge = { anchor = 'center', x = 9.2, y = -6.5, align = 'bottom_right', style = 'vertical', length = 190, thickness = 4 },
-  pack = { anchor = 'center', x = 6.6, y = 2.8, align = 'top_left', style = 'vertical', length = 80, thickness = 5 },
-  count = { anchor = 'center', x = 9.8, y = -7.6, align = 'bottom_left' },
-  mags = { anchor = 'center', x = 14.33, y = -6.69, align = 'center', style = 'number', empty = 'shown', divider = true, after = 'count', gap = 6 },
-  rpm = { anchor = 'center', x = 9.8, y = -4.9, align = 'bottom_left' },
-  modes = { anchor = 'center', x = 9.8, y = 7.6, align = 'top_left', style = 'stacked' },
-  icons = { anchor = 'center', x = 9.4, y = 4.5, align = 'top_left', style = 'stacked' },
-  stims = { anchor = 'center', x = -1.0, y = -8.1, align = 'top_right' },
-  grenades = { anchor = 'center', x = 1.0, y = -8.1, align = 'top_left' },
-  health = { anchor = 'center', x = -7.6, y = -6.5, align = 'bottom_right', style = 'vertical', length = 190, thickness = 7 },
-  stamina = { anchor = 'center', x = -8.64, y = -6.5, align = 'bottom_right', style = 'vertical', length = 190, thickness = 4 },
-  stim = { anchor = 'center', x = -6.6, y = 2.8, align = 'top_right', style = 'vertical', length = 80, thickness = 5 } } }
-
--- Preview 2, the compact block, luka's layout: one block right of the crosshair with the
--- short standing ammo bar as its spine (the charge meter 8 px left of it), the text in a column right of it (the
--- icons and modes in a line on top, the rate of fire, the count with the magazines, stims and grenades), and
--- under the bar three rows the block's width: stamina, health, then the backpack and stim timer side by side.
-local PREVIEW_COMPACT = { _v = LAYOUT_VERSION, elements = {
-  bar = { anchor = 'center', x = 10.7, y = -2.2, align = 'bottom_left', style = 'vertical', fill = 'auto', length = 107, thickness = 11 },
-  charge = { anchor = 'center', x = 10.14, y = -2.2, align = 'bottom_right', style = 'vertical', length = 107, thickness = 4 },
-  icons = { anchor = 'center', x = 12.1, y = 5.5, align = 'top_left', style = 'line' },
-  modes = { anchor = 'center', x = 15, y = 5.5, align = 'top_left', style = 'line', after = 'icons', gap = 8 },
-  rpm = { anchor = 'center', x = 12.1, y = 3.73, align = 'top_left' },
-  count = { anchor = 'center', x = 12.1, y = 0.4, align = 'bottom_left' },
-  mags = { anchor = 'center', x = 12.9, y = 1.5, align = 'top_left', style = 'number', empty = 'shown', divider = false, after = 'count', gap = 8 },
-  stims = { anchor = 'center', x = 12.1, y = -0.15, align = 'top_left' },
-  grenades = { anchor = 'center', x = 15, y = -0.15, align = 'top_left' },
-  stamina = { anchor = 'center', x = 9.86, y = -3.03, align = 'bottom_left', style = 'horizontal', length = 128, thickness = 4 },
-  health = { anchor = 'center', x = 9.86, y = -4.08, align = 'bottom_left', style = 'horizontal', length = 128, thickness = 7 },
-  pack = { anchor = 'center', x = 9.86, y = -4.98, align = 'bottom_left', style = 'horizontal', length = 60, thickness = 5 },
-  stim = { anchor = 'center', x = 18.75, y = -4.98, align = 'bottom_right', style = 'horizontal', length = 60, thickness = 5 } } }
-
--- Preview 1, the horizontal stack, luka's layout: the bars under the crosshair 8 px apart (ammo, charge, health,
--- stamina), the backpack and stim timer in two rows under the right half, stims and grenades under the left, the
--- count and rate of fire right of the bars, modes and icons mirrored on the left.
-local PREVIEW_HORIZONTAL = { _v = LAYOUT_VERSION, elements = {
-  bar = { anchor = 'center', x = 0, y = -11, align = 'bottom', style = 'horizontal', fill = 'auto', length = 260, thickness = 11 },
-  charge = { anchor = 'center', x = 0, y = -9.68, align = 'bottom', style = 'horizontal', length = 260, thickness = 4 },
-  health = { anchor = 'center', x = 0, y = -8.85, align = 'bottom', style = 'horizontal', length = 260, thickness = 7 },
-  stamina = { anchor = 'center', x = 0, y = -7.8, align = 'bottom', style = 'horizontal', length = 260, thickness = 4 },
-  pack = { anchor = 'center', x = 0.28, y = -11.9, align = 'bottom_left', style = 'horizontal', length = 126, thickness = 5 },
-  stim = { anchor = 'center', x = 0.28, y = -12.8, align = 'bottom_left', style = 'horizontal', length = 126, thickness = 5 },
-  count = { anchor = 'center', x = 10.1, y = -10.62, align = 'left' },
-  mags = { anchor = 'center', x = 13.3, y = -11.27, align = 'bottom_left', style = 'number', empty = 'shown', divider = true, after = 'count', gap = 8 },
-  rpm = { anchor = 'center', x = 10.1, y = -11.7, align = 'top_left' },
-  modes = { anchor = 'center', x = -10.1, y = -10.62, align = 'right', style = 'line' },
-  icons = { anchor = 'center', x = -10.1, y = -11.7, align = 'top_right', style = 'line' },
-  stims = { anchor = 'center', x = -9, y = -11.56, align = 'top_left' },
-  grenades = { anchor = 'center', x = -5.6, y = -11.56, align = 'top_left' } } }
+-- (2.0, luka's four layouts of 2026-10-30, made in the editor and passed here; their files in research/layouts)
+-- F9's Layout row: 1 the horizontal stack, 2 the arcs, 3 the vertical pair, 4 the block, 5 a Custom file. The
+-- old Under / Beside / Corner / Curved pair positions and the Preview ones are gone with them (the first three
+-- were hand-drawn modules; Under's look lives on as DEFAULT_LAYOUT, what a Custom file leaves out).
+-- The vertical pair: the ammo bar standing right of the crosshair, its middle at the crosshair's height, the
+-- charge meter 8 px inside it and the backpack 8 px inside that; health standing on the left with the stamina
+-- and the stim timer inside; the text at the bar's bottom right, the icons in a column from its top; stims and
+-- grenades under the crosshair.
+local VERTICAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
+  bar = { on = true, anchor = 'center', x = 7.6, y = 0, align = 'left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'vertical', fill = 'auto', length = 190, radius = 150, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
+  charge = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'left', side = 'auto', hold = false, style = 'vertical', length = 190, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
+  pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 20, pin = 'left', side = 'auto', hold = false, style = 'vertical', length = 80, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
+  count = { on = true, anchor = 'center', x = 0, y = -0.9, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 9, pin = 'right', side = 'auto', hold = true },
+  mags = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'count', gap = 6, pin = 'right', side = 'auto', hold = false, style = 'number', empty = 'shown', divider = true },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 10, pin = 'above', side = 'auto', hold = false },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = -3, pin = 'right', side = 'auto', hold = false, style = 'line' },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = -21, pin = 'below', side = 'auto', hold = false, style = 'line' },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon1', gap = -24, pin = 'below', side = 'auto', hold = false },
+  mode1 = { on = false, anchor = 'center', x = 9.8, y = 7.6, align = 'top_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false },
+  mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 4, pin = 'below', side = 'auto', hold = false },
+  zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
+  stims = { on = true, anchor = 'center', x = -1, y = -8.1, align = 'top_right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
+  grenades = { on = true, anchor = 'center', x = 1, y = -8.1, align = 'top_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
+  health = { on = true, anchor = 'center', x = -7.6, y = 0, align = 'right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'vertical', length = 190, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
+  stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'right', side = 'auto', hold = false, style = 'vertical', length = 190, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
+  stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'health', gap = 20, pin = 'right', side = 'auto', hold = false, style = 'vertical', length = 80, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' } } }
+-- The arcs: every arc centred on the crosshair (align 'arc'); the bar, the charge meter 8 px inside it and the
+-- backpack inside that on the right, health, stamina and the stim timer on the left; the text at the bar's
+-- bottom right, the icons in a column at its middle.
+local ARCS_LAYOUT = { _v = LAYOUT_VERSION, elements = {
+  bar = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'curved_right', fill = 'auto', length = 225, radius = 120, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
+  charge = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_right', length = 196, thickness = 4, radius = 104.5, edge = 'auto', shade = 'auto' },
+  count = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = -7, pin = 'right', side = 'auto', hold = false },
+  mags = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 4, pin = 'below', side = 'auto', hold = false, style = 'number', empty = 'shown', divider = false },
+  mode1 = { on = false, anchor = 'center', x = 0, y = 0.5, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 14, pin = 'right', side = 'auto', hold = false },
+  mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 4, pin = 'below', side = 'auto', hold = false },
+  zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'below', side = 'auto', hold = false },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'above', side = 'auto', hold = false, style = 'line' },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = -6, pin = 'right', side = 'auto', hold = false, style = 'line' },
+  rpm = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = -15, pin = 'right', side = 'auto', hold = false },
+  stims = { on = true, anchor = 'center', x = -1.35, y = -6.45, align = 'center', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
+  grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'stims', gap = 10, pin = 'right', side = 'none', hold = false },
+  pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_right', length = 75, thickness = 5, radius = 92, edge = 'auto', shade = 'auto' },
+  health = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'curved_left', length = 225, thickness = 7, radius = 120, edge = 'auto', shade = 'auto' },
+  stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_left', length = 200, thickness = 4, radius = 106.5, edge = 'auto', shade = 'auto' },
+  stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_left', length = 77, thickness = 5, radius = 94, edge = 'auto', shade = 'auto' } } }
+-- The horizontal stack: the bars under the crosshair (ammo, the charge meter above it; health with the stamina
+-- above it, free), the count and magazines right of the bar, the icons left of it, stims and grenades and the
+-- backpack under it.
+local HORIZONTAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
+  bar = { on = true, anchor = 'center', x = 0, y = -12.2, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', style = 'horizontal', fill = 'auto', length = 260, radius = 150, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
+  charge = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'above', side = 'auto', style = 'horizontal', length = 260, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
+  count = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'right', side = 'auto' },
+  mags = { on = true, anchor = 'center', x = 0, y = 0.3, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'right', side = 'auto', style = 'number', empty = 'shown', divider = true },
+  mode1 = { on = false, anchor = 'center', x = 0, y = 0, align = 'right', size = 1, opacity = 100, after = 'mode2', gap = 8, pin = 'left', side = 'auto' },
+  mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'right', size = 1, opacity = 100, after = 'zoom', gap = 8, pin = 'left', side = 'auto' },
+  zoom = { on = false, anchor = 'center', x = -10.1, y = -10.62, align = 'right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto' },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = -2, pin = 'right', side = 'auto' },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'left', side = 'auto', style = 'line' },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 1, pin = 'left', side = 'auto', style = 'line' },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 2, pin = 'below', side = 'auto' },
+  stims = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto' },
+  grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
+  pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 126, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
+  health = { on = true, anchor = 'center', x = 0, y = -10, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', style = 'horizontal', length = 260, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
+  stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'above', side = 'auto', style = 'horizontal', length = 260, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
+  stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'pack', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 126, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' } } }
+-- The block: a short standing bar right of the crosshair with the charge meter inside it, the text column right
+-- of it (the icons in a row above the count), stamina, health, the backpack and stim timer stacked under the bar.
+local BLOCK_LAYOUT = { _v = LAYOUT_VERSION, elements = {
+  bar = { on = true, anchor = 'center', x = 10.7, y = -2.2, align = 'bottom_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'vertical', fill = 'auto', length = 107, radius = 150, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
+  charge = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'left', side = 'auto', style = 'vertical', length = 107, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
+  count = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 9, pin = 'right', side = 'auto', hold = true },
+  mags = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'right', side = 'auto', style = 'number', empty = 'shown', divider = false },
+  mode1 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'zoomicon', gap = 8, pin = 'right', side = 'auto' },
+  mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 8, pin = 'right', side = 'auto' },
+  zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 8, pin = 'right', side = 'auto' },
+  icon2 = { on = true, anchor = 'center', x = -0.8, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = -3, pin = 'above', side = 'auto', style = 'line' },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -20, pin = 'right', side = 'auto', style = 'line' },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon1', gap = -20, pin = 'right', side = 'auto' },
+  rpm = { on = true, anchor = 'center', x = 1, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -7, pin = 'above', side = 'auto' },
+  stims = { on = true, anchor = 'center', x = 0.4, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'below', side = 'auto' },
+  grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
+  stamina = { on = true, anchor = 'center', x = -0.83, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 128, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
+  health = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'stamina', gap = 8, pin = 'below', side = 'auto', hold = true, style = 'horizontal', length = 128, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
+  pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 60, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
+  stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 60, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' } } }
 
 -- a layout table as read: every known field checked (type, range, choice), what doesn't fit dropped and counted,
 -- Under's look's values (or the field's default) for the rest
@@ -178,10 +216,12 @@ local function read_layout(t)
         elseif ok and f[1] == 'number' then ok = type(v) == 'number' and v == v and v >= f[3] and v <= f[4]
         elseif ok and f[1] == 'choice' then ok = type(v) == 'string' and f[3][v] ~= nil end
         if v ~= nil and not ok then dropped = dropped + 1 end
-        -- (a field not given: Under's look's, else the field's own default. Not after: a file from before it had
-        -- the magazines where its maker put them, which following the count would move)
-        local dv = name ~= 'after' and DEFAULT_LAYOUT.elements[el.id] and DEFAULT_LAYOUT.elements[el.id][name] or nil
-        if ok then e[name] = v elseif dv ~= nil then e[name] = dv else e[name] = f[2] end
+        -- (a field not given: Under's look's, else the field's own default. Not after / pin / side when the element
+        -- is in the file without them: a file from before pins had the magazines where its maker put them, which
+        -- following the count would move. An element left out altogether takes all of Under's look (1.5.66: the
+        -- split mode parts pinned as Under has them))
+        local dv = (given == nil or (name ~= 'after' and name ~= 'pin' and name ~= 'side')) and DEFAULT_LAYOUT.elements[el.id] and DEFAULT_LAYOUT.elements[el.id][name] or nil
+        if ok then e[name] = v elseif dv ~= nil then e[name] = dv elseif name == 'on' and el.off then e[name] = false else e[name] = f[2] end
       end
     end
     out[el.id] = e
@@ -189,25 +229,27 @@ local function read_layout(t)
   return out, dropped
 end
 local layout = { els = nil, said = nil, builtin = {} }
--- a built-in layout (Position: Curved pair) as read, once; F9's offsets move it, as they move Under and Beside
-local BUILTIN = { curved = CURVED_LAYOUT, preview1 = PREVIEW_HORIZONTAL, preview2 = PREVIEW_COMPACT, preview3 = PREVIEW_CURVED, preview4 = PREVIEW_VERTICAL }
+local cur = {}                                     -- the elements being drawn this frame
+-- a built-in layout as read, once; F9's offsets move it
+local BUILTIN = { vertical = VERTICAL_LAYOUT, arcs = ARCS_LAYOUT, horizontal = HORIZONTAL_LAYOUT, block = BLOCK_LAYOUT }
 local function builtin_layout(name)
   local l = layout.builtin[name]
-  if not l then l = { els = read_layout(BUILTIN[name] or CURVED_LAYOUT) } layout.builtin[name] = l end
+  if not l then l = { els = read_layout(BUILTIN[name] or HORIZONTAL_LAYOUT) } layout.builtin[name] = l end
   return l
 end
 local function load_layout(why)
   -- (chef.load_table's second value says why there's no table: called on its own, an 'and' would drop it)
   local ok, t, err = false, nil, 'no chef.load_table'
   if chef.load_table then ok, t, err = pcall(chef.load_table, 'layout') end
-  -- (no file yet: Under's look written, for the editor or a text editor to start from. One that's there but can't
-  -- be read, a typo in a hand edit, is never written over: Under's look until it's fixed)
+  -- (no file yet: the horizontal, the first layout, written for the editor or a text editor to start from (2.0;
+  -- Under's look before). One that's there but can't be read, a typo in a hand edit, is never written over:
+  -- Under's look until it's fixed)
   local none = ok and type(t) ~= 'table' and (string.find(tostring(err), 'none saved') or
     string.find(tostring(err), 'no such file') or string.find(tostring(err), 'missing'))
   if none and chef.save_table then
-    t = DEFAULT_LAYOUT
+    t = HORIZONTAL_LAYOUT
     pcall(chef.save_table, 'layout', t)
-    log('layout file: none yet, one with Under\'s look written (%s)', why)
+    log('layout file: none yet, one with the horizontal written (%s)', why)
   end
   if not ok or type(t) ~= 'table' then
     layout.els, layout.offsets = read_layout(DEFAULT_LAYOUT), false
@@ -216,7 +258,7 @@ local function load_layout(why)
   end
   local dropped
   layout.els, dropped = read_layout(t)
-  -- (F9's two offsets move a Custom layout only when its file says so: one set for another Position moved a layout
+  -- (F9's two offsets move a Custom layout only when its file says so: one set for another layout moved a Custom one
   -- placed in the editor without anyone noticing)
   layout.offsets = t.use_offsets == true
   if t.use_offsets ~= nil and type(t.use_offsets) ~= 'boolean' then dropped = dropped + 1 end
@@ -242,7 +284,7 @@ local function weapon_tone(d)
 end
 
 -- Each element: measure (w, h for its box at scale k) and draw (at x, y, its box's bottom left). nil: nothing to show.
-local L_CUSTOM = 905
+local L_CUSTOM = 905                             -- (+ N.L0, set at each draw_custom)
 -- Curved bars: 'curved_left' a "(", 'curved_right' a ")", drawn as triangles (chef.triangle, as the 1.0.5 icons
 -- were). length runs along the arc, thickness across it, radius is its middle line's; they fill from the bottom up.
 -- Without chef.triangle, or when Chef draws triangles as rows of rects: vertical instead.
@@ -307,11 +349,11 @@ local function arc_piece(g, x, y, f0, f1, r0, r1, c, layer)
     ix, iy, ox, oy = jx, jy, px, py
   end
 end
--- what's empty from f0 to f1: faint, or (outlines) its outline
-local function arc_empty(g, x, y, f0, f1, faint, lw)
+-- what's empty from f0 to f1: its shade (faint), its outline (the edge), both, or nothing
+local function arc_empty(g, x, y, f0, f1, faint, lw, edge, shade)
   -- (an outline on a piece only a few pixels long, a narrow tick, would look filled anyway: faint instead)
-  if not cfg.outline or g.th <= 2 * lw + 1 or (f1 - f0) * g.len <= 4 * lw then
-    arc_piece(g, x, y, f0, f1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM)
+  if edge ~= 2 or g.th <= 2 * lw + 1 or (f1 - f0) * g.len <= 4 * lw then
+    if shade or edge == 2 then arc_piece(g, x, y, f0, f1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
     return
   end
   local c, cap = col(CREAM, 190), lw / math.max(1, g.len)
@@ -319,18 +361,41 @@ local function arc_empty(g, x, y, f0, f1, faint, lw)
   arc_piece(g, x, y, f0, f1, g.r_out - lw, g.r_out, c, L_CUSTOM)
   arc_piece(g, x, y, f0, math.min(f1, f0 + cap), g.r_in, g.r_out, c, L_CUSTOM)
   arc_piece(g, x, y, math.max(f0, f1 - cap), f1, g.r_in, g.r_out, c, L_CUSTOM)
+  if shade then arc_piece(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, col(CREAM, faint), L_CUSTOM) end
 end
--- a solid curved bar f full: the background (faint all along, or one outline around the whole), the fill inside
-local function arc_solid(g, x, y, f, c, lw, faint)
+-- (1.5.53) square brackets at an arc's two ends: a radial stroke just past each end, a little beyond both edges,
+-- with short feet in along the inner and outer edges
+local function arc_brackets(g, x, y, lw)
+  local c = col(CREAM, 210)
+  local len = math.max(1, g.len)
+  local cap = lw / len                      -- (lw along the arc, as a fraction of it)
+  local s = math.max(4 * lw, math.min(math.floor(g.th * 0.5 + 0.5), 10 * lw)) / len
+  for _, f in ipairs({ 0, 1 }) do
+    -- the stroke 2 lw thick, a gap of lw from the end, 2 lw past both edges; the feet lw thick along the edges
+    local a0, a1 = f == 0 and -3 * cap or 1 + cap, f == 0 and -cap or 1 + 3 * cap
+    arc_piece(g, x, y, a0, a1, g.r_in - 2 * lw, g.r_out + 2 * lw, c, L_CUSTOM + 2)
+    local b0, b1 = f == 0 and -cap or 1 - s, f == 0 and -cap + s or 1 + cap
+    arc_piece(g, x, y, b0, b1, g.r_in - 2 * lw, g.r_in - lw, c, L_CUSTOM + 2)
+    arc_piece(g, x, y, b0, b1, g.r_out + lw, g.r_out + 2 * lw, c, L_CUSTOM + 2)
+  end
+end
+-- a solid curved bar f full: on its shade (or nothing), inside one outline around the whole, or between brackets
+local function arc_solid(g, x, y, f, c, lw, faint, edge, shade)
   f = math.max(0, math.min(1, f))
-  if cfg.outline and g.th > 2 * lw + 1 then
-    arc_empty(g, x, y, 0, 1, faint, lw)
+  if edge == 2 and g.th > 2 * lw + 1 then
+    arc_empty(g, x, y, 0, 1, faint, lw, edge, shade)
     local cap = lw / math.max(1, g.len)
     arc_piece(g, x, y, cap, cap + (1 - 2 * cap) * f, g.r_in + lw, g.r_out - lw, c, L_CUSTOM + 1)
   else
+    if edge == 3 then arc_brackets(g, x, y, lw) end
     arc_piece(g, x, y, 0, f, g.r_in, g.r_out, c, L_CUSTOM + 1)   -- (the faint part only where it's empty)
-    arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM)
+    if shade then arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
   end
+end
+-- (1.5.58) a pulse's wash over the whole arc
+local function arc_glow(g, x, y, key)
+  local b = N.glow_k(key)
+  if b > 0 then arc_piece(g, x, y, 0, 1, g.r_in, g.r_out, col(N.glow_col(key), N.GLOW_A * b), L_CUSTOM + 3) end
 end
 -- marks across it (heat marks, the charge mark, the warp pack's): at f, mw pixels wide
 local function arc_mark(g, x, y, f, mw, c)
@@ -342,22 +407,27 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
   if not d or d.kind == 'none' or not cfg.show_bar then return nil end
   if curved(e) then
     local g, w, h = arc_geom(e, k)
-    if dry then return w, h end
+    if dry then return w, h, g.cx, g.cy end
     local frac, tone, alpha = weapon_tone(d)
     local lw = math.max(1, math.floor(k * 0.8 + 0.5))
+    local edge, shade = look_of(e)
     local ticks = d.kind == 'ammo' and d.top and d.top >= 1 and
       (e.fill == 'ticks' or (e.fill == 'auto' and d.top <= e.ticks_max))
     if ticks then
       local n = math.max(d.top, math.min(d.value, d.top + 3))
       local gapf = math.max(1, math.min(g.len / n * 0.45, 4 * k)) / math.max(1, g.len)
       local segf = (1 + gapf) / n - gapf
+      tone = N.pulsed('bar', tone)
       for i = 0, n - 1 do
         local f0 = i * (segf + gapf)
-        if i < d.value then arc_piece(g, x, y, f0, f0 + segf, g.r_in, g.r_out, col(tone, alpha), L_CUSTOM)
-        else arc_empty(g, x, y, f0, f0 + segf, 55, lw) end
+        if N.tick_lit(i, d.value) then arc_piece(g, x, y, f0, f0 + segf, g.r_in, g.r_out, col(tone, alpha), L_CUSTOM)
+        else arc_empty(g, x, y, f0, f0 + segf, 55, lw, edge, shade) end
       end
+      if edge == 3 then arc_brackets(g, x, y, lw) end
+      arc_glow(g, x, y, 'bar')
     else
-      arc_solid(g, x, y, frac, col(tone, alpha), lw, 45)
+      arc_solid(g, x, y, N.bar_eased(frac, d), col(N.pulsed('bar', tone), alpha), lw, 45, edge, shade)
+      arc_glow(g, x, y, 'bar')
       if d.kind == 'heat' and not learned.charge2[d.tid] then
         for _, m in ipairs(d.heat_marks or { { 0.75, 3 } }) do
           arc_mark(g, x, y, m[1], math.max(2, math.floor(2 * k)), col(MARK_COLORS[m[2]], 220))
@@ -372,6 +442,7 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
   if dry then return w, h end
   local frac, tone, alpha = weapon_tone(d)
   local lw = math.max(1, math.floor(k * 0.8 + 0.5))
+  local edge, shade = look_of(e)
   local ticks = d.kind == 'ammo' and d.top and d.top >= 1 and
     (e.fill == 'ticks' or (e.fill == 'auto' and d.top <= e.ticks_max))
   if ticks then
@@ -382,11 +453,14 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
       local a, z = math.floor(i * step + 0.5), math.floor(i * step + step - gap + 0.5)
       local tx, ty, tw, tt = x + a, y, math.max(1, z - a), th
       if vert then tx, ty, tw, tt = x, y + a, th, math.max(1, z - a) end
-      if i < d.value then chef.rect(tx, ty, tw, tt, col(tone, alpha), L_CUSTOM)
-      else empty_rect(tx, ty, tw, tt, 55, L_CUSTOM, lw) end
+      if N.tick_lit(i, d.value) then chef.rect(tx, ty, tw, tt, col(N.pulsed('bar', tone), alpha), L_CUSTOM)
+      else empty_rect(tx, ty, tw, tt, 55, L_CUSTOM, lw, edge, shade) end
     end
+    if edge == 3 then N.brackets(x, y, w, h, lw, vert, L_CUSTOM) end
+    N.glow('bar', x, y, w, h, L_CUSTOM)
   else
-    solid_bar(x, y, w, h, frac, col(tone, alpha), L_CUSTOM, lw, vert)
+    solid_bar(x, y, w, h, N.bar_eased(frac, d), col(N.pulsed('bar', tone), alpha), L_CUSTOM, lw, vert, edge, shade)
+    N.glow('bar', x, y, w, h, L_CUSTOM)
     if d.kind == 'heat' and not learned.charge2[d.tid] then
       for _, m in ipairs(d.heat_marks or { { 0.75, 3 } }) do
         local mw = math.max(2, math.floor(2 * k))
@@ -402,12 +476,13 @@ function EL_DRAW.charge(e, k, d, x, y, dry)
   local f = d.charge_frac
   local cc = d.locked and WARN or (f >= 0.95 and d.t0 and not d.t0.has.lock and not d.charge_safe and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
   if d.kind == 'none' then cc = f >= 1 and WARN or CREAM end
+  local edge, shade = look_of(e)
+  local lw = math.max(1, math.floor(k * 0.8 + 0.5))
+  f = N.ease('charge', f, 80)
   if curved(e) then
     local g, w, h = arc_geom(e, k)
-    if dry then return w, h end
-    f = math.max(0, math.min(1, f))
-    arc_piece(g, x, y, 0, f, g.r_in, g.r_out, col(cc, 230), L_CUSTOM + 1)
-    arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(CREAM, 40), L_CUSTOM)
+    if dry then return w, h, g.cx, g.cy end
+    arc_solid(g, x, y, f, col(cc, 230), lw, 40, edge, shade)
     if d.charge_mark then arc_mark(g, x, y, d.charge_mark, math.max(1, math.floor(2 * k)), col(WARN, 220)) end
     return w, h
   end
@@ -415,9 +490,7 @@ function EL_DRAW.charge(e, k, d, x, y, dry)
   local len, th = math.floor(e.length * k + 0.5), math.max(1, math.floor(e.thickness * k + 0.5))
   local w, h = vert and th or len, vert and len or th
   if dry then return w, h end
-  chef.rect(x, y, w, h, col(CREAM, 40), L_CUSTOM)
-  if vert then chef.rect(x, y, w, math.floor(h * math.min(1, f) + 0.5), col(cc, 230), L_CUSTOM + 1)
-  else chef.rect(x, y, math.floor(w * math.min(1, f) + 0.5), h, col(cc, 230), L_CUSTOM + 1) end
+  solid_bar(x, y, w, h, f, col(cc, 230), L_CUSTOM, lw, vert, edge, shade)
   if d.charge_mark then
     local mw = math.max(1, math.floor(2 * k))
     if vert then chef.rect(x - 1, y + math.floor(h * d.charge_mark), w + 2, mw, col(WARN, 220), L_CUSTOM + 2)
@@ -430,7 +503,7 @@ function EL_DRAW.count(e, k, d, x, y, dry)
   local frac, tone = weapon_tone(d)
   local str = d.kind == 'heat' and string.format('%d%%', math.floor(frac * (d.pct_top or 100) + 0.5)) or tostring(d.value)
   local big = math.floor(28 * k + 0.5)
-  if not dry then txt(x, y, str, big, col(tone, 245), L_CUSTOM) end
+  if not dry then txt(x, y, str, big, col(N.pulsed('bar', tone), 245), L_CUSTOM) end
   return txt_width(str, big), big
 end
 function EL_DRAW.mags(e, k, d, x, y, dry)
@@ -452,8 +525,8 @@ function EL_DRAW.mags(e, k, d, x, y, dry)
         local lw = math.max(1, math.floor(k * 0.8 + 0.5))
         for i = 0, top - 1 do
           local sx = x + i * (ps + pg)
-          if i < d.reserve then chef.rect(sx, y, ps, ps, col(CREAM, 220), L_CUSTOM)
-          elseif cfg.outline then empty_rect(sx, y, ps, ps, 55, L_CUSTOM, lw)
+          if i < d.reserve then chef.rect(sx, y, ps, ps, col(N.pulsed('mags', CREAM), 220), L_CUSTOM)
+          elseif cfg.edge == 2 then empty_rect(sx, y, ps, ps, 55, L_CUSTOM, lw, 2, false)
           else chef.rect(sx, y, ps, ps, col({ 150, 150, 150 }, 120), L_CUSTOM) end
         end
       end
@@ -468,35 +541,39 @@ function EL_DRAW.mags(e, k, d, x, y, dry)
     local dx = math.floor(7 * k)
     if not dry then
       chef.rect(x, y, math.max(1, math.floor(2 * k)), big, col(CREAM, 150), L_CUSTOM)
-      txt(x + dx, y, str, small, col(CREAM, 220), L_CUSTOM)
+      txt(x + dx, y, str, small, col(N.pulsed('mags', CREAM), 220), L_CUSTOM)
     end
     return dx + txt_width(str, small), big
   end
-  if not dry then txt(x, y, str, small, col(CREAM, 220), L_CUSTOM) end
+  if not dry then txt(x, y, str, small, col(N.pulsed('mags', CREAM), 220), L_CUSTOM) end
   return txt_width(str, small), small
 end
-function EL_DRAW.modes(e, k, d, x, y, dry)
+-- (1.5.54) the modes apart: mode1 the weapon mode (HEAT, UB, the ammo kind), mode2 the fire mode and the zeroing text
+local function mode_text(parts, k, x, y, dry)
+  if #parts == 0 then return nil end
+  local small = math.max(7, math.floor(16 * k + 0.5))
+  local str = table.concat(parts, '  ')
+  if not dry then txt_modes(x, y, str, small, 200, L_CUSTOM) end
+  return txt_width(str, small), small
+end
+function EL_DRAW.mode1(e, k, d, x, y, dry)
   if not d then return nil end
   local parts = {}
   if d.kind == 'heat' and cfg.show_heat then parts[#parts + 1] = 'HEAT' end
   if d.underbarrel then if cfg.show_mode then parts[#parts + 1] = d.ub_label or 'UB' end
   elseif d.mode then parts[#parts + 1] = d.mode end
+  return mode_text(parts, k, x, y, dry)
+end
+function EL_DRAW.mode2(e, k, d, x, y, dry)
+  if not d then return nil end
+  local parts = {}
   if d.fmode and not d.underbarrel then parts[#parts + 1] = d.fmode end
-  if #parts == 0 then return nil end
-  local small = math.max(7, math.floor(16 * k + 0.5))
-  local gap = math.floor(4 * k)
-  if e.style == 'stacked' then
-    local w = 0
-    for _, p in ipairs(parts) do w = math.max(w, txt_width(p, small)) end
-    local h = #parts * small + (#parts - 1) * gap
-    if not dry then
-      for i, p in ipairs(parts) do txt_modes(x, y + (#parts - i) * (small + gap), p, small, 200, L_CUSTOM) end
-    end
-    return w, h
-  end
-  local str = table.concat(parts, '  ')
-  if not dry then txt_modes(x, y, str, small, 200, L_CUSTOM) end
-  return txt_width(str, small), small
+  return mode_text(parts, k, x, y, dry)
+end
+-- (1.5.65) the zeroing as text on its own (whenever the weapon's scope is known: the part being on is the choice)
+function EL_DRAW.zoom(e, k, d, x, y, dry)
+  if not d or not d.zoom_word then return nil end
+  return mode_text({ d.zoom_word }, k, x, y, dry)
 end
 function EL_DRAW.rpm(e, k, d, x, y, dry)
   if not d or not d.setting then return nil end
@@ -506,9 +583,9 @@ function EL_DRAW.rpm(e, k, d, x, y, dry)
 end
 local icon_el_said = false
 local function icon_el(rows, n, k, x, y, dry)
-  local cell = math.max(1, math.floor(1.6 * k + 0.5))
+  local cell = math.max(1, math.floor(1.6 * N.icon_scale(k) + 0.5))
   local small = math.max(7, math.floor(16 * k + 0.5))
-  local S = #N.GRENADE * cell
+  local S = N.stim_px(k)                                      -- (1.5.77: smooth with Size; the sprite fallback keeps whole cells)
   local name = rows == N.STIM and 'stim' or 'grenade'
   -- (1.5.18) the icon's texture when it draws (its own width), the pixel sprite otherwise
   local g = TEXTURES[name .. '_game'] and TEXTURES[name .. '_game'][1]
@@ -521,7 +598,7 @@ local function icon_el(rows, n, k, x, y, dry)
   local str = tostring(n)
   local w = iw + math.floor(4 * k) + txt_width(str, small)
   if dry then return w, S end
-  local c = n == 0 and RED or CREAM
+  local c = N.pulsed(rows == N.STIM and 'stims' or 'grenades', n == 0 and RED or CREAM)
   local p = rows == N.STIM and n == 0 and N.warn_stims or 1
   local drawn = tex_on and N.icon_texture(name, x, y, S, c, p, L_CUSTOM)
   if not drawn then
@@ -534,12 +611,8 @@ local function icon_el(rows, n, k, x, y, dry)
 end
 -- (1.5.18) the game's own icons of the weapon's mode and fire mode: squares of twice the stim's width (the sprites
 -- have a lot of padding), in a line or stacked (the fire mode first, under or right of it the ammo kind)
-function EL_DRAW.icons(e, k, d, x, y, dry)
-  if not d or not (cfg.mode_icons and cfg.mode_icons > 1) or not N.mode_icons then return nil end
-  local list = N.mode_icons()
-  if not list then return nil end
-  local cell = math.max(1, math.floor(1.6 * k + 0.5))
-  local tw = 2 * #N.STIM[1] * cell
+local function icon_list(e, k, list, x, y, dry)
+  local tw = N.icon_px(k)
   local gap = math.floor(4 * k)
   local n = #list
   local w, h
@@ -555,6 +628,33 @@ function EL_DRAW.icons(e, k, d, x, y, dry)
   N.mode_icons_said(cfg.mode_icons, keys)
   return w, h
 end
+local function without_zoom(list)
+  local out = {}
+  for _, it in ipairs(list) do if it.word ~= 'ZOOM' then out[#out + 1] = it end end
+  return out
+end
+-- (1.5.65) the zeroing icon on its own
+function EL_DRAW.zoomicon(e, k, d, x, y, dry)
+  if not d or not (cfg.mode_icons and cfg.mode_icons > 1) or not N.mode_icons then return nil end
+  local list = N.mode_icons()
+  if not list then return nil end
+  for _, it in ipairs(list) do if it.word == 'ZOOM' then return icon_list(e, k, { it }, x, y, dry) end end
+  return nil
+end
+-- (1.5.57) the icons apart, as the modes: icon1 the weapon mode's (the ammo kind, the underbarrel), icon2 the fire
+-- mode's and the zeroing; off unless a file turns them on
+local function icons_part(fire)
+  return function(e, k, d, x, y, dry)
+    if not d or not (cfg.mode_icons and cfg.mode_icons > 1) or not N.mode_icons then return nil end
+    local list = N.mode_icons()
+    if not list then return nil end
+    local part = {}
+    for _, it in ipairs(without_zoom(list)) do if N.FIRE_WORD(it.word or '') == fire then part[#part + 1] = it end end
+    if #part == 0 then return nil end
+    return icon_list(e, k, part, x, y, dry)
+  end
+end
+EL_DRAW.icon1, EL_DRAW.icon2 = icons_part(false), icons_part(true)
 function EL_DRAW.stims(e, k, d, x, y, dry, items)
   if not items or not cfg.show_stims then return nil end
   return icon_el(N.STIM, items.s, k, x, y, dry)
@@ -567,10 +667,27 @@ function EL_DRAW.pack(e, k, d, x, y, dry, items)
   if not items or not cfg.pack then return nil end
   local st = pack_state(items, d)
   if not st then return nil end
+  if not dry then N.edge_pulse('pack', st.f <= 0) st.c = N.pulsed('pack', st.c) end
   if curved(e) then
     local g, w, h = arc_geom(e, k)
-    if dry then return w, h end
-    arc_solid(g, x, y, st.f, col(st.c, st.a), math.max(1, math.floor(k * 0.8 + 0.5)), 45)
+    if dry then return w, h, g.cx, g.cy end
+    local lw = math.max(1, math.floor(k * 0.8 + 0.5))
+    local edge, shade = look_of(e)
+    if st.segs and st.segs >= 2 and g.len >= st.segs * 3 then
+      -- (1.5.48) a pack counted in uses: a tick a use along the arc, as the ammo bar's magazine ticks
+      local n, lit = st.segs, st.n or 0
+      local gapf = math.max(1, math.min(g.len / n * 0.45, 4 * k)) / math.max(1, g.len)
+      local segf = (1 + gapf) / n - gapf
+      for i = 0, n - 1 do
+        local f0 = i * (segf + gapf)
+        if i < lit then arc_piece(g, x, y, f0, f0 + segf, g.r_in, g.r_out, col(st.c, st.a), L_CUSTOM)
+        else arc_empty(g, x, y, f0, f0 + segf, 55, lw, edge, shade) end
+      end
+      if edge == 3 then arc_brackets(g, x, y, lw) end
+    else
+      arc_solid(g, x, y, N.ease('pack', st.f, 120), col(st.c, st.a), lw, 45, edge, shade)
+    end
+    arc_glow(g, x, y, 'pack')
     for _, m in ipairs(st.marks) do arc_mark(g, x, y, m[1], math.max(1, math.floor(2 * k)), col(m[2], 220)) end
     return w, h
   end
@@ -578,7 +695,11 @@ function EL_DRAW.pack(e, k, d, x, y, dry, items)
   local len, th = math.floor(e.length * k + 0.5), math.max(1, math.floor(e.thickness * k + 0.5))
   local w, h = vert and th or len, vert and len or th
   if dry then return w, h end
-  solid_bar(x, y, w, h, st.f, col(st.c, st.a), L_CUSTOM, math.max(1, math.floor(k * 0.8 + 0.5)), vert)
+  local edge, shade = look_of(e)
+  if not N.pack_ticks(st, x, y, w, h, vert, L_CUSTOM, k, edge, shade) then
+    solid_bar(x, y, w, h, N.ease('pack', st.f, 120), col(st.c, st.a), L_CUSTOM, math.max(1, math.floor(k * 0.8 + 0.5)), vert, edge, shade)
+  end
+  N.glow('pack', x, y, w, h, L_CUSTOM)
   for _, m in ipairs(st.marks) do
     local mw = math.max(1, math.floor(2 * k))
     if vert then chef.rect(x - 1, y + math.floor(h * m[1]), w + 2, mw, col(m[2], 220), L_CUSTOM + 2)
@@ -591,20 +712,23 @@ end
 -- in red, shrinking to it ("trail"). Health cream, orange from half, red from a quarter; stamina blue, orange when
 -- nearly out. Faint where it's empty, as the other bars.
 local STAMINA_C = { 130, 190, 235 }
-local function vital_bar(e, k, f, c, trail, x, y, dry)
+local function vital_bar(e, k, f, c, trail, x, y, dry, key)
   f = math.max(0, math.min(1, f))
+  if key and not dry then f = N.ease(key, f, 120) end
+  local edge, shade = look_of(e)
   if curved(e) then
     local g, w, h = arc_geom(e, k)
-    if dry then return w, h end
-    arc_solid(g, x, y, f, c, math.max(1, math.floor(k * 0.8 + 0.5)), 45)
+    if dry then return w, h, g.cx, g.cy end
+    arc_solid(g, x, y, f, c, math.max(1, math.floor(k * 0.8 + 0.5)), 45, edge, shade)
     if trail and trail > f then arc_piece(g, x, y, f, math.min(1, trail), g.r_in, g.r_out, col(RED, 170), L_CUSTOM + 1) end
+    if key then arc_glow(g, x, y, key) end
     return w, h
   end
   local vert = e.style ~= 'horizontal'
   local len, th = math.floor(e.length * k + 0.5), math.max(1, math.floor(e.thickness * k + 0.5))
   local w, h = vert and th or len, vert and len or th
   if dry then return w, h end
-  solid_bar(x, y, w, h, f, c, L_CUSTOM, math.max(1, math.floor(k * 0.8 + 0.5)), vert)
+  solid_bar(x, y, w, h, f, c, L_CUSTOM, math.max(1, math.floor(k * 0.8 + 0.5)), vert, edge, shade)
   if trail and trail > f then
     local a, b = math.floor(len * f + 0.5), math.floor(len * math.min(1, trail) + 0.5)
     if b > a then
@@ -612,39 +736,143 @@ local function vital_bar(e, k, f, c, trail, x, y, dry)
       else chef.rect(x + a, y, b - a, h, col(RED, 170), L_CUSTOM + 1) end
     end
   end
+  if key then N.glow(key, x, y, w, h, L_CUSTOM) end
   return w, h
 end
+-- (1.5.60: a bar its rule holds back (show_h / show_s at 0) keeps its place: measured, not drawn; one switched Off
+-- (cfg.health 1) is nil, as before)
 function EL_DRAW.health(e, k, d, x, y, dry, items, vit)
-  if not vit or not vit.hp or vit.show_h <= 0 then return nil end
+  if not vit or not vit.hp or (cfg.health or 1) == 1 then return nil end
   local f = vit.hp / math.max(1, vit.max)
   local c = f <= 0.25 and RED or (f <= 0.5 and WARN or CREAM)
+  if vit.show_h <= 0.01 then return vital_bar(e, k, f, col(c, 230), nil, x, y, true) end
   local a = N.alpha_k
   if not dry then N.alpha_k = a * vit.show_h * (vit.pulse_h or 1) end
-  local w, h = vital_bar(e, k, f, col(c, 230), vit.trail and vit.trail / math.max(1, vit.max), x, y, dry)
+  local w, h, acx, acy = vital_bar(e, k, f, col(c, 230), vit.trail and vit.trail / math.max(1, vit.max), x, y, dry, 'health')
   N.alpha_k = a
-  return w, h
+  return w, h, acx, acy   -- (1.5.76: the arc's centre too — dropped here, health and stamina lost their 'arc' align)
 end
 function EL_DRAW.stamina(e, k, d, x, y, dry, items, vit)
-  if not vit or not vit.st or vit.show_s <= 0 then return nil end
+  if not vit or not vit.st or (cfg.stamina or 1) == 1 then return nil end
+  if vit.show_s <= 0.01 then return vital_bar(e, k, vit.st, col(STAMINA_C, 220), nil, x, y, true) end
   local a = N.alpha_k
   if not dry then N.alpha_k = a * vit.show_s end
-  local w, h = vital_bar(e, k, vit.st, col(vit.st <= 0.2 and WARN or STAMINA_C, 220), nil, x, y, dry)
+  local w, h, acx, acy = vital_bar(e, k, vit.st, col(N.pulsed('stamina', vit.st <= 0.2 and WARN or STAMINA_C), 220), nil, x, y, dry, 'stamina')
   N.alpha_k = a
-  return w, h
+  return w, h, acx, acy
 end
 -- the stim timer: green, shrinking from full as the stim's effect runs out
 local STIM_C = { 120, 215, 140 }
 function EL_DRAW.stim(e, k, d, x, y, dry, items, vit)
   if not vit or not vit.stim then return nil end
-  return vital_bar(e, k, vit.stim, col(STIM_C, 225), nil, x, y, dry)
+  return vital_bar(e, k, vit.stim, col(STIM_C, 225), nil, x, y, dry, 'stim')
 end
 N.vital_bar, N.STAMINA_C, N.EL_DRAW = vital_bar, STAMINA_C, EL_DRAW
 
 -- (research log: each element's time, for the timing line)
 N.el_time = {}
 local el_clock = cfg.research and os and os.clock or nil
+-- (1.5.53) The layout engine. Every part's box is measured first (its draw function dry), then placed: a free part
+-- at its anchor plus x / y (plus F9's offsets and, by its side, the Spread), a pinned part from the box of the part
+-- it's after. The other pass's parts (vitals against the rest) count with their boxes from their last frame. A
+-- part that isn't drawn is a slot of no size where it would be, so what's pinned to it takes its place (no gap).
+-- A loop of pins (a after b after a) is broken at the part that closes it, which is placed free; logged once.
+local function side_of(e)
+  if e.side ~= 'auto' then return e.side end
+  if e.anchor ~= 'center' then return 'none' end
+  if e.x < -0.05 then return 'left' elseif e.x > 0.05 then return 'right' end
+  -- (1.5.76: an arc centred on the crosshair is on the side it bulges to)
+  if e.align == 'arc' then
+    if e.style == 'curved_right' then return 'right' elseif e.style == 'curved_left' then return 'left' end
+  end
+  local al = ALIGNS[e.align]
+  if al[1] == 1 then return 'left' elseif al[1] == 0 then return 'right' end
+  return 'none'
+end
+N.side_of = side_of
+local function resolve(els, w, h, sizes, last, offsets)
+  local boxes, visiting = {}, {}
+  local ox, oy = 0, 0
+  if offsets then ox, oy = w * (cfg.off_x or 0) / 100, h * (cfg.off_y or 0) / 100 end
+  -- (1.5.55: while aiming, the Aim spread eases in on top)
+  -- (1.5.59: 120 ms at Quick and at Normal alike — luka found Normal's 190 too slow for this one)
+  local spread = h * ((cfg.spread or 0) + N.ease('aimspread', N.aim_now and (cfg.aim_spread or 0) or 0, 120 / math.max(N.motion_scale(), 1))) / 100
+  local function free_point(e)
+    local an = ANCHORS[e.anchor]
+    local px = w * an[1] + h * e.x / 100 + ox
+    local sd = side_of(e)
+    if sd == 'left' then px = px - spread elseif sd == 'right' then px = px + spread end
+    return px, h * an[2] + h * e.y / 100 + oy
+  end
+  -- place(id): the part's box, cached. place(id, aw, ah): where the part would be if its size were aw x ah, not
+  -- cached — how a part pinned to a hidden part takes its place (1.5.73): it's put where the hidden part would be
+  -- with the follower's own size, so a 56 px icon pinned right of an empty icon with tops level sits where that
+  -- icon would, not 56 px down in the count (the hidden slot has no height to line up with). A chain of hidden
+  -- parts passes the size along.
+  local function place(id, aw, ah)
+    if not aw and boxes[id] then return boxes[id] end
+    local e = els[id]
+    local sz = sizes[id]
+    local ew, eh, hidden = 0, 0, true
+    if aw then ew, eh, hidden = aw, ah, false
+    elseif sz then ew, eh, hidden = sz[1], sz[2], false
+    elseif sz == nil and last[id] then ew, eh, hidden = last[id].w, last[id].h, false end
+    local al = ALIGNS[e.align]
+    local target = e.after ~= 'none' and e.after ~= id and els[e.after] and e.after or nil
+    if target and visiting[target] then
+      if not layout.loop_said then
+        layout.loop_said = true
+        log('layout: a loop of pins (%s after %s, and back): %s placed where its own x / y say', id, target, id)
+      end
+      target = nil
+    end
+    local x, y
+    if target then
+      visiting[id] = true
+      local tb = place(target)
+      if tb.hidden and not hidden then tb = place(target, ew, eh) end   -- (takes its place: see above)
+      visiting[id] = nil
+      local k = (h / 1440) * cfg.size * e.size
+      local gap = tb.hidden and 0 or math.floor(e.gap * k + 0.5)
+      -- (1.5.70: a pinned part's x / y nudges scale with Size and the part's size, as the gap does — luka's stims,
+      -- a gap and a nudge cancelling at Medium, drifted at Small; a free part's x / y are a place, not scaled)
+      local ns = (e.pin ~= 'none') and (cfg.size * e.size) or 1
+      local nx, ny = math.floor(h * e.x / 100 * ns + 0.5), math.floor(h * e.y / 100 * ns + 0.5)
+      if tb.hidden then x, y = tb.x, tb.y   -- (a hidden part with nothing to show at all, no last box: its point)
+      elseif tb.taken then x, y = tb.x, tb.y   -- (the hidden part's place, with this part's size)
+      elseif e.pin == 'none' then
+        local _, py = free_point(e)
+        x, y = tb.x + tb.w + gap, math.floor(py - eh * al[2] + 0.5)
+      elseif e.pin == 'right' then x, y = tb.x + tb.w + gap + nx, math.floor(tb.y + (tb.h - eh) * al[2] + 0.5) + ny
+      elseif e.pin == 'left' then x, y = tb.x - gap - ew + nx, math.floor(tb.y + (tb.h - eh) * al[2] + 0.5) + ny
+      elseif e.pin == 'above' then x, y = math.floor(tb.x + (tb.w - ew) * al[1] + 0.5) + nx, tb.y + tb.h + gap + ny
+      else x, y = math.floor(tb.x + (tb.w - ew) * al[1] + 0.5) + nx, tb.y - gap - eh + ny end
+    else
+      local px, py = free_point(e)
+      if e.align == 'arc' and sz and sz[3] and not aw then x, y = math.floor(px - sz[3] + 0.5), math.floor(py - sz[4] + 0.5)
+      else x, y = math.floor(px - ew * al[1] + 0.5), math.floor(py - eh * al[2] + 0.5) end
+    end
+    if not hidden then
+      x = math.max(0, math.min(x, w - ew))
+      y = math.max(0, math.min(y, h - eh))
+    end
+    if aw then return { x = x, y = y, w = ew, h = eh, hidden = false, taken = true } end
+    boxes[id] = { x = x, y = y, w = ew, h = eh, hidden = hidden }
+    return boxes[id]
+  end
+  for _, el in ipairs(ELEMENTS) do place(el.id) end
+  return boxes
+end
+N.resolve_layout = resolve
 -- (vitals: the health and stamina parts only, drawn on their own each frame; else every other part)
+-- (a part switched Off in F9 is off for good, not for a moment: no holding its place)
+local function f9_off(id)
+  local part = N.EL_PART and N.EL_PART[id]
+  if part and cfg.vis and cfg.vis[part] == 1 then return true end
+  return false
+end
 local function draw_custom(d, items, vitals)
+  L_CUSTOM = N.L0 + 905
   local w, h = chef.screen()
   if not w then return end
   local els, offsets = nil, nil
@@ -654,40 +882,77 @@ local function draw_custom(d, items, vitals)
     if not layout.els then load_layout('Custom chosen') end
     els, offsets = layout.els, layout.offsets
   end
+  cur = els
   local base = N.alpha_k
-  -- (each part's box, for one placed after it: this pass's parts from this frame, the other pass's from its last
-  -- frame, so health can follow the count and the other way round)
+  -- (each part's box, for the parts pinned to it: this pass's from this frame, the other pass's from its last frame)
   local drawn = layout.drawn or {}
   layout.drawn = drawn
-  for _, el in ipairs(ELEMENTS) do if (el.vitals == true) == (vitals ~= nil) then drawn[el.id] = nil end end
+  -- (1.5.72: the last size each part had, for the ones that hold their place while they have nothing to show;
+  -- forgotten with the layout)
+  if layout.held_els ~= els then layout.held, layout.held_els = {}, els end
+  local held, silent = layout.held, {}
+  local sizes, clocks = {}, {}
   for _, el in ipairs(ELEMENTS) do
-    local e = els[el.id]
-    local c0 = el_clock and el_clock()
-    if e.on and e.opacity > 0 and (el.vitals == true) == (vitals ~= nil) then
-      local k = (h / 1440) * cfg.size * e.size
-      local fn = EL_DRAW[el.id]
-      local ew, eh = fn(e, k, d, 0, 0, true, items, vitals)
-      if ew then
-        local an, al = ANCHORS[e.anchor], ALIGNS[e.align]
-        local ox, oy = 0, 0
-        if offsets then ox, oy = w * (cfg.off_x or 0) / 100, h * (cfg.off_y or 0) / 100 end
-        local px = w * an[1] + h * e.x / 100 + ox
-        local py = h * an[2] + h * e.y / 100 + oy
-        local x = math.floor(px - ew * al[1] + 0.5)
-        local y = math.floor(py - eh * al[2] + 0.5)
-        local prev = e.after ~= 'none' and drawn[e.after]
-        if prev then x = prev.x + prev.w + math.floor(e.gap * k + 0.5) end
-        x = math.max(0, math.min(x, w - ew))
-        y = math.max(0, math.min(y, h - eh))
-        N.alpha_k = base * e.opacity / 100
-        fn(e, k, d, x, y, false, items, vitals)
-        drawn[el.id] = { x = x, w = ew }
+    if (el.vitals == true) == (vitals ~= nil) then
+      drawn[el.id] = nil
+      local e = els[el.id]
+      sizes[el.id] = false
+      if e.on and e.opacity > 0 then
+        local c0 = el_clock and el_clock()
+        local k = (h / 1440) * cfg.size * e.size
+        local ew, eh, acx, acy = EL_DRAW[el.id](e, k, d, 0, 0, true, items, vitals)
+        if ew then sizes[el.id] = { ew, eh, acx, acy } held[el.id] = sizes[el.id]
+        elseif e.hold and held[el.id] and not f9_off(el.id) then sizes[el.id] = held[el.id] silent[el.id] = true end
+        if c0 then clocks[el.id] = el_clock() - c0 end
       end
     end
-    if c0 then N.el_time[el.id] = (N.el_time[el.id] or 0) + el_clock() - c0 end
   end
+  local boxes = resolve(els, w, h, sizes, drawn, offsets)
+  -- (tests: this pass's boxes, the other pass's kept as they were)
+  layout.boxes = layout.boxes or {}
+  for _, el in ipairs(ELEMENTS) do if (el.vitals == true) == (vitals ~= nil) then layout.boxes[el.id] = boxes[el.id] end end
+  -- (1.5.55) a part whose place changed slides there (150 ms; a move over a quarter of the screen snaps); one that
+  -- wasn't drawn last frame fades in (120 ms) where it is, no slide
+  local was = layout.was or {}
+  layout.was = was
+  local now = N.now or chef.time()
+  for _, el in ipairs(ELEMENTS) do
+    local sz = sizes[el.id]
+    if sz and silent[el.id] then
+      -- (holding its place: the slot stays for the parts pinned to it, nothing drawn; it fades in when it's back)
+      local b = boxes[el.id]
+      drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h }
+      b.held = true
+      was[el.id] = nil
+    elseif sz then
+      local e, b = els[el.id], boxes[el.id]
+      local c0 = el_clock and el_clock()
+      local k = (h / 1440) * cfg.size * e.size
+      local key = 'el:' .. el.id
+      local fade = 1
+      if not was[el.id] then
+        N.slide_reset(key)
+        was[el.id] = now
+      end
+      local age = now - was[el.id]
+      if age < 0.12 * N.motion_scale() then fade = age / (0.12 * N.motion_scale()) end
+      local sx, sy = N.slide(key, b.x, b.y, 150, h * 0.25)
+      -- (1.5.60: the part's Show rule, eased: held back, it keeps its place and isn't drawn (or is dimmed))
+      local rule = N.el_alpha(el.id)
+      N.alpha_k = base * e.opacity / 100 * fade * rule
+      if rule > 0.01 then EL_DRAW[el.id](e, k, d, sx, sy, false, items, vitals) end
+      drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h }
+      if c0 then clocks[el.id] = (clocks[el.id] or 0) + el_clock() - c0 end
+    elseif sizes[el.id] == false then
+      was[el.id] = nil
+    end
+  end
+  if el_clock then for id, t in pairs(clocks) do N.el_time[id] = (N.el_time[id] or 0) + t end end
   N.alpha_k = base
 end
 
 
 N.layout, N.load_layout, N.draw_custom = layout, load_layout, draw_custom
+-- (2.0: every layout is a layout; the Under and Beside modules that drew the old positions by hand are gone)
+N.draw = function(d, items) return draw_custom(d, items) end
+N.draw_vitals = function(vit) return draw_custom(nil, nil, vit) end

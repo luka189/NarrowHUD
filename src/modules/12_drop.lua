@@ -29,7 +29,7 @@ local CONVERGE = 100                              -- metres along the camera's l
 local hand_of = { u = nil, node = nil }
 
 -- the flight of one projectile from (0, 0, 0) along a unit direction (dx, dy, dz): the points every POINT_EVERY
--- metres of path, up to len metres of path or 8 s; cached per type and direction's pitch (the path only depends
+-- metres of path, up to len metres of path or 24 s; cached per type and direction's pitch (the path only depends
 -- on the pitch, so the cache holds one flight per weapon per 0.5 degree of pitch)
 local function fly(b, pitch, len)
   local r = b.d * 0.0005
@@ -42,7 +42,10 @@ local function fly(b, pitch, len)
   local pts, path, next_pt, t = {}, 0, 0, 0
   local first = start_hand(b)
   local dir_at = math.atan2(vz, vx)                -- the flight's direction at the last point
-  while path < len and t < 8 do
+  -- (24 s, not 8 (1.5.40): a grenade launcher's round at 100 m/s has 218 m of path in 8 s, so "Drop line length
+  -- 300" stopped at 218 for every launcher, a Nexus report; the flight is cached per half degree, so the extra
+  -- steps cost nothing a frame)
+  while path < len and t < 24 do
     local dir = math.atan2(vz, vx)
     if path >= next_pt or (#pts > 1 and math.abs(dir - dir_at) >= TURN) then
       pts[#pts + 1] = { x, z, path }

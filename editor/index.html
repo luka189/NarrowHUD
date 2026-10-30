@@ -113,6 +113,15 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .btn:disabled:hover { border-color: var(--line); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.06); }
+dialog#help { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: var(--r); padding: 0; width: min(760px, 92vw); max-height: 88vh; }
+dialog#help::backdrop { background: rgba(0, 0, 0, 0.55); }
+.helpbox { display: flex; flex-direction: column; max-height: 88vh; }
+.helphead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.helphead h2 { margin: 0; }
+.helpbody { overflow: auto; padding: 4px 16px 16px; font-size: 14px; line-height: 1.45; }
+.helpbody h3 { margin: 16px 0 4px; font-size: 15px; }
+.helpbody p, .helpbody ol { margin: 6px 0; }
+.helpbody code { font-size: 12px; }
 
 .els { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 8px; }
 .els li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 4px; cursor: pointer; user-select: none; }
@@ -170,10 +179,52 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
 <header class="top">
   <div class="brand">
     <h1>NarrowHUD Layout Editor</h1>
-    <span class="tag">LAYOUT FILE v1 · NARROWHUD 1.0.6+</span>
+    <span class="tag">LAYOUT FILE v1 · NARROWHUD 2.0+</span>
   </div>
-  <p class="lead">Drag the parts around the screen (arrow keys nudge the picked one; Ctrl+Z undoes), then copy the file into the game's folder. A screenshot of your game, picked, dropped or pasted, goes behind the parts.</p>
+  <p class="lead">Drag the parts around the screen (arrow keys nudge the picked one; Ctrl+Z undoes), then copy the file into the game's folder. A screenshot of your game, picked, dropped or pasted, goes behind the parts.
+    <button class="btn" type="button" id="helpbtn" style="margin-left:10px;font-size:13px;padding:4px 10px">Help</button></p>
 </header>
+
+<dialog id="help" aria-labelledby="helptitle">
+  <div class="helpbox">
+    <div class="helphead"><h2 id="helptitle">How the editor works</h2><button class="btn" type="button" id="helpclose">Close</button></div>
+    <div class="helpbody">
+      <h3>The idea</h3>
+      <p>A layout is a list of <b>parts</b> (the bar, the count, the magazines, the modes and their icons, stims, grenades, the backpack, health, stamina, the stim timer). Every part is either <b>free</b> (placed at a point on the screen) or <b>pinned</b> to another part (placed against it). Pinned parts are what make a layout hold together: hide a part and the one pinned to it takes its place; change Size and the group keeps its shape.</p>
+
+      <h3>Free parts</h3>
+      <p>A free part has an <b>anchor</b> (a point of the screen: the centre, an edge, a corner), <b>x</b> and <b>y</b> from that anchor in % of the screen's height (+ right, + up, so the same numbers work at every resolution), and an <b>align</b>: which point of the part sits on that spot. Drag it where you want it; the grid snaps the drop to 0.1 / 0.2 / 0.5 % (Alt for finer steps, Off for none).</p>
+
+      <h3>Pinned parts</h3>
+      <p>A pinned part has <b>after</b> (the part it follows), a <b>pin</b> (right of it, left of it, above or below), a <b>gap</b> in pixels between the two, and an <b>align</b> that says which edges line up: for right / left pins, bottoms, tops or middles; for above / below, left edges, right edges or centres. <b>x</b> and <b>y</b> are then small nudges from that spot. The gap and the nudges scale with Size, so the group looks the same at Small and Huge.</p>
+      <p>The quickest way to pin: drag a free part close to another part's edge with <b>snap</b> on — a green line shows the edge it will pin to, and the readout says "drop: pinned right of bar". Hold <b>Ctrl</b> while dragging to drop without pinning. Dragging a pinned part along its pin changes the gap; across it, the nudge. The arrow keys do the same in grid steps. "After: Nothing" in the fields unpins it, keeping its place.</p>
+      <p><b>To follow an edge cleanly</b> (say, the stims under the bar's left end): pin <i>below</i> the bar with a <i>*_left</i> align and a gap of 8 — no x nudge. A gap and a nudge that cancel each other only look right at one Size.</p>
+      <p>A part pinned to a hidden part (off, or nothing to show: no backpack, a rifle with no charge meter) takes that part's place: the gap collapses to 0 — unless the hidden part <b>holds its place</b>: then its slot stays while it has nothing to show for the moment (the weapon put away, a stratagem ball in hand), and the parts pinned to it don't move. The ammo bar, the count, health and stamina hold by default (they only vanish for a moment); the parts a weapon may not have — the magazines, the charge meter, the modes, the backpack — give their place away. A loop of pins (a after b after a) can't be resolved; the editor says so and places the last one on its own.</p>
+
+      <h3>Bars</h3>
+      <p>The ammo bar, the charge meter, the backpack, health, stamina and the stim timer are bars: horizontal, vertical or curved (a "(" or a ")", with a radius), with a length and a thickness in pixels at 1440p Medium. Each can have its own <b>edge</b> (none, an outline, or the game's brackets) and <b>shade</b> (the faint empty part), or follow F9's choice (auto).</p>
+      <p><b>Arcs around the crosshair:</b> give each curved bar the align <b>Arc centre</b> (the button under the align pad) with the centre anchor and x / y 0. The arc's own centre then sits on the crosshair, so arcs of different radii stay concentric at every Size — pinning their boxes to each other can't do that, since a box grows with its radius. Space them by radius: the next arc's outer edge 8 px inside the last one's inner edge (radius ± half the thickness), and keep the same length-to-radius ratio for the same sweep.</p>
+
+      <h3>Sides and Spread</h3>
+      <p>F9's Spread slider moves the parts left of the crosshair left and the parts right of it right. A part's <b>side</b> is auto (by where it sits), or set by hand; <i>none</i> keeps it still (health bars under the crosshair, say).</p>
+
+      <h3>Seeing it</h3>
+      <p>Pick a <b>weapon</b> sample to see how each kind looks (a magazine, a heat weapon, a charge weapon, a sniper with zeroing, every part at once), and a <b>fill</b> to see the bars at any level. Put a screenshot of your game behind the parts (pick, drop or paste one) and choose your screen's shape. Zoom in on the picked part for fine work (Space held or the middle button pans). The preview options show the look as F9 would set it (Size, edges, shade, Spread, colours). Which parts show when is F9's business (the Show rules), not the layout's: the layout says where.</p>
+
+      <h3>Getting it into the game</h3>
+      <ol>
+        <li><b>Copy the file</b> (or Download it).</li>
+        <li>In the game: F9 › NarrowHUD › <b>Layout: Custom layout</b> — NarrowHUD writes a layout file the first time.</li>
+        <li>Replace that file's text: <code>%APPDATA%\Arrowhead\Helldivers2\chef_data_luka189_2fnarrowhud__layout.lua</code> (the one ending in <b>__layout.lua</b>; the <b>__learned.lua</b> next to it is NarrowHUD's own).</li>
+        <li>Press the key set in F9 under <b>Keys: reload layout file</b>, or start a mission.</li>
+      </ol>
+      <p><b>Copy a link to this layout</b> puts the whole layout in a link: open it here and the layout is back, so you can share one or keep it as a bookmark. "Open a file…" or the paste box bring a file you have back in. The presets are starting points; Ctrl+Z / Ctrl+Y undo and redo.</p>
+
+      <h3>Keys</h3>
+      <p>Arrow keys: nudge (Shift: 1 %). Shift+click or a drag-box: several parts at once. Ctrl while dragging: no snap. Alt while dragging: finer grid. Space or the middle button: pan when zoomed. Ctrl+Z / Ctrl+Y: undo / redo. Esc: close this.</p>
+    </div>
+  </div>
+</dialog>
 
 <div class="work">
   <section class="stage" aria-label="Screen preview">
@@ -188,6 +239,13 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
       </select>
       <label for="sample">Weapon</label>
       <select id="sample"></select>
+      <span class="rowlabel" id="gridlbl">Grid</span>
+      <div class="seg" id="grid" role="group" aria-labelledby="gridlbl" title="Dragging and the arrow keys land on multiples of this (% of the screen's height); hold Alt for free movement">
+        <button type="button" data-g="0.1" aria-pressed="false">0.1</button>
+        <button type="button" data-g="0.2" aria-pressed="true">0.2</button>
+        <button type="button" data-g="0.5" aria-pressed="false">0.5</button>
+        <button type="button" data-g="0" aria-pressed="false">Off</button>
+      </div>
       <span class="rowlabel" id="zoomlbl">Zoom</span>
       <div class="seg" id="zoom" role="group" aria-labelledby="zoomlbl">
         <button type="button" data-z="1" aria-pressed="true">Whole screen</button>
@@ -220,7 +278,12 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
       <label class="chk"><input type="checkbox" id="o-useoff"> F9's offsets move this layout <span class="muted">(saved in the file)</span></label>
       <label class="chk" for="o-offx">Offset ←→ <input type="number" id="o-offx" min="-50" max="50" step="0.5" value="0" style="width:64px"> %</label>
       <label class="chk" for="o-offy">Offset ↓↑ <input type="number" id="o-offy" min="-50" max="50" step="0.5" value="0" style="width:64px"> %</label>
-      <label class="chk"><input type="checkbox" id="o-outline"> Empty parts as outlines</label>
+      <label class="chk" for="o-edge">Bar edges
+        <select id="o-edge"><option value="1" selected>None</option><option value="2">Outline</option><option value="3">Brackets</option></select>
+      </label>
+      <label class="chk"><input type="checkbox" id="o-shade" checked> Shade behind the bars</label>
+      <label class="chk" for="o-spread">Spread <input type="number" id="o-spread" min="-30" max="30" step="0.5" value="0" style="width:64px"> % <span class="muted">(the two sides closer or farther apart)</span></label>
+      <label class="chk"><input type="checkbox" id="o-snap" checked> Snap to parts when dragging <span class="muted">(pins them; hold Ctrl while dragging not to)</span></label>
       <label class="chk"><input type="checkbox" id="o-modecol"> Modes in their own colours</label>
       <label class="chk"><input type="checkbox" id="o-cb"> Colourblind colours</label>
       <label class="chk"><input type="checkbox" id="o-guides" checked> Anchor points</label>
@@ -252,6 +315,7 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
     <div class="actions">
       <button class="btn primary" id="copy">Copy the file</button>
       <button class="btn" id="download" hidden>Download</button>
+      <button class="btn" type="button" id="share" title="A link that opens this editor with this layout in it, to share">Copy a link to this layout</button>
       <span class="status" id="copystat"></span>
     </div>
     <pre id="out" tabindex="0" aria-label="The layout file's text"></pre>
@@ -259,12 +323,12 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
   <div class="card">
     <h2>Put it in the game</h2>
     <ol class="steps">
-      <li>In the game, press <b>F9</b> › NarrowHUD › <b>Position: Custom</b>. NarrowHUD writes a layout file the first time.</li>
+      <li>In the game, press <b>F9</b> › NarrowHUD › <b>Layout: Custom layout</b>. NarrowHUD writes a layout file the first time.</li>
       <li>Open <code>%APPDATA%\Arrowhead\Helldivers2</code> (paste it into File Explorer's address bar) and open
         <code id="fname">chef_data_luka189_2fnarrowhud__layout.lua</code> <button class="btn" type="button" id="copyname" style="font-size:12px;padding:2px 8px">Copy the name</button> in Notepad.
         <div class="warnbox">The one ending in <b>__layout.lua</b>, not <b>__learned.lua</b> next to it: that's what NarrowHUD has learned about your weapons, and it rewrites it while you play.</div></li>
       <li>Replace everything in it with the copied file and save (Ctrl+S, not "Save as": Notepad can make it <b>…layout.lua.txt</b>, which the game never reads; File Explorer's View › File name extensions shows it).</li>
-      <li>Back in the game, press the key set in F9 under <b>Read the layout file again</b> (it has no key until you pick one; "layout file read again" shows on screen when it works), or start a mission.</li>
+      <li>Back in the game, press the key set in F9 under <b>Keys: reload layout file</b> (it has no key until you pick one; "layout file read again" shows on screen when it works), or start a mission.</li>
     </ol>
     <h2 style="margin-top:16px">Edit a file you have</h2>
     <div class="actions">
@@ -282,123 +346,143 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
 // (as src/modules/10_custom.lua in NarrowHUD: the same fields, ranges, defaults and drawing)
 const ANCHORS = { center: [0.5, 0.5], top: [0.5, 1], bottom: [0.5, 0], left: [0, 0.5], right: [1, 0.5],
   top_left: [0, 1], top_right: [1, 1], bottom_left: [0, 0], bottom_right: [1, 0] };
-const ALIGNS = ANCHORS;
+const ALIGNS = Object.assign({ arc: [0.5, 0.5] }, ANCHORS);   // (arc: a curved bar's own centre on the anchor; 1.5.74)
 const GRID9 = ['top_left', 'top', 'top_right', 'left', 'center', 'right', 'bottom_left', 'bottom', 'bottom_right'];
 const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right'];
 const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
   y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
   opacity: ['number', 100, 0, 100],
-  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'modes', 'icons', 'rpm', 'stims', 'grenades', 'pack', 'health', 'stamina', 'stim']],
-  gap: ['number', 8, -500, 500] };
+  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'rpm', 'stims', 'grenades', 'pack', 'health', 'stamina', 'stim', 'mode1', 'mode2', 'icon1', 'icon2', 'zoom', 'zoomicon']],
+  gap: ['number', 8, -500, 500],
+  // (1.5.53) pin: how a part sits against the one it's after: none the old way (x from that part's right edge, y its
+  // own), else its whole place from that part's box, on that side; side: left or right of the crosshair, for F9's Spread
+  pin: ['choice', 'none', ['none', 'right', 'left', 'above', 'below']],
+  side: ['choice', 'auto', ['auto', 'none', 'left', 'right']],
+  // (1.5.72) hold: a part with nothing to show for the moment keeps its place, so the parts pinned to it stay
+  hold: ['boolean', false] };
+const BAR_LOOK = { edge: ['choice', 'auto', ['auto', 'none', 'outline', 'brackets']], shade: ['choice', 'auto', ['auto', 'on', 'off']] };
 const ELEMENTS = [
   { id: 'bar', name: 'Ammo / heat bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], fill: ['choice', 'auto', ['auto', 'ticks', 'solid']],
-      length: ['number', 260, 10, 2000], radius: ['number', 150, 10, 2000], thickness: ['number', 14, 1, 200], ticks_max: ['number', 30, 1, 200] } },
+      length: ['number', 260, 10, 2000], radius: ['number', 150, 10, 2000], thickness: ['number', 14, 1, 200], ticks_max: ['number', 30, 1, 200], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'charge', name: 'Charge meter', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
-      thickness: ['number', 4, 1, 200], radius: ['number', 150, 10, 2000] } },
+      thickness: ['number', 4, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'count', name: 'Count', fields: {} },
   { id: 'mags', name: 'Spare magazines', fields: { style: ['choice', 'number', ['number', 'squares']], empty: ['choice', 'shown', ['shown', 'hidden']],
       divider: ['boolean', false] } },
-  { id: 'modes', name: 'Modes', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
-  { id: 'icons', name: 'Mode icons', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
+  // (1.5.54) the modes as two parts, to pin apart (1.5.66: the grouped "Modes" part is gone)
+  { id: 'mode1', name: 'Weapon mode', fields: {} },
+  { id: 'mode2', name: 'Fire mode', fields: {} },
+  // (1.5.65) the scope's zeroing on its own, text and icon (1.5.69: parts like any other; the fire mode never carries it)
+  { id: 'zoom', name: 'Zeroing text', fields: {} },
+  { id: 'zoomicon', name: 'Zeroing icon', fields: {} },
+  // (1.5.57) the icons apart: the weapon mode's and the fire mode's (with the zeroing); (1.5.66: the grouped "Mode icons" part is gone)
+  { id: 'icon1', name: 'Weapon mode icon', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
+  { id: 'icon2', name: 'Fire mode icon', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
   { id: 'rpm', name: 'Rate of fire', fields: {} },
   { id: 'stims', name: 'Stims', fields: {} },
   { id: 'grenades', name: 'Grenades', fields: {} },
   { id: 'pack', name: 'Backpack bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 120, 10, 2000],
-      thickness: ['number', 7, 1, 200], radius: ['number', 150, 10, 2000] } },
+      thickness: ['number', 7, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'health', name: 'Health bar', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
-      thickness: ['number', 5, 1, 200], radius: ['number', 150, 10, 2000] } },
+      thickness: ['number', 5, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'stamina', name: 'Stamina bar', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
-      thickness: ['number', 3, 1, 200], radius: ['number', 150, 10, 2000] } },
+      thickness: ['number', 3, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'stim', name: 'Stim timer', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
-      thickness: ['number', 3, 1, 200], radius: ['number', 150, 10, 2000] } },
+      thickness: ['number', 3, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
 ];
 const BY_ID = Object.fromEntries(ELEMENTS.map(e => [e.id, e]));
 const UNDER = { _v: 1, elements: {
-  bar: { anchor: 'center', x: 0, y: -9, align: 'bottom' },
+  bar: { anchor: 'center', x: 0, y: -9, align: 'bottom', hold: true },
   charge: { anchor: 'center', x: 0, y: -7.75, align: 'bottom' },
-  count: { anchor: 'center', x: 9.9, y: -8.5, align: 'left' },
-  mags: { anchor: 'center', x: 13.3, y: -9.47, align: 'bottom_left', divider: true, after: 'count', gap: 8 },
-  modes: { anchor: 'center', x: -9.7, y: -8.5, align: 'right' },
-  icons: { anchor: 'center', x: -9.4, y: -9.6, align: 'top_right' },
-  rpm: { anchor: 'center', x: 9.9, y: -9.9, align: 'top_left' },
+  count: { anchor: 'center', x: 9.9, y: -8.5, align: 'left', hold: true },
+  mags: { anchor: 'center', x: 0, y: 0, align: 'bottom_left', divider: true, after: 'count', pin: 'right', gap: 8 },
+  zoom: { anchor: 'center', x: -9.7, y: -8.5, align: 'right' },
+  mode2: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoom', pin: 'left', gap: 8 },
+  mode1: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'mode2', pin: 'left', gap: 8 },
+  zoomicon: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoom', pin: 'below', gap: 2 },
+  icon2: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoomicon', pin: 'left', gap: 4 },
+  icon1: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'icon2', pin: 'left', gap: 4 },
+  rpm: { anchor: 'center', x: 0, y: 0, align: 'bottom_left', after: 'count', pin: 'below', gap: 6 },
   stims: { anchor: 'center', x: -9, y: -9.6, align: 'top_left' },
-  grenades: { anchor: 'center', x: -4.6, y: -9.6, align: 'top_left' },
+  grenades: { anchor: 'center', x: 0, y: 0, align: 'top_left', after: 'stims', pin: 'right', gap: 8 },
   pack: { anchor: 'center', x: -0.4, y: -10.6, align: 'left', length: 135 },
-  health: { anchor: 'center', x: 0, y: -7.33, align: 'bottom' },
-  stamina: { anchor: 'center', x: 0, y: -6.78, align: 'bottom' },
+  health: { anchor: 'center', x: 0, y: -7.33, align: 'bottom', hold: true },
+  stamina: { anchor: 'center', x: 0, y: -6.78, align: 'bottom', hold: true },
   stim: { anchor: 'center', x: 0, y: -6.36, align: 'bottom' } } };
 const PRESETS = [
-  { name: 'Under the crosshair', note: 'The mod\'s default look', t: UNDER },
-  { name: 'Curved pair', note: 'As F9\'s Position: Curved pair: a ) bar right of the crosshair, the backpack as a ( on the left', t: { _v: 1, elements: {
-  bar: { anchor: 'center', x: 6, y: 0, align: 'left', style: 'curved_right', fill: 'auto', length: 300, radius: 160, thickness: 10 },
-  charge: { anchor: 'center', x: 6.78, y: 0, align: 'left', style: 'curved_right', length: 330, radius: 176, thickness: 4 },
-  count: { anchor: 'center', x: 9.7, y: -8.4, align: 'top_left' },
-  mags: { anchor: 'center', x: 9.7, y: -10.6, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'none' },
-  modes: { anchor: 'center', x: 10.6, y: 8, align: 'bottom_left', style: 'stacked' },
-  icons: { anchor: 'center', x: 15.8, y: 8, align: 'bottom_left', style: 'stacked' },
-  rpm: { anchor: 'center', x: 10.6, y: 11.4, align: 'bottom_left' },
-  stims: { anchor: 'center', x: -4.7, y: -9.2, align: 'top_right' },
-  grenades: { anchor: 'center', x: -8.7, y: -9.2, align: 'top_right' },
-  pack: { anchor: 'center', x: -6, y: 0, align: 'right', style: 'curved_left', length: 240, radius: 160, thickness: 8 },
-  health: { anchor: 'center', x: 0, y: -12, align: 'top', style: 'horizontal', length: 220, thickness: 5 },
-  stamina: { anchor: 'center', x: 0, y: -12.7, align: 'top', style: 'horizontal', length: 220, thickness: 3 },
-  stim: { anchor: 'center', x: 0, y: -13.2, align: 'top', style: 'horizontal', length: 220, thickness: 3 } } } },
-  { name: 'Preview 1 (horizontal stack)', note: 'As F9\'s Position: Preview 1: the bars stacked under the crosshair, 8 px apart', t: { _v: 1, elements: {
-  bar: { anchor: 'center', x: 0, y: -11, align: 'bottom', style: 'horizontal', fill: 'auto', length: 260, thickness: 11 },
-  charge: { anchor: 'center', x: 0, y: -9.68, align: 'bottom', style: 'horizontal', length: 260, thickness: 4 },
-  health: { anchor: 'center', x: 0, y: -8.85, align: 'bottom', style: 'horizontal', length: 260, thickness: 7 },
-  stamina: { anchor: 'center', x: 0, y: -7.8, align: 'bottom', style: 'horizontal', length: 260, thickness: 4 },
-  pack: { anchor: 'center', x: 0.28, y: -11.9, align: 'bottom_left', style: 'horizontal', length: 126, thickness: 5 },
-  stim: { anchor: 'center', x: 0.28, y: -12.8, align: 'bottom_left', style: 'horizontal', length: 126, thickness: 5 },
-  count: { anchor: 'center', x: 10.1, y: -10.62, align: 'left' },
-  mags: { anchor: 'center', x: 13.3, y: -11.27, align: 'bottom_left', style: 'number', empty: 'shown', divider: true, after: 'count', gap: 8 },
-  rpm: { anchor: 'center', x: 10.1, y: -11.7, align: 'top_left' },
-  modes: { anchor: 'center', x: -10.1, y: -10.62, align: 'right', style: 'line' },
-  icons: { anchor: 'center', x: -10.1, y: -11.7, align: 'top_right', style: 'line' },
-  stims: { anchor: 'center', x: -9, y: -11.56, align: 'top_left' },
-  grenades: { anchor: 'center', x: -5.6, y: -11.56, align: 'top_left' } } } },
-  { name: 'Preview 2 (compact block)', note: 'As F9\'s Position: Preview 2: one block right of the crosshair, the short standing ammo bar its spine', t: { _v: 1, elements: {
-  bar: { anchor: 'center', x: 10.7, y: -2.2, align: 'bottom_left', style: 'vertical', fill: 'auto', length: 107, thickness: 11 },
-  charge: { anchor: 'center', x: 10.14, y: -2.2, align: 'bottom_right', style: 'vertical', length: 107, thickness: 4 },
-  icons: { anchor: 'center', x: 12.1, y: 5.5, align: 'top_left', style: 'line' },
-  modes: { anchor: 'center', x: 15, y: 5.5, align: 'top_left', style: 'line', after: 'icons', gap: 8 },
-  rpm: { anchor: 'center', x: 12.1, y: 3.73, align: 'top_left' },
-  count: { anchor: 'center', x: 12.1, y: 0.4, align: 'bottom_left' },
-  mags: { anchor: 'center', x: 12.9, y: 1.5, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'count', gap: 8 },
-  stims: { anchor: 'center', x: 12.1, y: -0.15, align: 'top_left' },
-  grenades: { anchor: 'center', x: 15, y: -0.15, align: 'top_left' },
-  stamina: { anchor: 'center', x: 9.86, y: -3.03, align: 'bottom_left', style: 'horizontal', length: 128, thickness: 4 },
-  health: { anchor: 'center', x: 9.86, y: -4.08, align: 'bottom_left', style: 'horizontal', length: 128, thickness: 7 },
-  pack: { anchor: 'center', x: 9.86, y: -4.98, align: 'bottom_left', style: 'horizontal', length: 60, thickness: 5 },
-  stim: { anchor: 'center', x: 18.75, y: -4.98, align: 'bottom_right', style: 'horizontal', length: 60, thickness: 5 } } } },
-  { name: 'Preview 3 (curved pair)', note: 'As F9\'s Position: Preview 3: arcs centred on the crosshair, the meters outside, the backpack and stim timer inside', t: { _v: 1, elements: {
-  bar: { anchor: 'center', x: 6.35, y: 0, align: 'left', style: 'curved_right', fill: 'auto', length: 300, radius: 160, thickness: 11 },
-  charge: { anchor: 'center', x: 7.15, y: 0, align: 'left', style: 'curved_right', length: 330, radius: 176, thickness: 4 },
-  pack: { anchor: 'center', x: 9.24, y: 0, align: 'left', style: 'curved_right', length: 100, radius: 144, thickness: 5 },
-  count: { anchor: 'center', x: 11.3, y: -7.3, align: 'top_left' },
-  mags: { anchor: 'center', x: 11.3, y: -9.5, align: 'top_left', style: 'number', empty: 'shown', divider: false, after: 'none' },
-  modes: { anchor: 'center', x: 11.3, y: 7.3, align: 'bottom_left', style: 'stacked' },
-  rpm: { anchor: 'center', x: 11.3, y: 10.1, align: 'bottom_left' },
-  icons: { anchor: 'center', x: 13.7, y: 0, align: 'center', style: 'stacked' },
-  stims: { anchor: 'center', x: -1.8, y: -8.6, align: 'center' },
-  grenades: { anchor: 'center', x: 1.8, y: -8.6, align: 'center' },
-  health: { anchor: 'center', x: -6.43, y: 0, align: 'right', style: 'curved_left', length: 300, radius: 160, thickness: 7 },
-  stamina: { anchor: 'center', x: -7.07, y: 0, align: 'right', style: 'curved_left', length: 326, radius: 174, thickness: 4 },
-  stim: { anchor: 'center', x: -9.24, y: 0, align: 'right', style: 'curved_left', length: 100, radius: 144, thickness: 5 } } } },
-  { name: 'Preview 4 (vertical pair)', note: 'As F9\'s Position: Preview 4: the ammo bar standing right of the crosshair, health on the left, the meters outside', t: { _v: 1, elements: {
-  bar: { anchor: 'center', x: 7.6, y: -6.5, align: 'bottom_left', style: 'vertical', fill: 'auto', length: 190, thickness: 11 },
-  charge: { anchor: 'center', x: 9.2, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 4 },
-  pack: { anchor: 'center', x: 6.6, y: 2.8, align: 'top_left', style: 'vertical', length: 80, thickness: 5 },
-  count: { anchor: 'center', x: 9.8, y: -7.6, align: 'bottom_left' },
-  mags: { anchor: 'center', x: 14.33, y: -6.69, align: 'center', style: 'number', empty: 'shown', divider: true, after: 'count', gap: 6 },
-  rpm: { anchor: 'center', x: 9.8, y: -4.9, align: 'bottom_left' },
-  modes: { anchor: 'center', x: 9.8, y: 7.6, align: 'top_left', style: 'stacked' },
-  icons: { anchor: 'center', x: 9.4, y: 4.5, align: 'top_left', style: 'stacked' },
-  stims: { anchor: 'center', x: -1.0, y: -8.1, align: 'top_right' },
-  grenades: { anchor: 'center', x: 1.0, y: -8.1, align: 'top_left' },
-  health: { anchor: 'center', x: -7.6, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 7 },
-  stamina: { anchor: 'center', x: -8.64, y: -6.5, align: 'bottom_right', style: 'vertical', length: 190, thickness: 4 },
-  stim: { anchor: 'center', x: -6.6, y: 2.8, align: 'top_right', style: 'vertical', length: 80, thickness: 5 } } } },
+  // (2.0: the mod's four built-in layouts, as F9's Layout row has them; tools/sync_presets.py keeps them the mod's)
+  { name: 'Horizontal', note: 'As F9\'s Layout: Horizontal: the bars stacked under the crosshair', t: { _v: 1, elements: {
+  bar: { on: true, anchor: 'center', x: 0, y: -12.2, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', style: 'horizontal', fill: 'auto', length: 260, radius: 150, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
+  charge: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'above', side: 'auto', style: 'horizontal', length: 260, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
+  count: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'right', side: 'auto' },
+  mags: { on: true, anchor: 'center', x: 0, y: 0.3, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'right', side: 'auto', style: 'number', empty: 'shown', divider: true },
+  mode1: { on: false, anchor: 'center', x: 0, y: 0, align: 'right', size: 1, opacity: 100, after: 'mode2', gap: 8, pin: 'left', side: 'auto' },
+  mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'right', size: 1, opacity: 100, after: 'zoom', gap: 8, pin: 'left', side: 'auto' },
+  zoom: { on: false, anchor: 'center', x: -10.1, y: -10.62, align: 'right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto' },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: -2, pin: 'right', side: 'auto' },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'left', side: 'auto', style: 'line' },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 1, pin: 'left', side: 'auto', style: 'line' },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 2, pin: 'below', side: 'auto' },
+  stims: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto' },
+  grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
+  pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 126, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
+  health: { on: true, anchor: 'center', x: 0, y: -10, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', style: 'horizontal', length: 260, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
+  stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'above', side: 'auto', style: 'horizontal', length: 260, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
+  stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'pack', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 126, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' } } } },
+  { name: 'Arcs', note: 'As F9\'s Layout: Arcs: arcs centred on the crosshair, the meters and the backpack inside', t: { _v: 1, elements: {
+  bar: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'curved_right', fill: 'auto', length: 225, radius: 120, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
+  charge: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_right', length: 196, thickness: 4, radius: 104.5, edge: 'auto', shade: 'auto' },
+  count: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: -7, pin: 'right', side: 'auto', hold: false },
+  mags: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 4, pin: 'below', side: 'auto', hold: false, style: 'number', empty: 'shown', divider: false },
+  mode1: { on: false, anchor: 'center', x: 0, y: 0.5, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 14, pin: 'right', side: 'auto', hold: false },
+  mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 4, pin: 'below', side: 'auto', hold: false },
+  zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'below', side: 'auto', hold: false },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'above', side: 'auto', hold: false, style: 'line' },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: -6, pin: 'right', side: 'auto', hold: false, style: 'line' },
+  rpm: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: -15, pin: 'right', side: 'auto', hold: false },
+  stims: { on: true, anchor: 'center', x: -1.35, y: -6.45, align: 'center', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
+  grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'stims', gap: 10, pin: 'right', side: 'none', hold: false },
+  pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_right', length: 75, thickness: 5, radius: 92, edge: 'auto', shade: 'auto' },
+  health: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'curved_left', length: 225, thickness: 7, radius: 120, edge: 'auto', shade: 'auto' },
+  stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_left', length: 200, thickness: 4, radius: 106.5, edge: 'auto', shade: 'auto' },
+  stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_left', length: 77, thickness: 5, radius: 94, edge: 'auto', shade: 'auto' } } } },
+  { name: 'Vertical pair', note: 'As F9\'s Layout: Vertical pair: the ammo bar standing right of the crosshair, health on the left, the meters and the backpack inside', t: { _v: 1, elements: {
+  bar: { on: true, anchor: 'center', x: 7.6, y: 0, align: 'left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'vertical', fill: 'auto', length: 190, radius: 150, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
+  charge: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'left', side: 'auto', hold: false, style: 'vertical', length: 190, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
+  pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 20, pin: 'left', side: 'auto', hold: false, style: 'vertical', length: 80, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
+  count: { on: true, anchor: 'center', x: 0, y: -0.9, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 9, pin: 'right', side: 'auto', hold: true },
+  mags: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'count', gap: 6, pin: 'right', side: 'auto', hold: false, style: 'number', empty: 'shown', divider: true },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 10, pin: 'above', side: 'auto', hold: false },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: -3, pin: 'right', side: 'auto', hold: false, style: 'line' },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: -21, pin: 'below', side: 'auto', hold: false, style: 'line' },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon1', gap: -24, pin: 'below', side: 'auto', hold: false },
+  mode1: { on: false, anchor: 'center', x: 9.8, y: 7.6, align: 'top_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false },
+  mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 4, pin: 'below', side: 'auto', hold: false },
+  zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
+  stims: { on: true, anchor: 'center', x: -1, y: -8.1, align: 'top_right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
+  grenades: { on: true, anchor: 'center', x: 1, y: -8.1, align: 'top_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
+  health: { on: true, anchor: 'center', x: -7.6, y: 0, align: 'right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'vertical', length: 190, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
+  stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'right', side: 'auto', hold: false, style: 'vertical', length: 190, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
+  stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'health', gap: 20, pin: 'right', side: 'auto', hold: false, style: 'vertical', length: 80, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' } } } },
+  { name: 'Block', note: 'As F9\'s Layout: Block: one block right of the crosshair, the short standing ammo bar its spine', t: { _v: 1, elements: {
+  bar: { on: true, anchor: 'center', x: 10.7, y: -2.2, align: 'bottom_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'vertical', fill: 'auto', length: 107, radius: 150, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
+  charge: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'left', side: 'auto', style: 'vertical', length: 107, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
+  count: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 9, pin: 'right', side: 'auto', hold: true },
+  mags: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'right', side: 'auto', style: 'number', empty: 'shown', divider: false },
+  mode1: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'zoomicon', gap: 8, pin: 'right', side: 'auto' },
+  mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 8, pin: 'right', side: 'auto' },
+  zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 8, pin: 'right', side: 'auto' },
+  icon2: { on: true, anchor: 'center', x: -0.8, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: -3, pin: 'above', side: 'auto', style: 'line' },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -20, pin: 'right', side: 'auto', style: 'line' },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon1', gap: -20, pin: 'right', side: 'auto' },
+  rpm: { on: true, anchor: 'center', x: 1, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -7, pin: 'above', side: 'auto' },
+  stims: { on: true, anchor: 'center', x: 0.4, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'below', side: 'auto' },
+  grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
+  stamina: { on: true, anchor: 'center', x: -0.83, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 128, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
+  health: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'stamina', gap: 8, pin: 'below', side: 'auto', hold: true, style: 'horizontal', length: 128, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
+  pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 60, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
+  stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 60, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' } } } },
 ];
 
 function fieldOk(f, v) {
@@ -421,9 +505,10 @@ function readLayout(t) {
         const v = given ? given[name] : undefined;
         const ok = fieldOk(f, v);
         if (v !== undefined && !ok) dropped.push(el.id + '.' + name);
-        // (after not given: on its own, as files from before it were made)
-        const dv = name !== 'after' && UNDER.elements[el.id] ? UNDER.elements[el.id][name] : undefined;
-        e[name] = ok ? v : (dv !== undefined ? dv : f[1]);
+        // (after / pin / side not given in an element that is there: on its own, as files from before pins were made;
+        // an element left out altogether takes all of Under's look, pins too — as the mod reads it)
+        const dv = (given === undefined || (name !== 'after' && name !== 'pin' && name !== 'side')) && UNDER.elements[el.id] ? UNDER.elements[el.id][name] : undefined;
+        e[name] = ok ? v : (dv !== undefined ? dv : (name === 'on' && el.off ? false : f[1]));
       }
     }
     out[el.id] = e;
@@ -537,7 +622,7 @@ function num(v) { return String(Math.round(v * 100) / 100); }
 function luaValue(v) { return typeof v === 'string' ? "'" + v + "'" : (typeof v === 'number' ? num(v) : String(v)); }
 function writeLayout(els) {
   const lines = [
-    '-- NarrowHUD layout (F9 > NarrowHUD > Position: Custom), made with the NarrowHUD layout editor.',
+    '-- NarrowHUD layout (F9 > NarrowHUD > Layout: Custom layout), made with the NarrowHUD layout editor.',
     '-- The fields are in NarrowHUD\'s docs/LAYOUT.md. x and y: % of the screen\'s height from the anchor (+ right / up).',
     'return {',
     '  _v = 1,',
@@ -566,11 +651,11 @@ function viewRect() {
   const l = Math.max(0, Math.min(SCR.W - w, view.vx - w / 2)), t = Math.max(0, Math.min(SCR.H - h, view.vy - h / 2));
   return { l, t, w, h };
 }
-const cfg = { size: 1, outline: false, mode_colors: false, palette: 1, opacity: 1, off_x: 0, off_y: 0 };
-const PALETTES = { 1: { CREAM: [236, 229, 206], YELLOW: [236, 214, 96], WARN: [240, 170, 90], RED: [225, 75, 60] },
+const cfg = { size: 1, edge: 1, shade: true, spread: 0, mode_colors: false, palette: 1, opacity: 1, off_x: 0, off_y: 0 };
+const PALETTES = { 1: { CREAM: [236, 229, 206], YELLOW: [236, 214, 96], WARN: [240, 170, 90], RED: [210, 80, 72] },
   2: { CREAM: [240, 240, 240], YELLOW: [86, 180, 233], WARN: [240, 228, 66], RED: [230, 80, 200] } };
 let P = PALETTES[1];
-const MODE2 = [86, 180, 233], MODE3 = [0, 175, 130];
+const MODE2 = [130, 205, 245], MODE3 = [80, 220, 175];   // (1.5.78: lifted for the UI layer)
 let alphaK = 1;
 const fl = Math.floor;
 function col(c, a = 235) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (fl(a * alphaK + 0.5) / 255) + ')'; }
@@ -587,23 +672,64 @@ function measureCap() {
 function fontAt(cap) { return '500 ' + (cap * 100 / cap100) + 'px ' + HUDFONT; }
 function txtWidth(s, cap) { g.font = fontAt(cap); return g.measureText(String(s).toUpperCase()).width; }
 function txt(x, y, s, cap, c) { g.font = fontAt(cap); g.fillStyle = c; g.textBaseline = 'alphabetic'; g.fillText(String(s).toUpperCase(), x, SCR.H - y); }
-function emptyRect(x, y, w, h, faint, lw) {
+// (1.5.53) the bars' look, two settings apart (as the mod's 08_draw_kit): the edge (1 none, 2 an outline, 3 square
+// brackets at the ends) and the shade (the empty part faint, or nothing there); a bar's own edge / shade fields over F9's
+const EDGE_OF = { none: 1, outline: 2, brackets: 3 };
+function lookOf(e) {
+  const edge = e.edge === undefined || e.edge === 'auto' ? cfg.edge : EDGE_OF[e.edge];
+  const shade = e.shade === undefined || e.shade === 'auto' ? cfg.shade : e.shade === 'on';
+  return [edge, shade];
+}
+function emptyRect(x, y, w, h, faint, lw, edge, shade) {
   if (w <= 0 || h <= 0) return;
   lw = Math.max(1, lw || 1);
-  if (!cfg.outline || w <= 2 * lw || h <= 2 * lw) { rect(x, y, w, h, col(P.CREAM, faint)); return; }
+  if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
+  if (edge !== 2 || w <= 2 * lw || h <= 2 * lw) { if (shade || edge === 2) rect(x, y, w, h, col(P.CREAM, faint)); return; }
   const c = col(P.CREAM, 190);
   rect(x, y, w, lw, c); rect(x, y + h - lw, w, lw, c); rect(x, y + lw, lw, h - 2 * lw, c); rect(x + w - lw, y + lw, lw, h - 2 * lw, c);
+  if (shade) rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(P.CREAM, faint));
 }
-function solidBar(x, y, w, h, f, c, lw, vertical) {
+function brackets(x, y, w, h, lw, vertical) {
+  lw = Math.max(1, lw || 1);
+  const c = col(P.CREAM, 210), sw = 2 * lw, ext = 2 * lw;
+  if (vertical) {
+    const s = Math.max(4 * lw, Math.min(fl(w * 0.5 + 0.5), 10 * lw));
+    rect(x - ext, y - lw - sw, w + 2 * ext, sw, c); rect(x - ext, y - lw, lw, s, c); rect(x + w + ext - lw, y - lw, lw, s, c);
+    rect(x - ext, y + h + lw, w + 2 * ext, sw, c); rect(x - ext, y + h + lw - s, lw, s, c); rect(x + w + ext - lw, y + h + lw - s, lw, s, c);
+  } else {
+    const s = Math.max(4 * lw, Math.min(fl(h * 0.5 + 0.5), 10 * lw));
+    rect(x - lw - sw, y - ext, sw, h + 2 * ext, c); rect(x - lw, y - ext, s, lw, c); rect(x - lw, y + h + ext - lw, s, lw, c);
+    rect(x + w + lw, y - ext, sw, h + 2 * ext, c); rect(x + w + lw - s, y - ext, s, lw, c); rect(x + w + lw - s, y + h + ext - lw, s, lw, c);
+  }
+}
+function solidBar(x, y, w, h, f, c, lw, vertical, edge, shade) {
   f = Math.max(0, Math.min(1, f)); lw = Math.max(1, lw || 1);
-  if (!cfg.outline || w <= 2 * lw + 1 || h <= 2 * lw + 1) {
-    rect(x, y, w, h, col(P.CREAM, 45));
+  if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
+  if (edge !== 2 || w <= 2 * lw + 1 || h <= 2 * lw + 1) {
+    if (edge === 3) brackets(x, y, w, h, lw, vertical);
+    if (shade) rect(x, y, w, h, col(P.CREAM, 45));
     if (vertical) rect(x, y, w, fl(h * f + 0.5), c); else rect(x, y, fl(w * f + 0.5), h, c);
     return;
   }
-  emptyRect(x, y, w, h, 45, lw);
+  emptyRect(x, y, w, h, 45, lw, edge, shade);
   const iw = w - 2 * lw, ih = h - 2 * lw;
   if (vertical) rect(x + lw, y + lw, iw, fl(ih * f + 0.5), c); else rect(x + lw, y + lw, fl(iw * f + 0.5), ih, c);
+}
+// a pack counted in uses: a tick a use (as the mod's pack_ticks); false when it has no uses or the bar is too short
+function packTicks(st, x, y, w, h, vert, k, edge, shade) {
+  if (!st.segs || st.segs < 2) return false;
+  const n = st.segs, lit = st.n || 0, len = vert ? h : w;
+  const gap = Math.max(1, Math.min(len / n * 0.45, 4 * k));
+  if (len < n * 3) return false;
+  const step = (len + gap) / n, lw = Math.max(1, fl(k * 0.8 + 0.5));
+  for (let i = 0; i < n; i++) {
+    const a = fl(i * step + 0.5), b = fl(i * step + step - gap + 0.5), sz = Math.max(1, b - a);
+    const on = i < lit;
+    if (vert) { if (on) rect(x, y + a, w, sz, col(st.c, st.a)); else emptyRect(x, y + a, w, sz, 55, lw, edge, shade); }
+    else { if (on) rect(x + a, y, sz, h, col(st.c, st.a)); else emptyRect(x + a, y, sz, h, 55, lw, edge, shade); }
+  }
+  if (edge === 3) brackets(x, y, w, h, lw, vert);
+  return true;
 }
 const MODE_TONE = { SEMI: 1, AUTO: 2, BURST: 3, VOLLEY: 3, SAFE: 1, UNSAFE: 2, TOTAL: 3, GUIDED: 1, UNGUIDED: 2, APHET: 1, FLAK: 2,
   CLUSTER: 3, HE: 2, DEPLOY: 1, DETONATE: 2, ARTILLERY: 2, LASER: 2, 'NO LASER': 1, FLECHETTE: 1, STUN: 2 };
@@ -666,6 +792,13 @@ function modeGlyph(kind, x, y, tw, c) {
   if (kind === 'fire') {
     const w = tw - 2 * m, bx = cx - w / 2, by = top + m, h = tw - 2 * m;
     g.moveTo(bx, by + h); g.lineTo(bx, by + h * 0.4); g.quadraticCurveTo(bx, by, cx, by); g.quadraticCurveTo(bx + w, by, bx + w, by + h * 0.4); g.lineTo(bx + w, by + h); g.closePath();
+  } else if (kind === 'zoom') {
+    // (the scope's zeroing: a ring with a short post under it, as the game's icon reads at a glance)
+    const r = (tw - 2 * m) / 2, cy = top + tw / 2, lw = Math.max(1, tw * 0.07);
+    g.strokeStyle = c; g.lineWidth = lw;
+    g.arc(cx, cy - r * 0.15, r * 0.75, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(cx - r * 0.75, cy - r * 0.15); g.lineTo(cx + r * 0.75, cy - r * 0.15); g.moveTo(cx, cy - r * 0.9); g.lineTo(cx, cy + r * 0.6); g.stroke();
+    g.beginPath(); g.rect(cx - r * 0.45, cy + r * 0.6, r * 0.9, lw * 1.5);
   } else {
     const r = (tw - 2 * m) / 2, cy = top + tw / 2;
     for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; g[i ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); }
@@ -726,22 +859,36 @@ function arcPiece(gm, x, y, f0, f1, r0, r1, c) {
   g.closePath();
   g.fillStyle = c; g.fill();
 }
-function arcEmpty(gm, x, y, f0, f1, faint, lw) {
-  if (!cfg.outline || gm.th <= 2 * lw + 1 || (f1 - f0) * gm.len <= 4 * lw) { arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_out, col(P.CREAM, faint)); return; }
+function arcEmpty(gm, x, y, f0, f1, faint, lw, edge, shade) {
+  if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
+  if (edge !== 2 || gm.th <= 2 * lw + 1 || (f1 - f0) * gm.len <= 4 * lw) { if (shade || edge === 2) arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_out, col(P.CREAM, faint)); return; }
   const c = col(P.CREAM, 190), cap = lw / Math.max(1, gm.len);
   arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_in + lw, c);
   arcPiece(gm, x, y, f0, f1, gm.r_out - lw, gm.r_out, c);
   arcPiece(gm, x, y, f0, Math.min(f1, f0 + cap), gm.r_in, gm.r_out, c);
   arcPiece(gm, x, y, Math.max(f0, f1 - cap), f1, gm.r_in, gm.r_out, c);
+  if (shade) arcPiece(gm, x, y, f0 + cap, f1 - cap, gm.r_in + lw, gm.r_out - lw, col(P.CREAM, faint));
 }
-function arcSolid(gm, x, y, f, c, lw, faint) {
+function arcBrackets(gm, x, y, lw) {
+  const c = col(P.CREAM, 210), len = Math.max(1, gm.len), cap = lw / len;
+  const s = Math.max(4 * lw, Math.min(fl(gm.th * 0.5 + 0.5), 10 * lw)) / len;
+  for (const f of [0, 1]) {
+    arcPiece(gm, x, y, f === 0 ? -3 * cap : 1 + cap, f === 0 ? -cap : 1 + 3 * cap, gm.r_in - 2 * lw, gm.r_out + 2 * lw, c);
+    const b0 = f === 0 ? -cap : 1 - s, b1 = f === 0 ? -cap + s : 1 + cap;
+    arcPiece(gm, x, y, b0, b1, gm.r_in - 2 * lw, gm.r_in - lw, c);
+    arcPiece(gm, x, y, b0, b1, gm.r_out + lw, gm.r_out + 2 * lw, c);
+  }
+}
+function arcSolid(gm, x, y, f, c, lw, faint, edge, shade) {
   f = Math.max(0, Math.min(1, f));
-  if (cfg.outline && gm.th > 2 * lw + 1) {
-    arcEmpty(gm, x, y, 0, 1, faint, lw);
+  if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
+  if (edge === 2 && gm.th > 2 * lw + 1) {
+    arcEmpty(gm, x, y, 0, 1, faint, lw, edge, shade);
     const cap = lw / Math.max(1, gm.len);
     arcPiece(gm, x, y, cap, cap + (1 - 2 * cap) * f, gm.r_in + lw, gm.r_out - lw, c);
   } else {
-    arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.CREAM, faint));
+    if (edge === 3) arcBrackets(gm, x, y, lw);
+    if (shade) arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.CREAM, faint));
     arcPiece(gm, x, y, 0, f, gm.r_in, gm.r_out, c);
   }
 }
@@ -755,11 +902,12 @@ const EL_DRAW = {
     if (!d || d.kind === 'none') return null;
     const [frac, tone, alpha] = weaponTone(d);
     const lw = Math.max(1, fl(k * 0.8 + 0.5));
+    const [edge, shade] = lookOf(e);
     const ticks = d.kind === 'ammo' && d.top >= 1 && (e.fill === 'ticks' || (e.fill === 'auto' && d.top <= e.ticks_max));
     const marks = d.heat_marks || [[0.75, 3]];
     if (curved(e)) {
       const [gm, w, h] = arcGeom(e, k);
-      if (dry) return [w, h];
+      if (dry) return [w, h, gm.cx, gm.cy];
       if (ticks) {
         const n = Math.max(d.top, Math.min(d.value, d.top + 3));
         const gapf = Math.max(1, Math.min(gm.len / n * 0.45, 4 * k)) / Math.max(1, gm.len);
@@ -767,10 +915,11 @@ const EL_DRAW = {
         for (let i = 0; i < n; i++) {
           const f0 = i * (segf + gapf);
           if (i < d.value) arcPiece(gm, x, y, f0, f0 + segf, gm.r_in, gm.r_out, col(tone, alpha));
-          else arcEmpty(gm, x, y, f0, f0 + segf, 55, lw);
+          else arcEmpty(gm, x, y, f0, f0 + segf, 55, lw, edge, shade);
         }
+        if (edge === 3) arcBrackets(gm, x, y, lw);
       } else {
-        arcSolid(gm, x, y, frac, col(tone, alpha), lw, 45);
+        arcSolid(gm, x, y, frac, col(tone, alpha), lw, 45, edge, shade);
         if (d.kind === 'heat' && !d.charge_weapon) for (const m of marks) arcMark(gm, x, y, m[0], Math.max(2, fl(2 * k)), col(MARK_COLORS()[m[1] - 1], 220));
       }
       return [w, h];
@@ -787,10 +936,11 @@ const EL_DRAW = {
         const a = fl(i * step + 0.5), z = fl(i * step + step - gap + 0.5);
         let tx = x + a, ty = y, tw = Math.max(1, z - a), tt = th;
         if (vert) { tx = x; ty = y + a; tw = th; tt = Math.max(1, z - a); }
-        if (i < d.value) rect(tx, ty, tw, tt, col(tone, alpha)); else emptyRect(tx, ty, tw, tt, 55, lw);
+        if (i < d.value) rect(tx, ty, tw, tt, col(tone, alpha)); else emptyRect(tx, ty, tw, tt, 55, lw, edge, shade);
       }
+      if (edge === 3) brackets(x, y, w, h, lw, vert);
     } else {
-      solidBar(x, y, w, h, frac, col(tone, alpha), lw, vert);
+      solidBar(x, y, w, h, frac, col(tone, alpha), lw, vert, edge, shade);
       if (d.kind === 'heat' && !d.charge_weapon) {
         for (const m of marks) {
           const mw = Math.max(2, fl(2 * k));
@@ -805,12 +955,11 @@ const EL_DRAW = {
     if (!d || d.charge_frac === undefined) return null;
     let f = d.charge_frac;
     let cc = d.locked ? P.WARN : (f >= 0.95 && !d.lock ? P.RED : (f >= (d.charge_mark || 2) ? P.WARN : P.CREAM));
+    const [edge, shade] = lookOf(e), lw = Math.max(1, fl(k * 0.8 + 0.5));
     if (curved(e)) {
       const [gm, w, h] = arcGeom(e, k);
-      if (dry) return [w, h];
-      f = Math.max(0, Math.min(1, f));
-      arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.CREAM, 40));
-      arcPiece(gm, x, y, 0, f, gm.r_in, gm.r_out, col(cc, 230));
+      if (dry) return [w, h, gm.cx, gm.cy];
+      arcSolid(gm, x, y, f, col(cc, 230), lw, 40, edge, shade);
       if (d.charge_mark) arcMark(gm, x, y, d.charge_mark, Math.max(1, fl(2 * k)), col(P.WARN, 220));
       return [w, h];
     }
@@ -818,8 +967,7 @@ const EL_DRAW = {
     const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
     const w = vert ? th : len, h = vert ? len : th;
     if (dry) return [w, h];
-    rect(x, y, w, h, col(P.CREAM, 40));
-    if (vert) rect(x, y, w, fl(h * Math.min(1, f) + 0.5), col(cc, 230)); else rect(x, y, fl(w * Math.min(1, f) + 0.5), h, col(cc, 230));
+    solidBar(x, y, w, h, f, col(cc, 230), lw, vert, edge, shade);
     if (d.charge_mark) {
       const mw = Math.max(1, fl(2 * k));
       if (vert) rect(x - 1, y + fl(h * d.charge_mark), w + 2, mw, col(P.WARN, 220)); else rect(x + fl(w * d.charge_mark), y - 1, mw, h + 2, col(P.WARN, 220));
@@ -847,7 +995,7 @@ const EL_DRAW = {
           for (let i = 0; i < top; i++) {
             const sx = x + i * (ps + pg);
             if (i < d.reserve) rect(sx, y, ps, ps, col(P.CREAM, 220));
-            else if (cfg.outline) emptyRect(sx, y, ps, ps, 55, lw);
+            else if (cfg.edge === 2) emptyRect(sx, y, ps, ps, 55, lw, 2, false);
             else rect(sx, y, ps, ps, col([150, 150, 150], 120));
           }
         }
@@ -864,32 +1012,15 @@ const EL_DRAW = {
     if (!dry) txt(x, y, s, small, col(P.CREAM, 220));
     return [txtWidth(s, small), small];
   },
-  modes(e, k, d, x, y, dry) {
-    if (!d) return null;
-    const parts = [];
-    if (d.kind === 'heat') parts.push('HEAT');
-    if (d.mode) parts.push(d.mode);
-    if (d.fmode) parts.push(d.fmode);
-    if (!parts.length) return null;
-    const small = Math.max(7, fl(16 * k + 0.5)), gap = fl(4 * k);
-    if (e.style === 'stacked') {
-      let w = 0;
-      for (const p of parts) w = Math.max(w, txtWidth(p, small));
-      const h = parts.length * small + (parts.length - 1) * gap;
-      if (!dry) parts.forEach((p, i) => txtModes(x, y + (parts.length - 1 - i) * (small + gap), p, small, 200));
-      return [w, h];
-    }
-    const s = parts.join('  ');
-    if (!dry) txtModes(x, y, s, small, 200);
-    return [txtWidth(s, small), small];
-  },
-  icons(e, k, d, x, y, dry) {
+  icons(e, k, d, x, y, dry, items, only) {
     if (!d) return null;
     const kinds = [];
-    if (d.mode) kinds.push('mode');
-    if (d.fmode) kinds.push('fire');
+    if (d.mode && only !== 'fire') kinds.push('mode');
+    if (d.fmode && only !== 'mode') kinds.push('fire');
+    if (d.zoom !== undefined && only === 'zoom') kinds.push('zoom');
+    if (only === 'zoom') { kinds.length = 0; if (d.zoom !== undefined) kinds.push('zoom'); }
     if (!kinds.length) return null;
-    const cell = Math.max(1, fl(1.6 * k + 0.5)), tw = 2 * STIM[0].length * cell, gap = fl(4 * k), n = kinds.length;
+    const tw = Math.max(1, fl(4 * STIM[0].length * iconScale(k) + 0.5)), gap = fl(4 * k), n = kinds.length;   // (1.5.77: smooth with Size)
     const w = e.style === 'stacked' ? tw : n * tw + (n - 1) * gap, h = e.style === 'stacked' ? n * tw + (n - 1) * gap : tw;
     if (dry) return [w, h];
     kinds.forEach((kind, i) => {
@@ -898,6 +1029,34 @@ const EL_DRAW = {
     });
     return [w, h];
   },
+  mode1(e, k, d, x, y, dry) {
+    if (!d) return null;
+    const parts = [];
+    if (d.kind === 'heat') parts.push('HEAT');
+    if (d.mode) parts.push(d.mode);
+    if (!parts.length) return null;
+    const small = Math.max(7, fl(16 * k + 0.5)), s = parts.join('  ');
+    if (!dry) txtModes(x, y, s, small, 200);
+    return [txtWidth(s, small), small];
+  },
+  mode2(e, k, d, x, y, dry) {
+    if (!d) return null;
+    const parts = [];
+    if (d.fmode) parts.push(d.fmode);
+    if (!parts.length) return null;
+    const small = Math.max(7, fl(16 * k + 0.5)), s = parts.join('  ');
+    if (!dry) txtModes(x, y, s, small, 200);
+    return [txtWidth(s, small), small];
+  },
+  zoom(e, k, d, x, y, dry) {
+    if (!d || d.zoom === undefined) return null;
+    const small = Math.max(7, fl(16 * k + 0.5)), s = ['50 M', '100 M', '200 M'][d.zoom];
+    if (!dry) txtModes(x, y, s, small, 200);
+    return [txtWidth(s, small), small];
+  },
+  zoomicon(e, k, d, x, y, dry, items) { return EL_DRAW.icons(Object.assign({ style: 'line' }, e), k, d, x, y, dry, items, 'zoom'); },
+  icon1(e, k, d, x, y, dry, items) { return EL_DRAW.icons(e, k, d, x, y, dry, items, 'mode'); },
+  icon2(e, k, d, x, y, dry, items) { return EL_DRAW.icons(e, k, d, x, y, dry, items, 'fire'); },
   rpm(e, k, d, x, y, dry) {
     if (!d || !d.setting) return null;
     const tiny = Math.max(6, fl(12 * k + 0.5));
@@ -909,10 +1068,19 @@ const EL_DRAW = {
   pack(e, k, d, x, y, dry, items) {
     const st = items && packState(items, d);
     if (!st) return null;
+    const [edge, shade] = lookOf(e), lw = Math.max(1, fl(k * 0.8 + 0.5));
     if (curved(e)) {
       const [gm, w, h] = arcGeom(e, k);
-      if (dry) return [w, h];
-      arcSolid(gm, x, y, st.f, col(st.c, st.a), Math.max(1, fl(k * 0.8 + 0.5)), 45);
+      if (dry) return [w, h, gm.cx, gm.cy];
+      if (st.segs && st.segs >= 2 && gm.len >= st.segs * 3) {
+        const n = st.segs, lit = st.n || 0;
+        const gapf = Math.max(1, Math.min(gm.len / n * 0.45, 4 * k)) / Math.max(1, gm.len), segf = (1 + gapf) / n - gapf;
+        for (let i = 0; i < n; i++) {
+          const f0 = i * (segf + gapf);
+          if (i < lit) arcPiece(gm, x, y, f0, f0 + segf, gm.r_in, gm.r_out, col(st.c, st.a)); else arcEmpty(gm, x, y, f0, f0 + segf, 55, lw, edge, shade);
+        }
+        if (edge === 3) arcBrackets(gm, x, y, lw);
+      } else arcSolid(gm, x, y, st.f, col(st.c, st.a), lw, 45, edge, shade);
       for (const m of st.marks) arcMark(gm, x, y, m[0], Math.max(1, fl(2 * k)), col(m[1], 220));
       return [w, h];
     }
@@ -920,7 +1088,7 @@ const EL_DRAW = {
     const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
     const w = vert ? th : len, h = vert ? len : th;
     if (dry) return [w, h];
-    solidBar(x, y, w, h, st.f, col(st.c, st.a), Math.max(1, fl(k * 0.8 + 0.5)), vert);
+    if (!packTicks(st, x, y, w, h, vert, k, edge, shade)) solidBar(x, y, w, h, st.f, col(st.c, st.a), lw, vert, edge, shade);
     for (const m of st.marks) {
       const mw = Math.max(1, fl(2 * k));
       if (vert) rect(x - 1, y + fl(h * m[0]), w + 2, mw, col(m[1], 220)); else rect(x + fl(w * m[0]), y - 1, mw, h + 2, col(m[1], 220));
@@ -933,10 +1101,11 @@ const EL_DRAW = {
 const STAMINA_C = [130, 190, 235];
 function vitalBar(e, k, f, c, trail, x, y, dry) {
   f = Math.max(0, Math.min(1, f));
+  const [edge, shade] = lookOf(e);
   if (curved(e)) {
     const [gm, w, h] = arcGeom(e, k);
-    if (dry) return [w, h];
-    arcSolid(gm, x, y, f, c, Math.max(1, fl(k * 0.8 + 0.5)), 45);
+    if (dry) return [w, h, gm.cx, gm.cy];
+    arcSolid(gm, x, y, f, c, Math.max(1, fl(k * 0.8 + 0.5)), 45, edge, shade);
     if (trail && trail > f) arcPiece(gm, x, y, f, Math.min(1, trail), gm.r_in, gm.r_out, col(P.RED, 170));
     return [w, h];
   }
@@ -944,7 +1113,7 @@ function vitalBar(e, k, f, c, trail, x, y, dry) {
   const len = fl(e.length * k + 0.5), th = Math.max(1, fl(e.thickness * k + 0.5));
   const w = vert ? th : len, h = vert ? len : th;
   if (dry) return [w, h];
-  solidBar(x, y, w, h, f, c, Math.max(1, fl(k * 0.8 + 0.5)), vert);
+  solidBar(x, y, w, h, f, c, Math.max(1, fl(k * 0.8 + 0.5)), vert, edge, shade);
   if (trail && trail > f) {
     const a = fl(len * f + 0.5), b = fl(len * Math.min(1, trail) + 0.5);
     if (vert) rect(x, y + a, w, b - a, col(P.RED, 170)); else rect(x + a, y, b - a, h, col(P.RED, 170));
@@ -968,9 +1137,9 @@ EL_DRAW.stim = function (e, k, d, x, y, dry, items) {
   return vitalBar(e, k, v.stim, col([120, 215, 140], 225), null, x, y, dry);
 };
 function iconEl(rows, n, k, x, y, dry) {
-  const cell = Math.max(1, fl(1.6 * k + 0.5)), small = Math.max(7, fl(16 * k + 0.5));
+  const cell = Math.max(1, fl(1.6 * iconScale(k) + 0.5)), small = Math.max(7, fl(16 * k + 0.5));
   const name = rows === STIM ? 'stim' : 'grenade', art = ICON_ART[name];
-  const S = GRENADE.length * cell, iw = Math.max(1, fl(S * art.w / 64 + 0.5)), s = String(n);
+  const S = Math.max(1, fl(2 * GRENADE.length * iconScale(k) + 0.5)), iw = Math.max(1, fl(S * art.w / 64 + 0.5)), s = String(n);
   const w = iw + fl(4 * k) + txtWidth(s, small);
   if (dry) return [w, S];
   const c = n === 0 ? P.RED : P.CREAM;
@@ -987,14 +1156,17 @@ function packState(items, d) {
   }
   if (items.pack !== undefined && items.pack_top > 0) {
     const f = Math.max(0, Math.min(1, items.pack / items.pack_top));
-    return { f, c: items.pack === 0 ? P.RED : (f <= 0.25 ? P.WARN : P.CREAM), a: 215, marks: [] };
+    // (a pack counted in uses, up to 16: a tick a use, as the mod draws it since 1.5.48)
+    const segs = items.pack_top <= 16 && Number.isInteger(items.pack_top) ? items.pack_top : undefined;
+    return { f, c: items.pack === 0 ? P.RED : (f <= 0.25 ? P.WARN : P.CREAM), a: 215, marks: [], segs, n: items.pack };
   }
   return null;
 }
 
 // what's in hand (examples)
 const SAMPLES = [
-  { id: 'all', name: 'Every part at once', make: (f) => ({ d: { kind: 'ammo', top: 30, value: Math.round(30 * f), reserve: 5, resmax: 8, mode: 'APHET', fmode: 'AUTO', setting: '640 RPM', charge_frac: f, charge_mark: 0.83 }, items: { s: 4, g: 3, pack: Math.round(8 * f), pack_top: 8 } }) },
+  { id: 'all', name: 'Every part at once', make: (f) => ({ d: { kind: 'ammo', top: 30, value: Math.round(30 * f), reserve: 5, resmax: 8, mode: 'APHET', fmode: 'AUTO', setting: '640 RPM', charge_frac: f, charge_mark: 0.83, zoom: 1 }, items: { s: 4, g: 3, pack: Math.round(8 * f), pack_top: 8 } }) },
+  { id: 'apex', name: 'AMW-20 Apex (sniper, zeroing)', make: (f) => ({ d: { kind: 'ammo', top: 5, value: Math.round(5 * f), reserve: 4, resmax: 6, fmode: 'SEMI', setting: '36 RPM', zoom: 1 }, items: { s: 4, g: 4 } }) },
   { id: 'lib', name: 'Liberator (45 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 45, value: Math.round(45 * f), reserve: 6, resmax: 8, fmode: 'AUTO', setting: '640 RPM' }, items: { s: 4, g: 4 } }) },
   { id: 'sen', name: 'Senator (6 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 6, value: Math.round(6 * f), reserve: 4, resmax: 6 }, items: { s: 4, g: 4 } }) },
   { id: 'scy', name: 'Scythe (heat)', make: (f) => ({ d: { kind: 'heat', top: 100, value: Math.round(100 * f) }, items: { s: 4, g: 4 } }) },
@@ -1005,10 +1177,12 @@ const SAMPLES = [
 
 // ------------------------------------------------------------------------------------------------- state
 const STORE = 'narrowhud-layout-draft';
-let els = readLayout(UNDER).els;
+let els = readLayout(PRESETS[0].t).els;   // (2.0: opens on the mod's first layout, the horizontal)
 let sel = 'bar';
 const selSet = new Set(['bar']);         // (the parts moved together; sel is the one whose fields show)
 let boxes = {};
+let slots = {};                          // (every part's place this render, the hidden ones as slots of no size)
+let snapHint = null;                     // (while dragging: the part a drop would pin to, and on which side)
 let keepPlace = true;
 let useOffsets = false;                 // (the file's use_offsets: F9's offsets move a Custom layout only when it's on)
 try { const s = localStorage.getItem(STORE); if (s) { const t = JSON.parse(s); const r = readLayout(t); els = r.els; useOffsets = t.use_offsets === true; } } catch (e) { /* (a draft is a convenience only) */ }
@@ -1053,21 +1227,76 @@ function backdrop() {
   g.fillStyle = 'rgba(240,240,235,0.9)'; g.fillRect(cx - 2, cy - 2, 4, 4);
 }
 
-function layoutBox(e, k, d, items, drawn) {
-  const r = EL_DRAW[e.id](e, k, d, 0, 0, true, items);
-  if (!r) return null;
-  const [ew, eh] = r;
-  const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
-  const ox = useOffsets ? SCR.W * cfg.off_x / 100 : 0, oy = useOffsets ? SCR.H * cfg.off_y / 100 : 0;
-  const px = SCR.W * an[0] + SCR.H * e.x / 100 + ox;
-  const py = SCR.H * an[1] + SCR.H * e.y / 100 + oy;
-  let x = fl(px - ew * al[0] + 0.5), y = fl(py - eh * al[1] + 0.5);
-  const prev = e.after !== 'none' && drawn && drawn[e.after];
-  if (prev) x = prev.x + prev.w + fl(e.gap * k + 0.5);
-  x = Math.max(0, Math.min(x, SCR.W - ew)); y = Math.max(0, Math.min(y, SCR.H - eh));
-  return { x, y, w: ew, h: eh, px, py, k, follows: prev ? e.after : null };
+// (1.5.53) The layout engine, as the mod's (10_custom resolve): every part measured first, then placed — a free part
+// at its anchor plus x / y (plus the offsets and, by its side, the Spread), a pinned part from the box of the part it's
+// after. A part that isn't drawn (off, or nothing to show) is a slot of no size where it would be, so what's pinned to
+// it takes its place, with no gap. A loop of pins is broken at the part that closes it (placed free).
+function sideOf(e) {
+  if (e.side && e.side !== 'auto') return e.side;
+  if (e.anchor !== 'center') return 'none';
+  if (e.x < -0.05) return 'left'; if (e.x > 0.05) return 'right';
+  if (e.align === 'arc') { if (e.style === 'curved_right') return 'right'; if (e.style === 'curved_left') return 'left'; }
+  const al = ALIGNS[e.align];
+  return al[0] === 1 ? 'left' : (al[0] === 0 ? 'right' : 'none');
+}
+let loopNote = '';                           // (a loop of pins, named for the readout)
+function resolve(sizes) {
+  const W = SCR.W, H = SCR.H, out = {}, visiting = new Set();
+  const ox = useOffsets ? W * cfg.off_x / 100 : 0, oy = useOffsets ? H * cfg.off_y / 100 : 0;
+  const spread = H * cfg.spread / 100;
+  loopNote = '';
+  const freePoint = (e) => {
+    const an = ANCHORS[e.anchor];
+    let px = W * an[0] + H * e.x / 100 + ox;
+    const sd = sideOf(e);
+    if (sd === 'left') px -= spread; else if (sd === 'right') px += spread;
+    return [px, H * an[1] + H * e.y / 100 + oy];
+  };
+  // place(id): the part's box, cached; place(id, aw, ah): where it would be at that size, not cached — a part pinned
+  // to a hidden part takes its place with its own size (1.5.73; the mod does the same)
+  const place = (id, aw, ah) => {
+    if (aw === undefined && out[id]) return out[id];
+    const e = els[id], sz = sizes[id];
+    const hidden = aw === undefined && !sz;
+    const ew = aw !== undefined ? aw : (sz ? sz[0] : 0), eh = aw !== undefined ? ah : (sz ? sz[1] : 0);
+    const al = ALIGNS[e.align];
+    const k = (H / 1440) * cfg.size * e.size;
+    let target = e.after !== 'none' && e.after !== id && els[e.after] ? e.after : null;
+    if (target && visiting.has(target)) { loopNote = 'a loop of pins: ' + BY_ID[id].name + ' after ' + BY_ID[target].name + ' and back — ' + BY_ID[id].name + ' placed on its own'; target = null; }
+    let x, y;
+    if (target) {
+      visiting.add(id);
+      let tb = place(target);
+      if (tb.hidden && !hidden) tb = place(target, ew, eh);
+      visiting.delete(id);
+      const gap = tb.hidden ? 0 : fl(e.gap * k + 0.5);
+      const pin = e.pin || 'none';
+      // (1.5.70: a pinned part's nudges scale with Size and its own size, as the gap does; a free part's x / y are a place)
+      const ns = pin !== 'none' ? cfg.size * e.size : 1;
+      const nx = fl(H * e.x / 100 * ns + 0.5), ny = fl(H * e.y / 100 * ns + 0.5);
+      if (tb.hidden || tb.taken) { x = tb.x; y = tb.y; }
+      else if (pin === 'none') { const [, py] = freePoint(e); x = tb.x + tb.w + gap; y = fl(py - eh * al[1] + 0.5); }
+      else if (pin === 'right') { x = tb.x + tb.w + gap + nx; y = fl(tb.y + (tb.h - eh) * al[1] + 0.5) + ny; }
+      else if (pin === 'left') { x = tb.x - gap - ew + nx; y = fl(tb.y + (tb.h - eh) * al[1] + 0.5) + ny; }
+      else if (pin === 'above') { x = fl(tb.x + (tb.w - ew) * al[0] + 0.5) + nx; y = tb.y + tb.h + gap + ny; }
+      else { x = fl(tb.x + (tb.w - ew) * al[0] + 0.5) + nx; y = tb.y - gap - eh + ny; }
+    } else {
+      const [px, py] = freePoint(e);
+      if (e.align === 'arc' && sz && sz[2] !== undefined && aw === undefined) { x = fl(px - sz[2] + 0.5); y = fl(py - sz[3] + 0.5); }
+      else { x = fl(px - ew * al[0] + 0.5); y = fl(py - eh * al[1] + 0.5); }
+    }
+    if (!hidden) { x = Math.max(0, Math.min(x, W - ew)); y = Math.max(0, Math.min(y, H - eh)); }
+    if (aw !== undefined) return { x, y, w: ew, h: eh, k, hidden: false, taken: true, follows: target, pin: target ? (e.pin || 'none') : null };
+    out[id] = { x, y, w: ew, h: eh, k, hidden, follows: target, pin: target ? (e.pin || 'none') : null, cx: sz && sz[2], cy: sz && sz[3] };
+    return out[id];
+  };
+  for (const el of ELEMENTS) place(el.id);
+  return out;
 }
 
+// (1.5.70) an icon's scale never goes below Medium's (Small shrank them too small to read)
+const heldSizes = {};                                // (the last size each part had, for the ones that hold their place)
+function iconScale(k) { return cfg.size < 1 ? k / cfg.size : k; }
 function render() {
   const rectc = cv.getBoundingClientRect();
   const cssW = Math.max(200, rectc.width || cv.parentElement.clientWidth);
@@ -1079,16 +1308,25 @@ function render() {
   g.setTransform(s, 0, 0, s, -vr.l * s, -vr.t * s);
   backdrop();
   const { d, items } = state();
-  boxes = {};
+  const sizes = {}, silent = new Set();   // (silent: holding its place with nothing to show: the slot, nothing drawn)
   for (const el of ELEMENTS) {
     const e = Object.assign({ id: el.id }, els[el.id]);
     if (!e.on || e.opacity <= 0) continue;
     const k = (SCR.H / 1440) * cfg.size * e.size;
-    const b = layoutBox(e, k, d, items, boxes);
-    if (!b) continue;
+    let r = EL_DRAW[el.id](e, k, d, 0, 0, true, items);
+    if (r) heldSizes[el.id] = r; else if (e.hold && heldSizes[el.id]) { r = heldSizes[el.id]; silent.add(el.id); }
+    if (r) sizes[el.id] = r;
+  }
+  slots = resolve(sizes);
+  boxes = {};
+  for (const el of ELEMENTS) {
+    if (!sizes[el.id]) continue;
+    const e = Object.assign({ id: el.id }, els[el.id]);
+    const b = slots[el.id];
     boxes[el.id] = b;
+    if (silent.has(el.id)) continue;
     alphaK = cfg.opacity * e.opacity / 100;
-    EL_DRAW[el.id](e, k, d, b.x, b.y, false, items);
+    EL_DRAW[el.id](e, b.k, d, b.x, b.y, false, items);
   }
   alphaK = 1;
   overlay();
@@ -1123,15 +1361,35 @@ function overlay() {
     g.strokeRect(ob.x - 4 * unit, H - ob.y - ob.h - 4 * unit, ob.w + 8 * unit, ob.h + 8 * unit);
     g.setLineDash([]);
   }
+  if (snapHint && boxes[snapHint.to]) {
+    // (the edge a drop would pin to, lit)
+    const t = boxes[snapHint.to];
+    g.strokeStyle = 'rgba(120,220,160,0.95)'; g.lineWidth = 3 * unit;
+    g.beginPath();
+    if (snapHint.pin === 'right') { g.moveTo(t.x + t.w, H - t.y); g.lineTo(t.x + t.w, H - t.y - t.h); }
+    else if (snapHint.pin === 'left') { g.moveTo(t.x, H - t.y); g.lineTo(t.x, H - t.y - t.h); }
+    else if (snapHint.pin === 'above') { g.moveTo(t.x, H - t.y - t.h); g.lineTo(t.x + t.w, H - t.y - t.h); }
+    else { g.moveTo(t.x, H - t.y); g.lineTo(t.x + t.w, H - t.y); }
+    g.stroke();
+  }
   const b = sel && boxes[sel];
   if (!b) return;
   const e = els[sel];
   const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
-  const ax = W * an[0], ay = H - H * an[1];
-  const tx = b.x + b.w * al[0], ty = H - (b.y + b.h * al[1]);
+  let tx = b.x + b.w * al[0], ty = H - (b.y + b.h * al[1]);
+  if (e.align === 'arc' && b.cx !== undefined) { tx = b.x + b.cx; ty = H - (b.y + b.cy); }
   g.strokeStyle = 'rgba(240,170,90,0.9)'; g.lineWidth = 1.5 * unit;
   g.setLineDash([6 * unit, 5 * unit]);
   g.strokeRect(b.x - 4 * unit, H - b.y - b.h - 4 * unit, b.w + 8 * unit, b.h + 8 * unit);
+  const tb = b.follows && (boxes[b.follows] || slots[b.follows]);
+  if (tb) {
+    // (pinned: a line to the part it's pinned to, that part's box faint; a hidden one as its slot)
+    g.strokeRect(tb.x - 2 * unit, H - tb.y - tb.h - 2 * unit, Math.max(tb.w, 2 * unit) + 4 * unit, Math.max(tb.h, 2 * unit) + 4 * unit);
+    g.beginPath(); g.moveTo(b.x + b.w / 2, H - b.y - b.h / 2); g.lineTo(tb.x + tb.w / 2, H - tb.y - tb.h / 2); g.stroke();
+    g.setLineDash([]);
+    return;
+  }
+  const ax = W * an[0], ay = H - H * an[1];
   g.beginPath(); g.moveTo(Math.min(W, Math.max(0, ax)), Math.min(H, Math.max(0, ay))); g.lineTo(tx, ty); g.stroke();
   g.setLineDash([]);
   g.fillStyle = '#f0aa5a';
@@ -1143,7 +1401,11 @@ const STYLE_NAMES = { horizontal: 'Horizontal', vertical: 'Vertical', curved_lef
   solid: 'Solid', number: 'Number (x7)', squares: 'Squares', shown: 'Shown', hidden: 'Hidden', line: 'In a line', stacked: 'Stacked' };
 const STYLE_GLYPHS = { horizontal: '\u2014', vertical: '|', curved_left: '(', curved_right: ')' };
 const FIELD_NAMES = { style: 'Style', fill: 'Fill', length: 'Length', thickness: 'Thickness', radius: 'Radius', ticks_max: 'Ticks up to', empty: 'Empty squares',
-  divider: 'Divider', size: 'Size', opacity: 'Opacity', x: 'X', y: 'Y', after: 'After', gap: 'Gap' };
+  divider: 'Divider', size: 'Size', opacity: 'Opacity', x: 'X', y: 'Y', after: 'Pinned to', pin: 'Where', gap: 'Gap', side: 'Side', edge: 'Edge', shade: 'Shade', hold: 'Holds its place' };
+// (a choice's labels when they aren't the style names: per field)
+const CHOICE_NAMES = { pin: { none: 'Old way (x after it)', right: 'On its right', left: 'On its left', above: 'Above it', below: 'Below it' },
+  side: { auto: 'Auto', none: 'Neither', left: 'Left', right: 'Right' }, edge: { auto: 'F9\'s', none: 'None', outline: 'Outline', brackets: 'Brackets' },
+  shade: { auto: 'F9\'s', on: 'On', off: 'Off' } };
 const FIELD_HELP = {
   fill: 'Auto: a tick a round up to the number below, solid above it.',
   length: 'Pixels at 1440p, Medium size (any other resolution scales it). Along the curve for a curved style.',
@@ -1154,8 +1416,13 @@ const FIELD_HELP = {
   x: '% of the screen\'s height from the anchor, + right.',
   y: '% of the screen\'s height from the anchor, + up.',
   size: 'Times the F9 Size.',
-  after: 'Right after another part, moving along as that one grows ("100%"). Its x isn\'t used then.',
-  gap: 'Pixels from that part\'s right edge (at 1440p, Medium). Dragging sets it too.',
+  after: 'Placed from another part\'s box: it moves along as that one grows ("100%") or is scaled, and takes its place when that one is hidden (off, or nothing to show). Dragging a part next to another pins it too.',
+  pin: 'Which side of that part. The old way: only its x follows (from that part\'s right edge), its y stays its own.',
+  gap: 'Pixels between the two (at 1440p, Medium). Dragging the part away from or toward the other sets it.',
+  side: 'Left or right of the crosshair, for F9\'s Spread slider, which moves the two sides apart. Auto: by the part\'s x from the centre anchor. A pinned part goes with the part it\'s pinned to.',
+  hold: 'While it has nothing to show for the moment (the weapon put away, a stratagem ball in hand), it keeps the place it had, so the parts pinned to it stay. Off: they take its place, as they do for a part that\'s Off or one this loadout never has. On by default for the bar, the count, health and stamina.',
+  edge: 'None, an outline, or square brackets at the ends as the game draws its own bars. F9\'s: as the Look setting there.',
+  shade: 'The empty part faint behind the fill, or nothing there. F9\'s: as the Look setting there.',
   opacity: '% of the F9 Opacity; 0 hides the part.',
   style: 'Horizontal or vertical bar, or a curve: ( bends left, ) bends right.',
   thickness: 'Pixels at 1440p, Medium size.',
@@ -1217,7 +1484,7 @@ function choiceField(wrap, name, f, e) {
   for (const v of f[2]) {
     const b = document.createElement('button'); b.type = 'button';
     if (STYLE_GLYPHS[v]) { const g = document.createElement('span'); g.className = 'gl'; g.textContent = STYLE_GLYPHS[v]; b.append(g); }
-    b.append(document.createTextNode(STYLE_NAMES[v] || v));
+    b.append(document.createTextNode((CHOICE_NAMES[name] && CHOICE_NAMES[name][v]) || STYLE_NAMES[v] || v));
     b.setAttribute('aria-pressed', String(e[name] === v));
     b.addEventListener('click', () => { setField(name, v); buildFields(); changed(); });
     seg.append(b);
@@ -1236,6 +1503,13 @@ function pad9(label, name, map, e) {
     pad.append(b);
   }
   box.append(cap, pad);
+  if (name === 'align' && (e.style === 'curved_left' || e.style === 'curved_right')) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.style.cssText = 'margin-top:6px;font-size:12px;padding:3px 8px;width:100%';
+    b.textContent = 'Arc centre'; b.title = 'The arc\'s own centre sits on the anchor point: arcs around the crosshair stay concentric at every Size';
+    b.setAttribute('aria-pressed', String(e[name] === 'arc'));
+    b.addEventListener('click', () => { setPlace(name, 'arc'); });
+    box.append(b);
+  }
   return box;
 }
 // a new anchor or align point: x and y worked out again so the part stays where it is (unless that's turned off)
@@ -1245,7 +1519,8 @@ function setPlace(name, v) {
     e[name] = v;
     if (keepPlace && b) {
       const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
-      const tx = b.x + b.w * al[0], ty = b.y + b.h * al[1];
+      let tx = b.x + b.w * al[0], ty = b.y + b.h * al[1];
+      if (e.align === 'arc' && b.cx !== undefined) { tx = b.x + b.cx; ty = b.y + b.cy; }
       e.x = Math.round((tx - SCR.W * an[0]) / SCR.H * 10000) / 100;
       e.y = Math.round((ty - SCR.H * an[1]) / SCR.H * 10000) / 100;
       e.x = Math.max(-100, Math.min(100, e.x)); e.y = Math.max(-100, Math.min(100, e.y));
@@ -1254,6 +1529,19 @@ function setPlace(name, v) {
   buildFields(); changed();
 }
 
+// a pinned part let go: placed on its own where it is now (its anchor point from its box, as "Keep it in place")
+function unpin() {
+  for (const id of selSet) {
+    const e = els[id], b = boxes[id] || slots[id];
+    e.after = 'none'; e.pin = 'none';
+    if (b && !b.hidden) {
+      const an = ANCHORS[e.anchor], al = ALIGNS[e.align];
+      const tx = b.x + b.w * al[0], ty = b.y + b.h * al[1];
+      e.x = Math.max(-100, Math.min(100, Math.round((tx - SCR.W * an[0]) / SCR.H * 10000) / 100));
+      e.y = Math.max(-100, Math.min(100, Math.round((ty - SCR.H * an[1]) / SCR.H * 10000) / 100));
+    }
+  }
+}
 // A field changed with several parts picked: set on every picked part that has it (the fields shown are the ones
 // they all have, with the first part's values; one whose values differ is marked)
 function targetsOf(name) {
@@ -1351,26 +1639,34 @@ function buildFields() {
   pw.append(kp);
   const pl = document.createElement('div'); pl.className = 'padline';
   const say = (v) => v.replace('_', ' ');
+  const pinned = e.after !== 'none' && e.pin && e.pin !== 'none';
   pl.textContent = e.after === 'none'
     ? 'The part\'s ' + say(e.align) + ' point sits at the screen\'s ' + say(e.anchor) + ', then x / y from there.'
-    : 'The part\'s ' + say(e.align) + ' point sits at the screen\'s ' + say(e.anchor) + ' for y; its x follows ' + BY_ID[e.after].name.toLowerCase() + '.';
+    : (pinned ? 'Placed ' + ({ right: 'right of ', left: 'left of ', above: 'above ', below: 'below ' })[e.pin] + BY_ID[e.after].name.toLowerCase() + ', ' + (e.pin === 'right' || e.pin === 'left' ? (ALIGNS[e.align][1] === 0 ? 'bottoms' : (ALIGNS[e.align][1] === 1 ? 'tops' : 'middles')) : (ALIGNS[e.align][0] === 0 ? 'left edges' : (ALIGNS[e.align][0] === 1 ? 'right edges' : 'middles'))) + ' level; x / y nudge it from there.'
+      : 'The part\'s ' + say(e.align) + ' point sits at the screen\'s ' + say(e.anchor) + ' for y; its x follows ' + BY_ID[e.after].name.toLowerCase() + '.');
   pw.append(pl);
   box.append(pw);
+  // (a part can't be pinned to one that is pinned, through others, to it: a loop)
+  const leadsTo = (from, to) => { const seen = new Set(); let cur = from; while (cur && cur !== 'none' && !seen.has(cur)) { if (cur === to) return true; seen.add(cur); cur = els[cur] && els[cur].after; } return false; };
   row('after', (w) => {
     const sl = document.createElement('select'); sl.id = 'f-after';
-    const order = ELEMENTS.map(x => x.id);
     for (const v of COMMON.after[2]) {
       if (v === sel) continue;
-      if (v !== 'none' && order.indexOf(v) > order.indexOf(sel)) continue;   // (only a part drawn before it)
+      if (v !== 'none' && leadsTo(v, sel)) continue;
       const o = document.createElement('option'); o.value = v; o.textContent = v === 'none' ? 'Nothing: placed on its own' : BY_ID[v].name;
       o.selected = e.after === v; sl.append(o);
     }
-    sl.addEventListener('change', () => { setField('after', sl.value); buildFields(); changed(); });
+    sl.addEventListener('change', () => {
+      if (sl.value === 'none') unpin(); else { setField('after', sl.value); if (e.pin === 'none' && e.x === 0 && e.y === 0) setField('pin', 'right'); }
+      buildFields(); changed();
+    });
     w.append(sl);
   }, FIELD_HELP.after);
+  if (e.after !== 'none') row('pin', (w) => choiceField(w, 'pin', COMMON.pin, e), FIELD_HELP.pin);
   if (e.after !== 'none') row('gap', (w) => numberField(w, 'gap', COMMON.gap, e), FIELD_HELP.gap);
-  if (e.after === 'none') row('x', (w) => numberField(w, 'x', COMMON.x, e), FIELD_HELP.x);
-  row('y', (w) => numberField(w, 'y', COMMON.y, e), FIELD_HELP.y);
+  if (e.after === 'none' || pinned) row('x', (w) => numberField(w, 'x', COMMON.x, e), pinned ? 'A nudge, % of the screen\'s height, + right.' : FIELD_HELP.x);
+  row('y', (w) => numberField(w, 'y', COMMON.y, e), pinned ? 'A nudge, % of the screen\'s height, + up.' : FIELD_HELP.y);
+  if (e.after === 'none') row('side', (w) => choiceField(w, 'side', COMMON.side, e), FIELD_HELP.side);
   // the size
   group('Size');
   row('size', (w) => numberField(w, 'size', COMMON.size, e), FIELD_HELP.size);
@@ -1464,7 +1760,8 @@ cv.addEventListener('pointerdown', (ev) => {
   if (id !== sel) sel = id;
   buildFields();
   const start = {};
-  for (const sid of selSet) start[sid] = { ex: els[sid].x, ey: els[sid].y, gap: els[sid].gap, k: boxes[sid] ? boxes[sid].k : 1, follows: boxes[sid] && boxes[sid].follows };
+  for (const sid of selSet) start[sid] = { ex: els[sid].x, ey: els[sid].y, gap: els[sid].gap, k: boxes[sid] ? boxes[sid].k : 1, follows: boxes[sid] && boxes[sid].follows, pin: boxes[sid] && boxes[sid].pin };
+  snapHint = null;
   drag = { id, x0: x, y0: y, start };
   cv.classList.add('grabbing');
   render();
@@ -1490,20 +1787,41 @@ cv.addEventListener('pointermove', (ev) => {
     render();
     return;
   }
-  const step = ev.altKey ? 0.01 : 0.1;
-  const snap = (v) => Math.round(v / step) * step;
-  const dxp = snap((x - drag.x0) / SCR.H * 100), dyp = snap((y - drag.y0) / SCR.H * 100);
+  // (the grid: a dragged part lands on multiples of the step, wherever it started, so two parts dragged to the same
+  // line are on it exactly; Alt for free movement)
+  const step = ev.altKey || !gridStep ? 0.01 : gridStep;
+  const onGrid = (v) => Math.round(Math.round(v / step) * step * 100) / 100;
+  const dxp = (x - drag.x0) / SCR.H * 100, dyp = (y - drag.y0) / SCR.H * 100;
+  const px = (v) => Math.round(v / 100 * SCR.H);
+  const clampX = (v) => Math.max(-100, Math.min(100, onGrid(v)));
   for (const [sid, st] of Object.entries(drag.start)) {
     const e = els[sid];
-    // (a part placed after another: dragging sideways sets its gap)
-    if (st.follows && !drag.start[st.follows]) e.gap = Math.max(-500, Math.min(500, Math.round(st.gap + dxp / 100 * SCR.H / st.k)));
-    else if (!st.follows) e.x = Math.max(-100, Math.min(100, Math.round((st.ex + dxp) * 100) / 100));
-    e.y = Math.max(-100, Math.min(100, Math.round((st.ey + dyp) * 100) / 100));
+    const withTarget = st.follows && drag.start[st.follows];   // (its part moves too: nothing of its own to set)
+    if (st.follows && st.pin === 'none') {   // (1.5.73: was `!st.pin` — 'none' is a string, so an old-way pin fell into the pinned branch with no sign: a NaN gap, the part gone)
+      // (the old way: dragging sideways sets its gap, up and down its y)
+      if (!withTarget) e.gap = Math.max(-500, Math.min(500, Math.round(st.gap + px(dxp) / st.k)));
+      e.y = clampX(st.ey + dyp);
+    } else if (st.follows) {
+      // (pinned: away from or toward its part sets the gap, across it the nudge)
+      if (withTarget) continue;
+      const sgn = { right: 1, left: -1, above: 1, below: -1 }[st.pin];
+      const along = (st.pin === 'right' || st.pin === 'left') ? dxp : dyp;
+      e.gap = Math.max(-500, Math.min(500, Math.round(st.gap + sgn * px(along) / st.k)));
+      const ns = cfg.size * e.size;   // (the nudge is scaled on the screen: the drag in % divided back)
+      if (st.pin === 'right' || st.pin === 'left') e.y = clampX(st.ey + dyp / ns); else e.x = clampX(st.ex + dxp / ns);
+    } else {
+      e.x = clampX(st.ex + dxp); e.y = clampX(st.ey + dyp);
+    }
   }
   const e = els[drag.id];
-  $('readout').textContent = (selSet.size > 1 ? selSet.size + ' parts' : BY_ID[drag.id].name) + ': ' +
-    (boxes[drag.id] && boxes[drag.id].follows ? 'gap ' + e.gap : 'x ' + num(e.x)) + '  y ' + num(e.y) + '  (hold Alt for finer steps)';
   render();
+  // (one free part dragged: a drop near another part's edge pins it there — shown while it's near)
+  snapHint = null;
+  if ($('o-snap').checked && !ev.ctrlKey && selSet.size === 1 && !drag.start[drag.id].follows) snapHint = snapCandidate(drag.id);
+  if (snapHint) overlay();
+  $('readout').textContent = (selSet.size > 1 ? selSet.size + ' parts' : BY_ID[drag.id].name) + ': ' +
+    (boxes[drag.id] && boxes[drag.id].follows ? 'gap ' + e.gap + '  x ' + num(e.x) : 'x ' + num(e.x)) + '  y ' + num(e.y) + '  (hold Alt for finer steps)' +
+    (snapHint ? '   — drop: pinned ' + ({ right: 'right of ', left: 'left of ', above: 'above ', below: 'below ' })[snapHint.pin] + BY_ID[snapHint.to].name.toLowerCase() : '');
   for (const [name, v] of [['x', e.x], ['y', e.y], ['gap', e.gap]]) { const n = $('f-' + name); if (n) n.value = num(v); }
 });
 function endDrag() {
@@ -1521,9 +1839,52 @@ function endDrag() {
   }
   if (!drag) return;
   const pan = drag.pan;
+  const dropped = drag.id;
   drag = null; cv.classList.remove('grabbing');
   if (pan) return;
+  if (snapHint && els[dropped]) {
+    const e = els[dropped];
+    e.after = snapHint.to; e.pin = snapHint.pin; e.gap = snapHint.gap; e.align = snapHint.align; e.x = 0; e.y = 0;
+    snapHint = null;
+  }
   buildFields(); changed();
+}
+// the part a dragged part would be pinned to: another drawn part whose edge is within SNAP px (at 1440p) of the
+// dragged one's facing edge, the two overlapping across; the nearest. Not one pinned, through others, to the dragged part.
+const SNAP = 14;
+function snapCandidate(id) {
+  const b = boxes[id];
+  if (!b) return null;
+  const leads = (from) => { const seen = new Set(); let cur = from; while (cur && cur !== 'none' && !seen.has(cur)) { if (cur === id) return true; seen.add(cur); cur = els[cur] && els[cur].after; } return false; };
+  let best = null;
+  for (const [tid, t] of Object.entries(boxes)) {
+    if (tid === id || leads(tid)) continue;
+    const overV = b.y < t.y + t.h + SNAP && b.y + b.h > t.y - SNAP, overH = b.x < t.x + t.w + SNAP && b.x + b.w > t.x - SNAP;
+    const tries = [];
+    if (overV) {
+      tries.push({ pin: 'right', d: Math.abs(b.x - (t.x + t.w)), gap: b.x - (t.x + t.w) });
+      tries.push({ pin: 'left', d: Math.abs(b.x + b.w - t.x), gap: t.x - (b.x + b.w) });
+    }
+    if (overH) {
+      tries.push({ pin: 'above', d: Math.abs(b.y - (t.y + t.h)), gap: b.y - (t.y + t.h) });
+      tries.push({ pin: 'below', d: Math.abs(b.y + b.h - t.y), gap: t.y - (b.y + b.h) });
+    }
+    for (const tr of tries) {
+      if (tr.d > SNAP || (best && tr.d >= best.d)) continue;
+      // the edges to line up across: the nearest pair (bottoms / tops / middles, or left / right edges / middles)
+      let align;
+      if (tr.pin === 'right' || tr.pin === 'left') {
+        const c = [['bottom_left', Math.abs(b.y - t.y)], ['top_left', Math.abs(b.y + b.h - t.y - t.h)], ['left', Math.abs(b.y + b.h / 2 - t.y - t.h / 2)]];
+        align = c.sort((p, q) => p[1] - q[1])[0][0];
+      } else {
+        const c = [['bottom_left', Math.abs(b.x - t.x)], ['bottom_right', Math.abs(b.x + b.w - t.x - t.w)], ['bottom', Math.abs(b.x + b.w / 2 - t.x - t.w / 2)]];
+        align = c.sort((p, q) => p[1] - q[1])[0][0];
+        if (tr.pin === 'below') align = align.replace('bottom', 'top');
+      }
+      best = { to: tid, pin: tr.pin, d: tr.d, gap: Math.max(0, Math.round(tr.gap / b.k)), align };
+    }
+  }
+  return best;
 }
 cv.addEventListener('pointerup', endDrag);
 cv.addEventListener('pointercancel', endDrag);
@@ -1533,12 +1894,14 @@ document.addEventListener('keydown', (ev) => {
   const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[ev.key];
   if (!m) return;
   ev.preventDefault();
-  const st = ev.shiftKey ? 1 : 0.1;
+  const st = ev.shiftKey ? 1 : (gridStep || 0.1);
   for (const sid of selSet) {
-    const e = els[sid];
-    if (boxes[sid] && boxes[sid].follows) e.gap = Math.round(e.gap + m[0] * st * SCR.H / 100 / boxes[sid].k);
-    else e.x = Math.round((e.x + m[0] * st) * 100) / 100;
-    e.y = Math.round((e.y + m[1] * st) * 100) / 100;
+    const e = els[sid], b = boxes[sid];
+    const pin = b && b.follows ? (b.pin || 'none') : null;
+    if (pin === 'none') { e.gap = Math.round(e.gap + m[0] * st * SCR.H / 100 / b.k); e.y = Math.round((e.y + m[1] * st) * 100) / 100; }
+    else if (pin === 'right' || pin === 'left') { e.gap = Math.round(e.gap + (pin === 'right' ? 1 : -1) * m[0] * st * SCR.H / 100 / b.k); e.y = Math.round((e.y + m[1] * st / (cfg.size * e.size)) * 100) / 100; }
+    else if (pin) { e.gap = Math.round(e.gap + (pin === 'above' ? 1 : -1) * m[1] * st * SCR.H / 100 / b.k); e.x = Math.round((e.x + m[0] * st / (cfg.size * e.size)) * 100) / 100; }
+    else { e.x = Math.round((e.x + m[0] * st) * 100) / 100; e.y = Math.round((e.y + m[1] * st) * 100) / 100; }
   }
   changeKey = 'nudge'; buildFields(); changed();
 });
@@ -1658,10 +2021,19 @@ for (const b of $('zoom').querySelectorAll('button')) {
     render();
   });
 }
+let gridStep = 0.2;                                  // (the drag grid, % of the screen's height; 0: off)
+for (const b of $('grid').querySelectorAll('button')) {
+  b.addEventListener('click', () => {
+    gridStep = Number(b.dataset.g);
+    for (const o of $('grid').querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b));
+  });
+}
 sampleSel.addEventListener('change', render);
 $('fillr').addEventListener('input', render);
 $('o-size').addEventListener('change', () => { cfg.size = Number($('o-size').value); render(); });
-$('o-outline').addEventListener('change', () => { cfg.outline = $('o-outline').checked; render(); });
+$('o-edge').addEventListener('change', () => { cfg.edge = Number($('o-edge').value) || 1; render(); });
+$('o-shade').addEventListener('change', () => { cfg.shade = $('o-shade').checked; render(); });
+$('o-spread').addEventListener('change', () => { cfg.spread = Math.max(-30, Math.min(30, Number($('o-spread').value) || 0)); render(); });
 $('o-modecol').addEventListener('change', () => { cfg.mode_colors = $('o-modecol').checked; render(); });
 $('o-cb').addEventListener('change', () => { P = PALETTES[$('o-cb').checked ? 2 : 1]; render(); });
 $('o-guides').addEventListener('change', render);
@@ -1685,6 +2057,66 @@ $('copy').addEventListener('click', () => {
     navigator.clipboard.writeText(text).then(() => { stat.className = 'status ok'; stat.textContent = 'Copied.'; }, fallback);
   } catch (e) { fallback(); }
 });
+// (1.5.54) a link to this layout: the fields that differ from the defaults, as JSON, deflated where the browser can
+// and base64url in the page's #l= ; opening the link loads it (the draft is left as it was until a change is made)
+function compactLayout() {
+  const out = {};
+  for (const el of ELEMENTS) {
+    const e = els[el.id], c = {};
+    for (const set of [COMMON, el.fields]) {
+      for (const [name, f] of Object.entries(set)) {
+        const dv = name !== 'after' && name !== 'pin' && name !== 'side' && UNDER.elements[el.id] && UNDER.elements[el.id][name] !== undefined ? UNDER.elements[el.id][name]
+          : (name === 'on' && el.off ? false : f[1]);
+        if (e[name] !== dv) c[name] = e[name];
+      }
+    }
+    if (Object.keys(c).length) out[el.id] = c;
+  }
+  return { o: useOffsets, e: out };
+}
+const b64u = { enc: (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+  dec: (str) => Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0)) };
+async function encodeShare() {
+  const json = JSON.stringify(compactLayout());
+  const bytes = new TextEncoder().encode(json);
+  if (typeof CompressionStream === 'function') {
+    const buf = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+    return 'd' + b64u.enc(new Uint8Array(buf));
+  }
+  return 'j' + b64u.enc(bytes);
+}
+async function decodeShare(str) {
+  const kind = str[0], bytes = b64u.dec(str.slice(1));
+  let json;
+  if (kind === 'd') json = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  else json = new TextDecoder().decode(bytes);
+  return JSON.parse(json);
+}
+$('helpbtn').addEventListener('click', () => { const d = $('help'); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); });
+$('helpclose').addEventListener('click', () => $('help').close());
+$('share').addEventListener('click', async () => {
+  const stat = $('copystat');
+  try {
+    const url = location.href.split('#')[0] + '#l=' + await encodeShare();
+    await navigator.clipboard.writeText(url);
+    stat.className = 'status ok'; stat.textContent = 'Link copied (' + url.length + ' characters).';
+  } catch (e) { stat.className = 'status err'; stat.textContent = 'The link couldn\'t be copied: ' + e.message; }
+});
+async function loadShared() {
+  const m = /[#&]l=([A-Za-z0-9_-]+)/.exec(location.hash || '');
+  if (!m) return false;
+  try {
+    const t = await decodeShare(m[1]);
+    const r = readLayout({ _v: 1, elements: t.e || {} });
+    els = r.els; useOffsets = t.o === true; syncOffsets();
+    select(sel || 'bar'); buildFields(); updateFile(); render();
+    const stat = $('loadstat'); stat.className = 'status ok'; stat.textContent = 'The layout from the link: read.' + (r.dropped.length ? ' ' + r.dropped.length + ' value(s) left at Under\'s.' : '');
+    return true;
+  } catch (e) {
+    const stat = $('loadstat'); stat.className = 'status err'; stat.textContent = 'The link\'s layout can\'t be read: ' + e.message;
+    return false;
+  }
+}
 // (a download only where the page is the whole tab: inside an embedding frame it's refused)
 if (window.top === window.self) {
   const dl = $('download');
@@ -1727,6 +2159,7 @@ function start() {
   measureCap();
   SCR.W = Math.round(1440 * Number($('aspect').value));
   syncOffsets(); buildFields(); updateFile(); hist.last = snap(); histButtons(); railApply();
+  loadShared().then((ok) => { if (ok) { hist.last = snap(); } });
 }
 if (document.fonts && document.fonts.load) {
   Promise.all([document.fonts.load('500 40px "Saira Semi Condensed"'), document.fonts.ready]).then(start, start);

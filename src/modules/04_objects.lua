@@ -109,8 +109,9 @@ local function as_peer(v)
   if type(v) == 'string' then return (string.gsub(string.lower(v), '^0+', '')) end
   return nil
 end
-local session = { host = nil, peer = nil, mine = 0, hosts = 0 }
+local session = { host = nil, peer = nil, mine = 0, hosts = 0, churn = 0, scans = 0 }
 local function scan(s, peer)
+  if N.read_level == 4 then session.mine, session.hosts = 0, 0 return end   -- (Testing: reads 4: no object reads at all)
   local ids, why = call('owned', 'GameSession.objects_owned_by', s, peer)
   if type(ids) ~= 'table' then
     blocked.n = blocked.n + 1
@@ -122,26 +123,34 @@ local function scan(s, peer)
   end
   blocked.n = 0
   -- in someone else's game the host may own your weapons: theirs too, kept only where the owner field says you
+  -- (1.5.38: not any more by default. Listing, sorting and reading the host's 600-odd objects on a client ended in
+  -- the client losing its host 12 to 17 min into every mission; without them, two missions of 16 and 28 min clean
+  -- (the 2026-10-29 bisection, docs/DEVLOG.md). Your own weapons, the ones from your hellpods too, are yours
+  -- (owner = you) on 7.2.2. Testing: reads 1 brings the host's objects back for a mission.)
   local host = call('host', 'GameSession.game_session_host', s)
   session.host, session.peer = host, peer
-  local hids = (host ~= nil and host ~= peer) and call('owned_host', 'GameSession.objects_owned_by', s, host) or nil
+  local hids = (host ~= nil and host ~= peer and N.read_level == 1) and call('owned_host', 'GameSession.objects_owned_by', s, host) or nil
   local now = {}
+  -- (1.5.29) churn: objects that came or went since the last scan, for the vitals (a live mission always has some:
+  -- none for seconds means the host's objects stopped reaching this client, the freeze the disconnect reports describe)
+  local churn = 0
   session.mine, session.hosts = 0, 0
   for _, goid in pairs(ids) do
     now[goid] = true
     session.mine = session.mine + 1
-    if objs[goid] == nil then objs[goid] = { seen_at = chef.time() }; queue[#queue + 1] = goid end
+    if objs[goid] == nil then objs[goid] = { seen_at = chef.time() }; queue[#queue + 1] = goid; churn = churn + 1 end
   end
   if type(hids) == 'table' then
     for _, goid in pairs(hids) do
       if not now[goid] then
         now[goid] = true
         session.hosts = session.hosts + 1
-        if objs[goid] == nil then objs[goid] = { host = true, seen_at = chef.time() }; queue[#queue + 1] = goid end
+        if objs[goid] == nil then objs[goid] = { host = true, seen_at = chef.time() }; queue[#queue + 1] = goid; churn = churn + 1 end
       end
     end
   end
-  for goid in pairs(objs) do if not now[goid] then objs[goid] = nil end end
+  for goid in pairs(objs) do if not now[goid] then objs[goid] = nil; N.checked[goid] = nil; churn = churn + 1 end end
+  session.churn, session.scans = churn, session.scans + 1
   -- your player: the one you own. In someone else's game the host's objects are in the list too, the host's own
   -- player among them; taking that one showed the host's grenades and stims, flicking between theirs and yours (a
   -- 2026-10-25 log). One of the host's only when no player of yours is there and it's the only one.
@@ -153,6 +162,7 @@ local function scan(s, peer)
     end
   end
   if me.player == nil and host_players == 1 then me.player = host_player end
+  session.host_player = (host_players == 1 and me.player ~= host_player) and host_player or nil   -- (the vitals: the host's Helldiver)
   if me.player and alive(s, me.player, TYPES[1]) then
     local a = call('player.avatar', 'GameSession.game_object_field', s, me.player, DATA.player.avatar)
     me.avatar = (type(a) == 'number' and a ~= NO_OBJECT) and a or nil
@@ -168,9 +178,12 @@ local function scan(s, peer)
         o.on = type(c) == 'number' and c % 4 == 0
         -- (onto your body during the mission: picked up from its hellpod or the ground. Until it fires, it's the one
         -- in your hand among the weapons held the same way, not one of them at random)
-        if o.on and o.on_was == false and not t.pack and HANDHELD[t.id] and not o.host then
-          o.chosen_at = chef.time()
-          if cfg.research then log('research: weapon %s (object %s) picked up', t.id, tostring(goid)) end
+        if o.on and o.on_was == false and not t.pack and not o.host then
+          -- (1.5.51: a type with no owner field isn't a hand weapon but can be a mounted gun's, the Grenadier
+          -- Battlement's 17db8107: its pick-up time is kept too, the seat rule in 05_hand wants it)
+          if HANDHELD[t.id] then o.chosen_at = chef.time() end
+          o.picked_at = chef.time()
+          if cfg.research then log('research: weapon %s (object %s) picked up%s', t.id, tostring(goid), HANDHELD[t.id] and '' or ' (not a hand weapon: a mounted gun?)') end
         end
         o.on_was = o.on
         -- A backpack's carry field (the 2026-10-25 log): 0 worn, 1 in its hellpod, 2 dropped. One that isn't yours

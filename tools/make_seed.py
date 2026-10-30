@@ -40,10 +40,11 @@ def ser(v, ind=''):
 
 
 # weapons known from players' logs, not luka189's own play: kept in the seed on every run
-EXTRA = { 'grip': {
+EXTRA = { 'zoom': { '30294946': True, 'a4eff4fa': True },   # a scope with zeroing (the R-40 Sightliner, the AMW-20 Apex; luka's 2026-10-30 marks)
+          'grip': {
     'c4235b66': 90,       # Liberator Legacy, hand pose 90 (a 2026-10-28 report)
     # single learns in testers' logs (tools/coverage.py, 2026-10-28): each learned at a shot with the fire button
-    '86709cb9': 1, 'ab38cade': 10, '4e64c4dc': 10, '61e573c5': 52,
+    'ab38cade': 10, '4e64c4dc': 10, '61e573c5': 52,   # (86709cb9 dropped 1.5.39: a guard dog's gun, never in a hand)
     '9c06f074': 80,       # SG-20 Halt (three testers' logs: learned at 80 each time)
 } }
 

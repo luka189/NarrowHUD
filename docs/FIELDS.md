@@ -35,7 +35,7 @@ tolerance), 3 a Vector3, 4 a rotation (Vector4), 9 a 64-bit id (a peer id, a has
 | 18 | **network_mask** | 0 in a vehicle, 1 on foot, 13 for a moment getting out |
 | 20, 61 | a09ccd0a, 4441caf8 | true on foot, false in a vehicle (HUDdle: the same for a mech) |
 | 23 | **position** | |
-| 25 | 20efbed4 | the object you're next to or looking at (a backpack on the ground, a pin; Integrated HUD: your vehicle) |
+| 25 | 20efbed4 | the object you're next to or looking at (a backpack on the ground, a pin; Integrated HUD: your vehicle). An emplacement's seat (the HMG: its seat object; the AT: the gun itself) while you sit; not the FRV's turret (1.5.51) |
 | 26, 27 | **motion_mode**, **motion_enabled** | motion_enabled false in the pod, in a vehicle, dead |
 | 32 | **is_falling** | |
 | 34 | 268ac291 | counts up by one at each vehicle exit and each emote (guess: an action counter) |
@@ -74,7 +74,12 @@ is_overheated, is_charging, reload_stage, underbarrel_goid, original_owner), plu
 - **position**, **rotation**, **is_moving**, **enabled_mask**: (0, 0, 0) while carried; a dropped weapon (on your
   body after a death) gets a position and is_moving true, enabled_mask 1 or 2.
 - 98b4aaf0: a list of 64-bit ids, 5 on a customized Liberator, 1 on others (guess: the attachments).
-- c20428c6 / 6d1d5cfb: one-entry lists ({12} / {1}; the Railgun {10} / {1.1}; guess: scope zoom).
+- c20428c6 / 6d1d5cfb: one-entry lists ({12} / {1}; the Railgun {10} / {1.1}); not the scope zoom (below).
+- **The scope's zoom step is in options (31f86165), bits 16 and 32** (luka's 2026-10-30 marks: the R-40 Sightliner's
+  options 80 → 96 → 64 → 80 and the AMW-20 Apex's 96 → 64 → 80 → 96, one zoom press each; nothing else on the
+  weapon moved). `(options / 16) % 4`: 0 the lowest zoom, 1, 2 the highest; bit 64 stays set on both (the scope
+  present, or its kind). The Helldiver's cd889dbc (#2 in the all-fields order; the same name hash as the weapons'
+  reload_stage) goes 74 → 106 → 74 (+32) around each press, with the input bits in 6ff0e58a: the press itself.
 - **spread_seed**: a new random number each reload.
 - 31182caf: bits that empty over the last 4 rounds of a magazine.
 - **6f3ab277** (-0.5 to 1.58, 7 bits, radians): the aim's pitch of a weapon that aims by itself. 0 on every weapon

@@ -6,8 +6,9 @@ over its first seconds give its release speed and angle, against the aim NarrowH
 For each flight: a parabola p(t) = p0 + v0 t + g t^2 / 2 (g = 9.81 down, no drag) by least squares on the samples;
 the flight run back to the height it was let go at (the aim's release point, logged with the flight), and the
 speed there, its pitch above the horizontal, and the pitch of the aim NarrowHUD used (the camera's plus LIFT)
-printed, with the fit's error. Then the mean over the throws of each kind: the numbers for THROW in
-src/modules/12_throw.lua (LIFT = the fitted pitch minus the camera's pitch).
+printed, with the fit's error. Then, per thrown unit kind and armour, the speed each throw needs at the lift drawn
+against the speed drawn (their ratio is the factor for THROW / THROW_UP in src/modules/12_throw.lua: the reading
+that matters, since a fit's own speed and pitch trade off), and the older means per kind.
 """
 import math
 import re
@@ -15,6 +16,7 @@ import sys
 from collections import defaultdict
 
 LIFT = {'ball': math.radians(5.8), 'c4': math.radians(5), 'grenade': math.radians(8)}   # (as 12_throw.lua has them)
+UP = {'ball': 0.9, 'c4': 1.0, 'grenade': 0.4}
 
 
 def fit(pts):
@@ -41,17 +43,29 @@ def fit(pts):
     return out, math.sqrt(err / n)
 
 
-class _Shift:
-    """the match with the (aimed) / (quick) group taken out of the numbering: group(0) is it, the rest as before"""
+class _Shift2:
+    """the match with the (aimed) / (quick) group (4) and the drawn lift (6, 1.5.50) taken out of the numbering
+    (group(0) is the aimed/quick one) and the two armour groups (11, 12) skipped: the flight samples are group(9)
+    as before"""
     def __init__(self, m): self.m = m
-    def group(self, i): return self.m.group(4) if i == 0 else (self.m.group(i) if i < 4 else self.m.group(i + 1))
+    def group(self, i):
+        if i == 0: return self.m.group(4)
+        if i < 4: return self.m.group(i)
+        if i < 5: return self.m.group(i + 1)
+        if i < 9: return self.m.group(i + 2)
+        return self.m.group(13)
 
 
 def main():
     text = open(sys.argv[1], encoding='utf-8', errors='ignore').read()
     by_kind = defaultdict(list)
-    for m in re.finditer(r'research: throw flight: (\w+) (\w+); aim (\w+)(?: \((\w+)\))? pitch ([-\d.]+) speed ([-\d.]+) at ([-\d.]+) s before(?: from ([-\d.,?]+))?; feet ([-\d.,?]+); (?:armour [^;]*; )?(.*)', text):
-        m = _Shift(m)
+    by_unit = defaultdict(list)   # (kind, the thrown unit's kind hash, the armour) -> the throws, for a line per grenade kind
+    ends = defaultdict(list)      # (unit hash, armour) -> (release point at the grenade's own up, camera pitch, the flight's end), for the pair fit
+    for m in re.finditer(r'research: throw flight: (\w+) (\w+); aim (\w+)(?: \((\w+)\))? pitch ([-\d.]+) (?:lift ([-\d.]+) )?speed ([-\d.]+) at ([-\d.]+) s before(?: from ([-\d.,?]+))?; feet ([-\d.,?]+); (?:armour (\w+)(?: ([A-Za-z -]+))?; )?(?:(?:gone after [\d.]+ s|still there at [\d.]+ s|never flew); )?(.*)', text):
+        unit_hash = m.group(1)
+        armour = (m.group(12) or (m.group(11) and ('armour ' + m.group(11))) or 'no passive').strip()
+        drawn_lift = float(m.group(6)) if m.group(6) else None   # (1.5.50 logs the lift the line was drawn with)
+        m = _Shift2(m)
         kind, aim_kind, aim_pitch, aim_speed = m.group(2), m.group(3) + (' ' + m.group(0) if m.group(0) else ''), float(m.group(4)), float(m.group(5))
         release = [float(v) for v in m.group(7).split(',')] if m.group(7) and m.group(7) != '?' else None
         feet = [float(v) for v in m.group(8).split(',')] if m.group(8) != '?' else None
@@ -92,11 +106,16 @@ def main():
         vzr = vz - 9.81 * tr
         speed = math.sqrt(vx * vx + vy * vy + vzr * vzr)
         pitch = math.atan2(vzr, math.sqrt(vx * vx + vy * vy))
-        cam_pitch = aim_pitch - LIFT.get(aim_kind.split()[0], 0)
+        cam_pitch = aim_pitch - (drawn_lift if drawn_lift is not None else LIFT.get(aim_kind.split()[0], 0))
         # What matters is where it lands: from the aim's release point R, which pitch (at the drawn speed) and which
         # speed (at the drawn pitch) take the line through the flight's farthest sample P. Those are the lift and
         # speed to draw with; the fit's own pitch depends on where the throw was really let go, which isn't known.
         eff_lift, eff_speed, gaps = None, None, ''
+        if release and kind == 'grenade':
+            # the line's own start: the aim's release point moved from the drawn kind's up to the grenade's
+            P = max(pts, key=lambda q: q[0])
+            px, py, pz = x0 + vx * P[0], y0 + vy * P[0], z0 + vz * P[0] - 9.81 * P[0] ** 2 / 2
+            ends[(unit_hash, armour)].append(((release[0], release[1], release[2] - UP.get(aim_kind.split()[0], 0) + UP['grenade']), cam_pitch, (px, py, pz), r[1]))
         if release and aim_kind.split()[0].lower() == kind.lower():
             P = max(pts, key=lambda q: q[0])
             hx, hy = P[1] - release[0], P[2] - release[1]
@@ -121,11 +140,52 @@ def main():
             eff_lift = math.radians(best[1]) - cam_pitch
             best = min((abs(zline(D, aim_pitch, sp / 10) - release[2] - H), sp / 10) for sp in range(100, 400))
             eff_speed = best[1]
-        print('%-8s aim %-14s fit: speed %5.1f m/s pitch %6.2f deg (camera %6.2f: lift %5.2f) rms %.2f m, %d pts, %.1f m up%s' % (
-            kind, aim_kind, speed, math.degrees(pitch), math.degrees(cam_pitch), math.degrees(pitch - cam_pitch), r[1], len(pts), (pts[0][3] - feet[2]) if feet else 0,
+        print('%-8s %s aim %-14s fit: speed %5.1f m/s pitch %6.2f deg (camera %6.2f: lift %5.2f) rms %.2f m, %d pts, %.1f m up%s' % (
+            kind, unit_hash[:4], aim_kind, speed, math.degrees(pitch), math.degrees(cam_pitch), math.degrees(pitch - cam_pitch), r[1], len(pts), (pts[0][3] - feet[2]) if feet else 0,
             '  to pass through its end: lift %.1f deg at the drawn %.1f m/s, or %.1f m/s at the drawn lift' % (math.degrees(eff_lift), aim_speed, eff_speed) + gaps if eff_lift is not None
             else '  (no aim drawn for it, or another kind: the lift means nothing here)'))
         by_kind[kind].append((speed, pitch - cam_pitch, aim_speed, eff_lift is not None and r[1] < 0.5, eff_lift, eff_speed, 'aimed' in aim_kind))
+        if eff_speed is not None:
+            by_unit[(kind, unit_hash, armour)].append((eff_speed, aim_speed, pitch - cam_pitch, r[1]))
+    # The reading that matters (1.5.48): a fit's own speed and pitch trade off, so the speed each throw needs AT THE
+    # LIFT DRAWN is compared with the speed drawn; their ratio is the factor to multiply the drawn speed by. Per thrown
+    # unit kind (a grenade kind has its own numbers) and armour, every throw with a line drawn, medians (a grenade's
+    # fit is rough, rms 0.5-0.9 m: the median shrugs it off).
+    print()
+    print('needed at the drawn lift (medians; the factor is what to multiply the drawn speed by):')
+    for (kind, unit_hash, armour), l in sorted(by_unit.items()):
+        need = sorted(x[0] for x in l)[len(l) // 2]
+        drawn = sorted(x[1] for x in l)[len(l) // 2]
+        lift = sorted(x[2] for x in l)[len(l) // 2]
+        print('  %-8s unit %s  %-16s n=%2d  needs %5.1f m/s against %5.1f drawn: x%.2f   (the fits\' own lift %.1f deg, worst rms %.2f m)' % (
+            kind, unit_hash, armour, len(l), need, drawn, need / drawn if drawn else 0, math.degrees(lift), max(x[3] for x in l)))
+    # The pair for GRENADE_KINDS (1.5.49): per grenade kind, the one (lift, speed) whose line from each throw's
+    # release point (at the grenade's up, 0.4 m) at the camera's pitch plus that lift, at that speed, comes down to
+    # the throw's end height nearest its end: the median range miss over the throws, on a grid. Fits over 0.9 m rms,
+    # throws steeper than 45 deg (the range barely depends on the speed there) and shorter than 6 m are left out.
+    print()
+    print("the pair per grenade kind (lift and speed together, the range to the throws' ends):")
+    for (unit_hash, armour), l in sorted(ends.items()):
+        l = [e for e in l if e[3] < 0.9 and e[1] < math.radians(45) and math.hypot(e[2][0] - e[0][0], e[2][1] - e[0][1]) >= 6]
+        if len(l) < 3:
+            continue
+        def miss(lift, sp):
+            m = []
+            for R, cam, P, _ in l:
+                D = math.hypot(P[0] - R[0], P[1] - R[1])
+                th = cam + lift
+                # the line's range at the end's height: z(d) = Rz + d tan th - g d^2 / (2 sp^2 cos^2 th) = Pz
+                a, b, c = -9.81 / (2 * sp * sp * math.cos(th) ** 2), math.tan(th), R[2] - P[2]
+                disc = b * b - 4 * a * c
+                if disc < 0:
+                    m.append(D)
+                    continue
+                m.append(abs((-b - math.sqrt(disc)) / (2 * a) - D))
+            m.sort()
+            return m[len(m) // 2], m[-1]
+        best = min((miss(math.radians(d / 2), sp / 2) + (d / 2, sp / 2)) for d in range(-30, 61) for sp in range(16, 80))
+        print('  unit %s  %-16s n=%2d  lift %5.1f deg  speed %5.1f m/s  (median range miss %.2f m, worst %.2f m)' % (unit_hash, armour, len(l), best[2], best[3], best[0], best[1]))
+    print()
     for kind, l in by_kind.items():
         n = len(l)
         good = [x for x in l if x[3]]

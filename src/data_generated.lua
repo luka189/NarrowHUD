@@ -1,7 +1,7 @@
--- NarrowHUD game data, made by tools/make_data.py from the game's network config (game build 26088801).
+-- NarrowHUD game data, made by tools/make_data.py from the game's network config (game build 26251122).
 -- Types: "id stand-in-name roles" (roles: the letters of the weapon fields the type declares).
 return {
-  build = "26088801",
+  build = "26251122",
   roles = {
     carry = { letter = "k", id = "788b9753", name = "n5jmvf" },
     chamber = { letter = "c", id = "4a893e74", name = "q6nx6da" },

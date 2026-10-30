@@ -1,5 +1,108 @@
 # Changelog
 
+## 2.0.0
+
+Your settings carry over but the layout choice. The F9 menu is regrouped, with short labels. Old Custom layout
+files still load.
+
+- Four new layouts (the horizontal stack, the arcs, the vertical pair, the block) that hold together: parts pin to
+  each other, so hiding or resizing one keeps the rest in order. A Spread slider opens or closes the pair around
+  the crosshair. The old Under / Beside / Corner / Curved pair are gone: pick your layout in F9 (Custom users:
+  Custom layout again; the file is untouched).
+- The layout editor: pins, snapping, a grid, a Share link for your layout, a Help page.
+- A Show rule for every part: always, while not full, on a change, while aiming, or a mix.
+- Motion: parts slide, bars ease, and short flashes mark a bar at zero, the last magazine, an overheat, a stim or
+  grenade used, stamina empty or full. Off, Quick or Normal.
+- Colours now look as they are meant to, on every planet. The opacity slider works across its whole range.
+- Emplacement guns: the HMG, Anti-Tank and Grenadier emplacements show their rounds while you're seated.
+- A throw line for every grenade kind.
+- Bar edges (none, outline, or the game's brackets), the shade behind the bars, the weapon mode and fire mode as
+  separate parts with their icons, the scope's zeroing as text or icon, a tick per use on the backpack bar.
+- A crosshair for the sniper rifles aimed in third person.
+- Fixed: the overheat flash looked purple; the vertical backpack bar emptied from the wrong end; a wrong grenade
+  line for a moment after a throw.
+- Needs Chef Shared Loader 1.2.3 or newer, as before.
+
+## 1.5.41
+
+- Two logs: narrowhud.log keeps the plain lines; the research rows' field dumps go to narrowhud_research.log. The
+  loader starts a log afresh once it passes 1 MB, and a long research session was pushing the plain log over it.
+- Fixed: "Drop line length" past about 220 m did nothing for grenade launchers and the grenade pistols. The line
+  now goes the full length set.
+- The guard dogs' guns are never taken for the weapon in your hand.
+
+## 1.5.38
+
+- The disconnects: when you played in someone else's game, NarrowHUD listed, sorted and read the host's objects
+  once a second to find any weapon of yours the host might own, and the client lost its host 12 to 17 minutes
+  into every mission. 1.5.38 never touches the host's objects. Nothing you see changes.
+
+## 1.5.36 (interim, for the disconnect reports)
+
+- Two reads are off in this build: a support weapon's "lying on the ground" field is never read, and a weapon's
+  underbarrel field only while the fire mode selects it — as 1.5.13 read them. They are the one difference on the
+  reading side between 1.5.13 (one disconnect report in three days) and 1.5.26 (many), so this build tests
+  whether they matter. What you lose for now: a support weapon of yours lying on the ground can be taken for the
+  one in your hand at drop-in until its first shot (the 1.5.26 fix), and the underbarrel's icon shows only while
+  it's selected. Everything else is 1.5.35.
+- The logs say more (1.5.27–1.5.35): if you get dropped, post narrowhud.log and chef_loader.log with the clock time.
+
+## 1.5.35
+
+- "Testing: reads" level 6: no floor / underbarrel reads — the one read-side difference between 1.5.13 and 1.5.26
+  (docs/DEVLOG.md), for the disconnect bisection.
+
+## 1.5.34
+
+- "Testing: reads" (F9, with the research log), for the disconnect bisection within the reads: 2 no host objects,
+  3 no field reads, 4 no object reads at all, 5 no Unit calls; one mission a level, said in the log.
+- A refused engine read answering a reason no longer trips a number conversion (five places; latent).
+
+## 1.5.33
+
+- The freeze lines say "(you're dead)" when you are, and a mission's end line says when you were last dead: a
+  world that stands still while you're dead isn't the freeze before a drop.
+
+## 1.5.32
+
+- Made for game patch 7.2.2 (Steam build 26251122, 2026-10-29): the network config has one new type and not one
+  field moved, so the data is the same with the new build number; the version check knows both builds.
+
+## 1.5.31
+
+- On Chef Shared Loader 1.4.0 or newer: the stim and grenade textures go through the plain bitmap call again (the uv
+  call was the workaround for 1.3's strobe, which 1.4.0 fixed), the drop line needs no line of nothing after it
+  (1.4.0 clears them itself), and the loader's players event is logged (someone joining, in, or leaving) with the
+  player count in a mission's end line, for the disconnect reports. On 1.3 nothing changes.
+
+## 1.5.30
+
+- The freeze before a drop seen directly: the host's Helldiver (its input, stamina, health and aim fields) and the
+  teammates' positions, once a second; "still for 3 s" and "moving again" lines, and the mission's end line says how
+  long before it each last changed. (The object churn of 1.5.29 alone was too weak: a healthy mission had 20 s with
+  nothing coming or going.)
+- The per-object type cache is pruned as objects go (it grew by a few hundred entries a minute in a long mission).
+
+## 1.5.29
+
+- **For the disconnect reports**, a second line a minute in a mission: the worst frame and the frames over 50 and
+  100 ms, the objects of yours and the host's and how many came or went, the fields read, the engine objects made
+  (GUIs, material copies), any table of the mod's that grew, and the ping to the host if the engine answers for it;
+  a line when no object came or went for 5 s (the freeze the reports describe) and when they move again; and at a
+  mission's end, how long before it the last object moved. Nothing to turn on.
+- Two research builds for the reporters, made with `tools/build.py --research`: **R0** reads nothing and draws
+  nothing (the loader's hook and the vitals only), **R1** reads everything and draws nothing. One mission with each
+  tells whether a drop needs the mod's reads, its drawing, or only the loader being there.
+- The icon material's copy is asked of the engine once a world, not once a frame an icon.
+
+## 1.5.28
+
+- Fixed: a weapon fed from the backpack sharing a hand pose with a weapon of its own ammo was learned and forgotten
+  again every tenth of a second while the pack went down (a dog firing from it, say): 800 log lines a mission and the
+  learned file rewritten every 5 s. Forgotten once, it stays forgotten for the session.
+- The first reporter's logs read (1.5.27, a client, four missions): the Lua heap flat at 4–6 MB, no frame stalled a
+  quarter second, nothing before the drop. Whatever drops clients, it isn't visible from inside the mod; still open.
+
 ## 1.5.27
 
 - For the **disconnect reports** (clients dropped from a host's mission): every narrowhud.log now has a line a minute

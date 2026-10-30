@@ -12,7 +12,7 @@ local vs = { goid = nil, max = 125, max_at = -100, trail = nil, prev_hp = nil, h
   show_h = 0, show_s = 0, t = nil }
 local function read_vitals(s, now)
   local av = me.avatar
-  if not av or not alive(s, av, TYPES[2]) then vs.goid = nil return nil end
+  if not av or not alive(s, av, TYPES[2]) then vs.goid = nil N.dead = nil return nil end
   if vs.goid ~= av then
     vs.goid, vs.trail, vs.prev_hp, vs.hit_at, vs.max_at, vs.show_h, vs.show_s = av, nil, nil, nil, -100, 0, 0
     vs.full_h, vs.full_s = -100, -100                    -- (full from the start: not shown)
@@ -26,6 +26,7 @@ local function read_vitals(s, now)
   local st = call('avatar.stamina', 'GameSession.game_object_field', s, av, 'stamina')
   hp = type(hp) == 'number' and hp or nil
   st = type(st) == 'number' and st or nil
+  if hp then N.dead = hp <= 0 end                                              -- (the vitals log: a freeze while dead isn't one)
   if hp and hp <= 0 then vs.show_h, vs.show_s = 0, 0 return nil end           -- (dead)
   local dt = math.min(0.1, now - (vs.t or now))
   vs.t = now
@@ -58,17 +59,20 @@ N.vitals_state = vs
 -- real one isn't known.
 local FNAME = {}
 for id, name in string.gmatch(DATA.fieldnames or '', '(%x+) (%S+)') do FNAME[id] = name end
+N.FNAME_AIM = FNAME['95c46304']
 local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100 }
 local function strat_held()
   local k = N.keys and N.keys.strat
   if k and k.down and k.down() == true then return true end
   for _, p in ipairs(N.pad_list and N.pad_list(chef.time()) or {}) do
-    if p.strat and (tonumber(call('pad', p.button, p.strat)) or 0) > 0.5 then return true end
+    if p.strat and (tonumber((call('pad', p.button, p.strat))) or 0) > 0.5 then return true end
   end
   return false
 end
 local function read_state(s, now)
-  st8.strat = cfg.hide_strat and strat_held() or false
+  local held = strat_held()
+  st8.strat = cfg.hide_strat and held or false
+  if held then st8.strat_at = now end   -- (1.5.56: the throw line tells a stratagem ball from a mine at the same pose by it)
   local av = me.avatar
   if not av or not alive(s, av, TYPES[2]) then return end
   if st8.goid ~= av then st8.goid, st8.aim, st8.emote = av, 0, -1 end
@@ -78,7 +82,7 @@ local function read_state(s, now)
   st8.emote = tonumber(e) or -1
   -- (the weapon's stance, for the research log and the drop line's "while aiming": 4 down the sights)
   if cfg.research or cfg.throw_line then
-    local a = tonumber(call('avatar.aim', 'GameSession.game_object_field', s, av, FNAME['95c46304'] or 'ww3bwxa')) or 0
+    local a = tonumber((call('avatar.aim', 'GameSession.game_object_field', s, av, FNAME['95c46304'] or 'ww3bwxa'))) or 0
     if cfg.research and a ~= st8.aim then log('research: field 95c46304 (aim) %s > %s at hand pose %s', tostring(st8.aim), tostring(a), tostring(N.hand and N.hand.grip)) end
     st8.aim = a
   end

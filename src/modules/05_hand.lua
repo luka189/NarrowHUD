@@ -2,12 +2,14 @@
 -- (tools/build.py puts src/narrowhud.lua and these modules together, each module in a function of its own; N holds
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local TYPES, HANDHELD, AVATAR_RESOURCE, GRIP_VARIABLE, THROWABLE, call = N.TYPES, N.HANDHELD, N.AVATAR_RESOURCE, N.GRIP_VARIABLE, N.THROWABLE, N.call
+local NOHAND = N.NOHAND
 local blocked, alive, field, cfg, MOUSE_BUTTONS, learned, NO_OBJECT = N.blocked, N.alive, N.field, N.cfg, N.MOUSE_BUTTONS, N.learned, N.NO_OBJECT
 local CHARGE_WEAPONS, learn, keys, distrust, has_pose, forget_poses = N.CHARGE_WEAPONS, N.learn, N.keys, N.distrust, N.has_pose, N.forget_poses
 local objs, me, as_peer, session = N.objs, N.me, N.as_peer, N.session
 
 ------------------------------------------------------------------------------------------------ your hand pose
 local watch = chef.watch and chef.watch({ [AVATAR_RESOURCE] = true }, 2) or nil
+N.mates_watch = watch                          -- (the vitals: the teammates' positions)
 local grip_index = setmetatable({}, { __mode = 'k' })
 local function nearest_unit()
   if not watch or not watch.items or #watch.items == 0 then return nil end
@@ -217,11 +219,18 @@ end
 -- objects), 913af9a2 and 0c09236b two objects not among yours, the other two nothing.
 local AV_REFS = {}
 for id, name in string.gmatch(DATA.avatar.refs or '', '(%x+):(%S+)') do AV_REFS[#AV_REFS + 1] = { id = id, name = name } end
+-- (1.5.51) the seat field b2205a6e (#64, a 31-bit object reference, as DRIVER HUD reads it) isn't among the refs
+-- (another kind) and the all-fields list leaves field 64 out: read by its name, research only
+local SEAT_FIELD = 'b2205a6e'
+do
+  local name = string.match(DATA.fieldnames or '', SEAT_FIELD .. ' (%S+)')
+  if name then AV_REFS[#AV_REFS + 1] = { id = SEAT_FIELD, name = name, research = true } end
+end
 local av_refs = {}                                   -- the fields' values, read with the grenades and stims
 local av_said = {}                                   -- (research lines per field this world: at most 60)
 local function read_av_refs(s)
   for _, r in ipairs(AV_REFS) do
-    local v = call('avatar.' .. r.id, 'GameSession.game_object_field', s, me.avatar, r.name)
+    local v = (not r.research or cfg.research) and call('avatar.' .. r.id, 'GameSession.game_object_field', s, me.avatar, r.name) or nil
     if cfg.research and v ~= av_refs[r.id] and (av_said[r.id] or 0) < 60 then
       av_said[r.id] = (av_said[r.id] or 0) + 1
       local o = type(v) == 'number' and objs[v]
@@ -324,15 +333,81 @@ N.HOLD_FIRST = HOLD_FIRST
 -- earlier life, far away, was shown at drop-in as the weapon in hand for its learned pose until the first shot.
 local floor_said = {}
 local function on_floor(s, goid, t)
-  if not t.has.floor then return false end
+  if not t.has.floor or not N.REF_READS then return false end
   local v = field(s, goid, t, 'floor')
   local yes = type(v) == 'number' and v ~= NO_OBJECT
   if yes and cfg.research and not floor_said[goid] then floor_said[goid] = true log('research: weapon %s (object %s) lies on the ground (pickup %s): not in your hand', t.id, tostring(goid), tostring(v)) end
   return yes
 end
+-- (1.5.51) A mounted gun: an emplacement's gun is a weapon object that goes onto your body as you sit (its carry
+-- field, as a pick-up) while the hand pose reads 0 (the HMG and AT emplacements) or 51 (the Grenadier Battlement,
+-- the FRV's turret), luka's 2026-10-30 logs. Your Helldiver's 20efbed4 ("what you're at") holds the emplacement
+-- while you sit — the HMG's seat object, the gun 3-5 ids on; the AT's gun itself once, none the next time; the
+-- Grenadier's seat, its gun the id before — so it helps but isn't relied on. Shown while seated: a weapon of yours
+-- with rounds that is the object 20efbed4 holds, or went onto your body within 5 s of the pose or the field
+-- (nearest to the field's object by id when there is one), or is of a type with no owner field (not a hand weapon:
+-- the Grenadier's 17db8107, which isn't "picked up" the hand weapons' way but is on you while you sit). The FRV's
+-- turret gun 0df6deff fires on your fire button and gets learned as pose 51's weapon on its own. The tank and the
+-- exosuit show their own ammo in the game: no reading of those.
+local SEAT_POSES = { [0] = true, [51] = true }
+local seat = { goid = nil, since = nil, gun = nil, pose_since = nil }
+N.seat = seat
+local function seat_gun(s, grip, now)
+  if not SEAT_POSES[grip] then
+    seat.goid, seat.gun, seat.pose_since = nil, nil, nil
+    return nil
+  end
+  seat.pose_since = seat.pose_since or now
+  local ref = av_refs['20efbed4']
+  if type(ref) ~= 'number' or ref == 32767 then ref = nil end
+  if ref and seat.goid ~= ref then
+    seat.goid, seat.since = ref, now
+    if cfg.research then
+      local near = {}
+      for goid, o in pairs(objs) do
+        if type(goid) == 'number' and math.abs(goid - ref) <= 12 then
+          local t = o.t and TYPES[o.t]
+          near[#near + 1] = string.format('%d %s%s%s%s', goid, t and t.id or 'unknown type', o.on and ', on you' or '',
+            o.picked_at and string.format(', picked up %.1f s ago', now - o.picked_at) or '', o.notmine and ', not yours' or '')
+        end
+      end
+      table.sort(near)
+      log('research: seat: hand pose %d, your Helldiver\'s 20efbed4 holds %d; objects near it by id: %s', grip, ref, #near > 0 and table.concat(near, '; ') or 'none')
+    end
+  end
+  -- (1.5.56: judged every frame while seated, so the gun picked up half a second after the pose turned 0 takes
+  -- over from a guess (luka's log: the AT's gun came 0.6 s after the pose, the HMG's 0.6 s after the field). The
+  -- fallback for a type with no owner field needs a carry field (a real pick-up signal): a type with neither reads
+  -- as "on you" always, and two such objects were shown as mounted guns during dives)
+  local start = math.max(seat.pose_since, ref and seat.since or 0)
+  local best, bd, how = nil, 1e9, nil
+  for goid, o in pairs(objs) do
+    local t = o.t and TYPES[o.t]
+    if t and o.on and t.has.rounds and not t.pack and not t.player and not t.avatar and not t.other and not NOHAND[t.id]
+       and not o.host and type(goid) == 'number' then
+      local d = ref and math.abs(goid - ref) or 50
+      local why = nil
+      if ref and goid == ref then why, d = 'the object you\'re at', 0
+      elseif o.picked_at and math.abs(o.picked_at - start) <= 5 then why = 'onto you as you sat'   -- (1.5.58: any id: the field held the next emplacement's object once while luka sat the AT)
+      elseif not HANDHELD[t.id] and t.has.carry and grip == 51 then why = 'not a hand weapon' d = d + 200 end   -- (1.5.57: the Grenadier's pose only: its gun stays "on you" after you leave, and showed at every dive's pose 0)
+      if why and d < bd then best, bd, how = goid, d, why end
+    end
+  end
+  local g = seat.gun and objs[seat.gun]
+  if best == nil and g and g.on then return seat.gun end
+  if best and best ~= seat.gun then
+    seat.gun = best
+    log('mounted gun: %s (object %d, %s%s)', TYPES[objs[best].t].id, best, how, ref and string.format(', %d ids from %d', math.abs(best - ref), ref) or '')
+  end
+  return seat.gun
+end
+N.seat_gun = seat_gun
 local function pick(s, grip, now)
   now = now or chef.time()
-  if grip == nil or grip == 0 or THROWABLE[grip] then return nil end   -- grenades and stratagems: no weapon
+  if grip == nil or THROWABLE[grip] then return nil end   -- grenades and stratagems: no weapon
+  local mounted = seat_gun(s, grip, now)
+  if mounted then return mounted end
+  if grip == 0 then return nil end
   local same, unknown, last = {}, {}, nil
   for goid, o in pairs(objs) do
     local t = o.t and TYPES[o.t]
@@ -363,7 +438,14 @@ local function pick(s, grip, now)
     if #own > 0 and #own < #same then
       for _, goid in ipairs(same) do
         local t = TYPES[objs[goid].t]
-        if t.fed then log('type %s: its hand pose %d forgotten (shared with a weapon of its own)', t.id, grip) forget_poses(t.id) end
+        if t.fed then
+          local key = t.id .. ':' .. grip
+          if not N.pose_shared[key] then
+            log('type %s: its hand pose %d forgotten (shared with a weapon of its own; not learned again this session)', t.id, grip)
+          end
+          N.pose_shared[key] = true
+          forget_poses(t.id)
+        end
       end
       same = own
     end

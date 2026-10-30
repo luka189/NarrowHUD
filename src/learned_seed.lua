@@ -1,6 +1,10 @@
 -- NarrowHUD's starting knowledge: what it learned in luka189's own play, shipped so weapons show before their
 -- first shot. Merged under what a player's game learns (theirs wins). Made with tools/make_seed.py.
 return {
+  zoom = {   -- (a scope with zeroing: the step in the options field; luka's 2026-10-30 marks; tools/make_seed.py EXTRA)
+    ["30294946"] = true,
+    a4eff4fa = true,
+  },
   charge2 = {
     ["17783758"] = 1.6,
     ["366d3622"] = 3,
@@ -52,7 +56,6 @@ return {
     ["7dce85e3"] = 15,
     ["82a8d3c2"] = 10,
     ["83d1036e"] = 20,
-    ["86709cb9"] = 1,   -- (a tester's log, 2026-10-28; tools/make_seed.py EXTRA)
     ["8a3c6fee"] = 20,
     ["8c0aee6e"] = 51,
     ["8fcdd35c"] = 10,

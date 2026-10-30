@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NarrowHUD's sniper crosshair: luka189's tracing of the game's default reticle (2026-10-30), a ring and a dot,
+     the dot recentred; white on transparent for tools/make_textures.py (the mask is tinted in game) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="4.4mm" height="4.4mm" viewBox="0 0 4.4 4.4" version="1.1">
+  <path fill="#ffffff" fill-rule="evenodd"
+        d="M 2.2,0 A 2.2,2.2 0 1 0 2.2,4.4 A 2.2,2.2 0 1 0 2.2,0 Z M 2.2,0.6 A 1.6,1.6 0 1 1 2.2,3.8 A 1.6,1.6 0 1 1 2.2,0.6 Z"/>
+  <circle fill="#ffffff" cx="2.2" cy="2.2" r="0.45"/>
+</svg>

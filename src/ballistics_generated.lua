@@ -6,6 +6,7 @@ return {
   ['8fcdd35c'] = { name = 'AR-11 Arbitrator', m = 11, v = 920, drag = 0.3, g = 1, d = 8.0 },
   ['3244dc49'] = { name = 'AR/GL-21 One-Two', m = 11, v = 920, drag = 0.3, g = 1, d = 8.0 },
   ['eb38d34e'] = { name = 'CB-9 Exploding Crossbow', m = 100, v = 100, drag = 1, g = 0.5, d = 15.0 },
+  ['17db8107'] = { name = 'E/GL-21 Grenadier Battlement', m = 50, v = 100, drag = 1.2, g = 1, d = 40.0 },
   ['6ec2a850'] = { name = 'EAT-17 Expendable Anti-Tank', m = 2500, v = 200, drag = 0, g = 1, d = 75.0 },
   ['c0ff5282'] = { name = 'EAT-411 Leveller', m = 500, v = 50, drag = 0.5, g = 1, d = 80.0 },
   ['d724a2f9'] = { name = 'EAT-700 Expendable Napalm', m = 2500, v = 200, drag = 0, g = 1, d = 75.0 },

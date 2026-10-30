@@ -31,17 +31,36 @@ add_types(DATA.weapons, false)
 -- In a hand: only types with an owner field. Every weapon learned in testing has one (59 types); a player's log as host
 -- (1.0.1) had two without it (e45066e4, b747653b: objects a host owns, fired as the player fired) learned to the
 -- rifles' pose and shown in place of the player's own weapon.
+-- (1.5.39) never in a hand: the guard dogs' guns (the AX/AR-23, the Rover's laser, the Hot Dog, the K-9, the Dog
+-- Breath and their mounts), weapons of yours that fire by themselves from your backpack; the ids as HUDdle 0.5.11
+-- lists them (named through HD2Runtime), an idea taken from its guard-dog fix (docs/RESEARCH.md). The learning
+-- rules below catch them too (they fire with their trigger never held, they aim by themselves); this is first.
+local NOHAND = {}
+for id in string.gmatch('1f3765c1 60cac78a 530e19df 5ada6b71 76120872 86709cb9 53dc48fe', '%x+') do NOHAND[id] = true end
 local HANDHELD = {}
-for _, t in ipairs(TYPES) do if t.has.owner then HANDHELD[t.id] = true end end
+for _, t in ipairs(TYPES) do if t.has.owner and not NOHAND[t.id] then HANDHELD[t.id] = true end end
 log('NarrowHUD %s: %d types (game build %s)', M.version, #TYPES, tostring(DATA.build))
 
 local AVATAR_RESOURCE = '4d1c334d294dfa97'   -- the third-person Helldiver unit
 local GRIP_VARIABLE = 'weapon_selected'      -- the avatar's hand pose (0: nothing in hand)
 local NO_OBJECT = 32767
-local THROWABLE = { [40] = true, [41] = true }
+local THROWABLE = { [40] = true, [41] = true }   -- (42 is the C4 detonator's, and the underhand throw's: 12_throw)
 
 ------------------------------------------------------------------------------------------------ engine reads
-local function call(kind, name, ...) return chef.call_kind(name, kind, ...) end
+-- (1.5.34) "Testing: reads" (F9, with the research log): which of the mod's engine reads are made, for the disconnect
+-- bisection on a machine that drops with R1 (reads everything, draws nothing): 2 no host objects (04_objects's scan),
+-- 3 no field reads, 4 no object reads at all (the scan neither), 5 no Unit calls (the hand pose), 6 no floor /
+-- underbarrel reads (field(), below: the 1.5.13 reads). N.read_level.
+local OFF = 'off (Testing: reads)'
+local function call(kind, name, ...)
+  local lv = N.read_level
+  if lv and lv > 1 then
+    if (lv == 3 or lv == 4) and (name == 'GameSession.game_object_field' or name == 'GameSession.game_object_field_batched') then return nil, OFF end
+    if lv == 4 and (name == 'GameSession.game_object_exists' or name == 'GameSession.game_object_is_type' or name == 'GameSession.objects_owned_by') then return nil, OFF end
+    if lv == 5 and string.sub(name, 1, 5) == 'Unit.' then return nil, OFF end
+  end
+  return chef.call_kind(name, kind, ...)
+end
 -- a field or type id as lower-case hex without leading zeros (Network.object_info's ids come without them)
 local function norm_id(id)
   if type(id) == 'number' then id = string.format('%x', id) end
@@ -76,6 +95,9 @@ local function alive(s, goid, t)
 end
 local function field(s, goid, t, role)
   if not (t and t.has[role]) then return nil end
+  -- (Testing: reads 6: the two object-reference fields 1.5.18 began reading every tenth of a second, floor and
+  -- underbarrel, left unread: the one read-side difference between 1.5.13 and 1.5.26)
+  if N.read_level == 6 and (role == 'floor' or role == 'underbarrel') then return nil end
   if not alive(s, goid, t) then return nil end
   return call(t.id .. '.' .. role, 'GameSession.game_object_field', s, goid, ROLE[role].name)
 end
@@ -86,7 +108,8 @@ end
 -- made for it stays off (with a message) unless the player turns on "Run on a game version it wasn't made for".
 -- Application.build_identifier per Steam build (the engine's own string):
 local BUILDS = {
-  ['stingray:46659 e176252a3ac4eb5436b25e7cef665a8c71afa243'] = '26088801',   -- 2026-10-22
+  ['stingray:46659 e176252a3ac4eb5436b25e7cef665a8c71afa243'] = '26088801',   -- 2026-10-22 (7.2.1)
+  ['stingray:46805 437a3d445f9df7662b60086ac8ae3c65b5c95da6'] = '26251122',   -- 2026-10-29 (7.2.2: one new type, no field moved)
 }
 local game_build = { id = nil, known = nil }
 do
@@ -106,5 +129,16 @@ end
 
 
 N.ROLE, N.TYPES, N.HANDHELD, N.AVATAR_RESOURCE, N.GRIP_VARIABLE, N.NO_OBJECT = ROLE, TYPES, HANDHELD, AVATAR_RESOURCE, GRIP_VARIABLE, NO_OBJECT
+N.NOHAND = NOHAND
+-- Chef 1.4.0 or newer (its players event is the mark): chef.bitmap no longer strobes beside other mods' bitmaps and
+-- chef.line's lines go by themselves, so the two workarounds for 1.3 (the uv call for textures, a line of nothing
+-- after the last drop line) aren't needed; and the players event is there for the disconnect logs
+N.CHEF14 = chef.has ~= nil and chef.has('players_event') == true
+-- (1.5.36) the two object-reference reads 1.5.18 began making every tenth of a second (floor, underbarrel: the one
+-- read-side difference between 1.5.13 and 1.5.26, docs/DEVLOG.md) can be built out: tools/build.py --no-ref-reads
+-- sets M.ref_reads = false, and then floor is never read and underbarrel only while the fire mode selects it, as
+-- 1.5.13 read them. An interim public build while the disconnect reports are open; nothing else changes.
+N.REF_READS = M.ref_reads ~= false
+if not N.REF_READS then log('reads: floor never, underbarrel only while selected (as 1.5.13; this build, for the disconnect reports)') end
 N.THROWABLE, N.call, N.norm_id, N.live_fields, N.blocked, N.alive = THROWABLE, call, norm_id, live_fields, blocked, alive
 N.field, N.game_build = field, game_build

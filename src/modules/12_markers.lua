@@ -28,7 +28,7 @@ local function read_markers(s, now)
   local x, y, z = xyz(call('avatar.position', 'GameSession.game_object_field', s, av, 'position'))
   if x then mk.pos = { x = x, y = y, z = z } end
   if want_death then
-    local hp = tonumber(call('avatar.health', 'GameSession.game_object_field', s, av, 'health'))
+    local hp = tonumber((call('avatar.health', 'GameSession.game_object_field', s, av, 'health')))
     if hp and mk.hp and mk.hp > 0 and hp <= 0 and mk.pos then
       mk.death = { x = mk.pos.x, y = mk.pos.y, z = mk.pos.z, at = now, goid = av }
       if cfg.research then log('research: died at (%.1f, %.1f, %.1f)', mk.pos.x, mk.pos.y, mk.pos.z) end
@@ -47,7 +47,7 @@ local function read_markers(s, now)
     mk.hp = nil
   end
   if want_pin then
-    local mt = tonumber(call('avatar.pin_type', 'GameSession.game_object_field', s, av, 'map_marker_type')) or 0
+    local mt = tonumber((call('avatar.pin_type', 'GameSession.game_object_field', s, av, 'map_marker_type'))) or 0
     if mt ~= 0 then
       local px, py, pz = xyz(call('avatar.pin_pos', 'GameSession.game_object_field', s, av, 'map_marker_position'))
       if px and mk.pos then
@@ -131,7 +131,7 @@ local function draw_markers()
   local w, h = chef.screen()
   if not w or not chef.world_to_screen then return end
   local k = (h / 1440) * (cfg.size or 1)
-  local L = 890                                       -- (under the HUD's 905)
+  local L = N.L0 + 890                                       -- (under the HUD's 905)
   if mk.death and cfg.death_mark then draw_marker(mk.death, 'diamond', N.RED, w, h, k, L) end
   if mk.pin and cfg.map_pin then draw_marker(mk.pin, 'pin', N.CREAM, w, h, k, L) end
 end

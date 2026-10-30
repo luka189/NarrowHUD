@@ -37,6 +37,10 @@ N.ATLAS = {
   DETONATE = { '10a0814c0fad8650', 0.7890625, 0.578125, 0.8515625, 0.703125, '55374383474193f8' },
   AIRSTRIKE = { '10a0814c0fad8650', 0.2421875, 0.578125, 0.3046875, 0.703125, 'f83f6f461ed94e4b' },
   BURST_FIRE = { '7b1eef337fc5f1bf', 0.0625, 0.0625, 0.5625, 0.5625, '62d0512daebb0be0' },
+  -- (1.5.47) a scope's zeroing step (weapon_function/zeroing_low, _medium, _high on the mission HUD page)
+  ZEROING_LOW    = { 'f9a3f22a93eedcbd', 0.223388671875, 0.1484375, 0.254638671875, 0.2109375, '6be28cced767bb52' },
+  ZEROING_MEDIUM = { 'f9a3f22a93eedcbd', 0.262451171875, 0.1484375, 0.293701171875, 0.2109375, '46271d0b4ce4136c' },
+  ZEROING_HIGH   = { 'f9a3f22a93eedcbd', 0.591552734375, 0.09375, 0.622802734375, 0.15625, 'a2ab43e85546f79a' },
   -- unnamed sprites that look like the HUD's stim, stims and grenade icons (the stim page isn't loaded in a mission)
   stim     = { '18edbed388a3d706', 0.155517578125, 0.89208984375, 0.171142578125, 0.92333984375, 'a0e91aa5aab7b94d' },   -- 64 px
   stims    = { '1667261d881bd08a', 0.94921875, 0.4169921875, 0.98046875, 0.4482421875, '55decfa1c7de5d20' },             -- 128 px
@@ -66,6 +70,7 @@ local function with_word(e, word)
   end
   return w
 end
+N.FIRE_WORD = function(word) return word == 'ZOOM' or FIRE_SPRITES[word] ~= nil end   -- (1.5.57: the icons apart)
 N.mode_icons = function()
   local d = N.shown_d
   if not d then return nil end
@@ -79,6 +84,11 @@ N.mode_icons = function()
       local e = OPTION_SPRITES[word] and N.ATLAS[OPTION_SPRITES[word]]
       if e then out[#out + 1] = with_word(e, word) end
     end
+  end
+  -- (1.5.47) the scope's zeroing step, for a weapon learned to have one: the game's low / medium / high icon
+  if d.zoom then
+    local name = ({ [0] = 'ZEROING_LOW', 'ZEROING_MEDIUM', 'ZEROING_HIGH' })[d.zoom]
+    if name then out[#out + 1] = with_word(N.ATLAS[name], 'ZOOM') end
   end
   if d.underbarrel then
     local name = UNDERBARREL_SPRITES[d.tid]
@@ -204,7 +214,8 @@ local function shown(s, goid, t, w, o)
   d.setting = setting_label(t, w)
   d.fmode = fire_mode_label(t, w)
   -- (most weapon types declare the underbarrel field; one is fitted only when it holds an object)
-  local ub = t.has.underbarrel and field(s, goid, t, 'underbarrel')
+  local ub_bit = type(w.fire_mode) == 'number' and math.floor(w.fire_mode / 8) % 2 == 1
+  local ub = t.has.underbarrel and (N.REF_READS or ub_bit) and field(s, goid, t, 'underbarrel')
   d.has_ub = type(ub) == 'number' and ub ~= NO_OBJECT
   if not d.fmode and d.has_ub and type(w.fire_mode) == 'number' and math.floor(w.fire_mode / 8) % 2 == 0 then
     d.fmode_ub = MODE_NAMES[w.fire_mode % 8]
@@ -213,6 +224,10 @@ local function shown(s, goid, t, w, o)
   local un = UB_NAMES[t.id]
   if un then d.ub_label = un.ub end
   d.t0, d.goid0 = t, goid                                        -- (the weapon itself, for its charge meter)
+  -- (1.5.47) the scope's zeroing step (0 the lowest, 2 the highest) for a weapon learned to have one
+  if learned.zoom[t.id] and type(w.options) == 'number' then d.zoom = math.floor(w.options / 16) % 4 end
+  -- (1.5.54) the zeroing as text, an F9 row: 50 / 100 / 200 m for the low / medium / high step
+  if d.zoom then d.zoom_word = ({ [0] = '50 M', '100 M', '200 M' })[d.zoom] end   -- (the layouts' zoom part shows it)
   d.mode = option_mode(t, w)
   if un and un.main and not d.mode then d.mode = un.main end
   local sn = SELECTED_NAMES[t.id]
@@ -370,10 +385,13 @@ local function shown(s, goid, t, w, o)
   -- (a heat weapon's magazines are heat sinks: shown once it has carried some, 0 too when they're used up; a charge
   -- weapon's field never means anything)
   elseif t.has.magazines and tonumber(w.magazines) and (not t.has.heat or (not N.CHARGE_WEAPONS[t.id]
-         and (w.magazines > 0 or (learned.resmax[t.id] or 0) > 0))) then
+         and (w.magazines > 0 or (learned.resmax[t.id] or 0) > 0)))
+         and not (N.seat and N.seat.gun == goid and w.magazines == 0) then
     d.reserve = w.magazines
     if t.has.heat and w.magazines > (learned.resmax[t.id] or 0) then learn('resmax', t.id, w.magazines) end
   elseif t.has.spare then d.reserve = tonumber(w.spare)
+  elseif d.kind == 'ammo' and N.seat and N.seat.gun == goid then
+    -- (1.5.51: a mounted gun with no magazines (the emplacements' belts) shows its rounds alone, not "x0")
   elseif d.kind == 'ammo' then
     -- (not for a heat weapon: the Nova and the Scythe showed the Guard Dog's magazines as theirs)
     for pgoid, o in pairs(objs) do

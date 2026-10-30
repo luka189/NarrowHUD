@@ -170,6 +170,17 @@ local function watch_fire(s, grip)
       if pw and not w.lite and not pw.lite and (w.selected ~= pw.selected or w.fire_mode ~= pw.fire_mode or w.options ~= pw.options) then
         o.mode_t = now
       end
+      -- (1.5.47) a scope with zeroing: its step is the options field's bits 16 and 32 (luka's 2026-10-30 marks on the
+      -- R-40 and the AMW-20: 80 > 96 > 64 > 80, nothing else on the weapon moving); learned for the type the first
+      -- time those two bits change on their own (the named options use bits 4 and 8, the C4's 256)
+      if pw and not w.lite and not pw.lite and type(w.options) == 'number' and type(pw.options) == 'number' and w.options ~= pw.options
+         and w.fire_mode == pw.fire_mode and w.selected == pw.selected and not learned.zoom[t.id]
+         and math.floor(w.options / 16) % 4 ~= math.floor(pw.options / 16) % 4
+         and (w.options - math.floor(w.options / 16) % 4 * 16) == (pw.options - math.floor(pw.options / 16) % 4 * 16) then
+        log('learned: type %s has a scope with zeroing (its options %d > %d: the zoom step %d > %d)', t.id, pw.options, w.options,
+          math.floor(pw.options / 16) % 4, math.floor(w.options / 16) % 4)
+        learn('zoom', t.id, true)
+      end
       local switching = (o.mode_t and now - o.mode_t < 1.5) or ((tonumber(w.reload_stage) or 0) ~= 0)
       if w.held == true and input.ok == true and input.ever and not input.blind and not proven and not switching
          and now - (input.any_last or -100) > 0.6 then
@@ -183,7 +194,7 @@ local function watch_fire(s, grip)
       -- hellpod kept a stray 0.012 in it as you held it (the 1.2.7 log: a weapon of yours hidden for it), while a
       -- soldier's rifle or a turret's gun changes its aim every read or two)
       if has_aim(t) and not o.notmine then
-        local a = tonumber(call(t.id .. '.aim', 'GameSession.game_object_field', s, goid, aim_name))
+        local a = tonumber((call(t.id .. '.aim', 'GameSession.game_object_field', s, goid, aim_name)))
         if a and a ~= 0 then
           if o.aim_last ~= nil and o.aim_last ~= 0 and a ~= o.aim_last then o.aim_n = (o.aim_n or 0) + 1 end
           o.aim_last = a
@@ -308,6 +319,10 @@ local function watch_fire(s, grip)
       -- the trigger: seen held within the last 0.6 s (for types whose trigger field has ever been seen held)
       if w.held == true then o.held_t, o.held_ever = now, true end
       local by_you = not t.has.held or not o.held_ever or (o.held_t and now - o.held_t <= 0.6)
+      -- (1.5.39 tried and dropped: "three shots with the trigger never seen held: not yours", HUDdle 0.5.11's rule.
+      -- A tap on a semi-auto weapon holds the trigger for less than the 0.1 s between reads, so three quick taps
+      -- of your own could never be seen held and your own weapon would be put out of your hands; the dogs' guns
+      -- are kept out by name (NOHAND) and turrets and soldiers by their aim instead. docs/RESEARCH.md)
       -- (a weapon whose trigger was never seen held can't take the hands from one whose trigger has been: the shown
       -- weapon keeps them while a dog's fires)
       if fired(o.prev, w, switching) then
@@ -445,7 +460,7 @@ local function watch_fire(s, grip)
     if n == 1 then
       local t = TYPES[objs[only].t]
       objs[only].fired_at = chef.time()
-      if HANDHELD[t.id] and (not has_pose(t.id, grip) and not many_poses(t.id)) then
+      if HANDHELD[t.id] and not has_pose(t.id, grip) and not many_poses(t.id) and not N.pose_shared[t.id .. ':' .. grip] then
         log('learned: type %s (fed from the backpack) goes with hand pose %d', t.id, grip)
         add_pose(t.id, grip)
       end

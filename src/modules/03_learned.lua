@@ -6,7 +6,7 @@ local HANDHELD, cfg = N.HANDHELD, N.cfg
 local learned = { grip = {}, mag = {}, heat = {}, rest = {}, charge2 = {}, up = {}, down = {}, modes = {}, rpms = {},
                   pack = {}, options1 = {}, packres = {}, rest2 = {}, poses = {},
                   packshow = {}, rpmadj = {}, rpmbase = {}, slot = {}, resmax = {}, reload_t = {}, reload_e = {},
-                  stim = {}, shot = {} }
+                  stim = {}, shot = {}, zoom = {} }
 -- The learned file: what each kind holds per type id (8 hex digits), and the file's version (_v). Entries that don't
 -- fit (a damaged or hand-edited file) are dropped and counted in the log; a file from a newer NarrowHUD is read for
 -- what fits.
@@ -14,7 +14,8 @@ local LEARNED_VERSION = 1
 local LEARNED_SHAPE = { grip = 'number', mag = 'number', heat = 'number', rest = 'number', charge2 = 'number',
   up = 'number', down = 'number', modes = 'string', rpms = 'string', pack = 'number', options1 = 'string',
   packres = 'boolean', rest2 = 'number', poses = 'string', packshow = 'boolean', rpmadj = 'boolean',
-  rpmbase = 'string', slot = 'number', resmax = 'number', reload_t = 'number', reload_e = 'number', stim = 'number', shot = 'number' }
+  rpmbase = 'string', slot = 'number', resmax = 'number', reload_t = 'number', reload_e = 'number', stim = 'number', shot = 'number',
+  zoom = 'boolean' }
 local function read_learned(t)
   local kept, dropped = 0, 0
   for kind, want in pairs(LEARNED_SHAPE) do
@@ -134,37 +135,47 @@ local function forget_all()
   N.dirty_at = chef.time()
 end
 local keys = {}
+local tested = false
 if chef.bind and chef.has and chef.has('bind') then
   pcall(function()
     -- (as bound in the game: NarrowHUD can't read the game's own key settings). The fire button's row, then the key
     -- it can be (used only when the row says so: shown as none otherwise)
-    cfg.fire = chef.option('fire', { type = 'choice', label = 'Keys: fire button (as bound in the game)', choices = { 'Left mouse', 'Right mouse', 'Middle mouse', 'Mouse button 4', 'Mouse button 5', 'A keyboard key (next row)' }, default = 1 }) or 1
+    -- (1.5.82: the Keys heading on the first row; a key row's label through N.menu_label, as chef.bind takes no spec)
+    if N.menu_group then N.menu_group('Keys', 'Keys: ') end
+    local function kl(l) return N.menu_label and N.menu_label(l) or l end
+    local fire_spec = { type = 'choice', label = 'Keys: fire button', choices = { 'Left mouse', 'Right mouse', 'Middle mouse', 'Mouse button 4', 'Mouse button 5', 'Key (next row)' }, default = 1 }
+    if N.menu_spec then fire_spec = N.menu_spec('Fire button', 'As bound in the game: a shot counts as yours only within a moment of this button. A keyboard key: the next row.', fire_spec) end
+    cfg.fire = chef.option('fire', fire_spec) or 1
     chef.on_change('fire', function(v) cfg.fire = v or 1 end)
-    keys.fire = (chef.bind('fire_key', 'off', '   Fire key (with "A keyboard key" above)'))
+    keys.fire = (chef.bind('fire_key', 'off', kl('   Fire key')))
     -- (each in parentheses: chef.bind gives the binding and its menu row, and a call last in a table would add both)
-    local sw = { (chef.bind('swap_primary', '1', 'Keys: swap to the primary (as in the game)')),
-                 (chef.bind('swap_secondary', '2', 'Keys: swap to the secondary (as in the game)')),
-                 (chef.bind('swap_support', '3', 'Keys: swap to the support weapon (as in the game)')) }
+    local sw = { (chef.bind('swap_primary', '1', kl('Swap to primary'))),
+                 (chef.bind('swap_secondary', '2', kl('Swap to secondary'))),
+                 (chef.bind('swap_support', '3', kl('Swap to support'))) }
     if sw[1] and sw[2] and sw[3] then keys.swap = sw end
     -- the mouse wheel: the game swaps weapons with it by default; one bound to something else in the game (zoom, a
     -- fire mode ...) mustn't swap the HUD (a player's report, 1.0.5)
-    cfg.wheel = chef.option('swap_wheel', { type = 'choice', label = 'Keys: mouse wheel swaps weapons (as in the game)', choices = { 'Up and down', 'Up only', 'Down only', 'No' }, default = 1 }) or 1
+    local wheel_spec = { type = 'choice', label = 'Keys: wheel swaps weapons', choices = { 'Up and down', 'Up only', 'Down only', 'No' }, default = 1 }
+    if N.menu_spec then wheel_spec = N.menu_spec('Wheel swaps weapons', 'As in the game. If your wheel doesn\'t swap weapons there, set No, or a scroll can switch the HUD to the wrong weapon.', wheel_spec) end
+    cfg.wheel = chef.option('swap_wheel', wheel_spec) or 1
     chef.on_change('swap_wheel', function(v) cfg.wheel = v or 1 end)
     -- held, the game's weapon options key (R, reload's) makes the wheel change the scope's zoom (up) or the light
     -- (down): no swap then (a player's report, the AMR's scope, 1.0.5)
-    keys.weapon_menu = (chef.bind('weapon_menu', 'r', 'Keys: weapon options, held (as in the game; the wheel doesn\'t swap then)'))
+    keys.weapon_menu = (chef.bind('weapon_menu', 'r', kl('Weapon options (held)')))
     -- (1.2.4: the HUD out of the way while the stratagem key is held; a controller's left shoulder button too)
     -- (no key until set: Left Ctrl, the game's default, is many players' crouch key, and the HUD hid while they crouched)
-    keys.strat = (chef.bind('strat_key', 'off', 'Keys: stratagem key (set it to yours; a controller\'s left shoulder counts too)'))
+    keys.strat = (chef.bind('strat_key', 'off', kl('Stratagem key (yours)')))
     if N.settings_hide then N.settings_hide() end
-    keys.reload_layout = (chef.bind('reload_layout', 'off', 'Keys: read the layout file again (Position: Custom)'))
-    keys.forget_weapon = (chef.bind('forget_weapon', 'off', 'Testing: forget what\'s learned about the weapon in hand'))
-    keys.forget_all = (chef.bind('forget_all', 'off', 'Testing: forget everything learned (press twice)'))
-    keys.log_mark = (chef.bind('log_mark', 'off', 'Testing: put a numbered mark in the log (say what happened at each)'))
+    keys.reload_layout = (chef.bind('reload_layout', 'off', kl('Reload layout file')))
+    -- (the Testing rows: 02's toggles first, so the heading sits on them, then the keys)
+    if N.settings_testing then N.settings_testing() tested = true end
+    keys.forget_weapon = (chef.bind('forget_weapon', 'off', kl('Forget this weapon')))
+    keys.forget_all = (chef.bind('forget_all', 'off', kl('Forget all (twice)')))
+    keys.log_mark = (chef.bind('log_mark', 'off', kl('A mark in the log')))
   end)
 elseif N.settings_hide then N.settings_hide()
 end
-if N.settings_testing then N.settings_testing() end
+if not tested and N.settings_testing then N.settings_testing() end
 
 -- A weapon can have several hand poses (with a shield in the other hand: the Verdict at 1, 30 and 36): a set per type
 -- ("10,30"), next to the single pose older versions kept (learned.grip).
@@ -202,6 +213,9 @@ local function forget_poses(id)
   learn('grip', id, nil)
   learn('poses', id, nil)
 end
+-- a fed weapon's pose forgotten as shared with a weapon of its own ammo (05_hand): not learned again this session
+-- (1.5.28: a pack going down while the other weapon was held re-learned it every read, 800 log lines a mission)
+N.pose_shared = {}
 -- one pose taken back (learned from a gun that proved someone else's)
 local function remove_pose(id, grip)
   if learned.grip[id] == grip and not learned.poses[id] then learn('grip', id, nil) return end

@@ -96,12 +96,25 @@ def source():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', default=str(ROOT / 'build'))
+    parser.add_argument('--research', choices=['R0', 'R1'], help='a research build for the disconnect reports: '
+                        'R0 reads nothing and draws nothing, R1 reads everything and draws nothing (13_main)')
+    parser.add_argument('--no-ref-reads', action='store_true', help='the interim public build for the disconnect '
+                        'reports: floor never read, underbarrel only while selected (01_core N.REF_READS); same version')
     args = parser.parse_args()
     src = source()
     version = re.search(r"local M = \{ version = '([^']+)' \}", src).group(1)
+    if args.research:
+        src = src.replace("local M = { version = '%s' }" % version,
+                          "local M = { version = '%s-%s', research_build = '%s' }" % (version, args.research, args.research), 1)
+        version = '%s-%s' % (version, args.research)
+    if args.no_ref_reads:
+        head = "local M = { version = '%s'" % version
+        assert head in src, 'no M line to patch'
+        src = src.replace(head, head + ", ref_reads = false", 1)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'narrowhud.lua').write_text(src, encoding='utf-8')
+    suffix = ('-' + args.research) if args.research else ('-noref' if args.no_ref_reads else '')
+    (out / ('narrowhud%s.lua' % suffix)).write_text(src, encoding='utf-8')
     lua = src.encode('utf-8')
     manifest = {'Version': 1, 'Guid': GUID, 'Name': f'NarrowHUD {version}',
                 'Description': 'NEW: layout editor at https://luka189.github.io/NarrowHUD/editor/ . '
@@ -117,7 +130,7 @@ def main():
              'LICENSE.txt': (ROOT / 'LICENSE').read_bytes()}
     manifest['Options'] = [{'Name': 'NarrowHUD', 'Description': 'The mod. Keep this ticked.', 'Include': ['core']}]
     files['manifest.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
-    z = out / f'NarrowHUD-v{version}.zip'
+    z = out / (f'NarrowHUD-v{version}-noref.zip' if args.no_ref_reads else f'NarrowHUD-v{version}.zip')
     with zipfile.ZipFile(z, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
         for path, content in sorted(files.items()):
             info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
@@ -125,6 +138,8 @@ def main():
             info.external_attr = 0o100644 << 16
             zf.writestr(info, content)
     print(f'Built {z}')
+    if args.research or args.no_ref_reads:
+        return
     # the layout editor as a whole page for GitHub Pages (editor/editor.html is the page's content, as published as an
     # artifact; this adds the document around it)
     page = (ROOT / 'editor' / 'editor.html').read_text(encoding='utf-8')

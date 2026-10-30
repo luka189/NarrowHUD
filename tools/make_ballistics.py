@@ -37,6 +37,7 @@ NAMES = {
     '960653cb': ('LAS-17 Double-Edge Sickle', True),
     '42a6b5ba': ('LAS-5 Scythe', True),
     '8c0aee6e': ('GL-21 Grenade Launcher', True),
+    '17db8107': ('E/GL-21 Grenadier Battlement', True, 'GL-21 Grenade Launcher'),   # (the emplacement: the same 40 mm round; luka, 2026-10-30)
     '6b47e064': ('GL-28 Belt-Fed Grenade Launcher', True),
     '303d2220': ('SG-8P Punisher Plasma', True),
     '36fcbd00': ('GP-20 Ultimatum', True),
