@@ -197,9 +197,11 @@ Both only change the preview: nothing of them goes into the layout file.
   which of two weapons on one pose is in hand, instead of the wheel's guess (luka's Nova / Breacher, 2026-10-30).
   Probe first (a read of your own objects, not the disconnect's kind); effort 2.
 
-- **7. The ground model and the landing mark**: the ground under the drop and throw lines from where units stand
-  (effort 3), the landing mark on units through chef.ray_box (effort 2), the blast radius (effort 1–2; the Stun's
-  fuse still unseen in the flight data). **4. Per-part colours** (below: now that the colours show as coded).
+- **7. The ground model and the landing mark**: ~~the ground under the drop and throw lines from where units stand~~
+  (done 2.0.13: the map's own props with per-kind offsets learned from the feet, kept across missions; the ring at
+  the lines' end), ~~the landing mark on the enemies' structures through chef.ray_box~~ (done 2.0.16: the mark red
+  where the line hits a listed structure; kinds still to name: detector towers, jammers, gunship factories), the blast radius
+  (effort 1–2; the Stun's fuse still unseen in the flight data). **4. Per-part colours** (below: now that the colours show as coded).
 
 ## Later
 

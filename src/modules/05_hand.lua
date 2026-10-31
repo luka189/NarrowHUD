@@ -350,6 +350,16 @@ end
 -- turret gun 0df6deff fires on your fire button and gets learned as pose 51's weapon on its own. The tank and the
 -- exosuit show their own ammo in the game: no reading of those.
 local SEAT_POSES = { [0] = true, [51] = true }
+-- (2.0.12) a weapon type known on a hand pose that isn't a seat's is a hand weapon, never a mounted gun
+local function hand_pose_weapon(t)
+  local g = learned.grip and learned.grip[t.id]
+  if type(g) == 'number' and not SEAT_POSES[g] then return true end
+  local ps = learned.poses and learned.poses[t.id]
+  if type(ps) == 'string' then
+    for p in string.gmatch(ps, '%d+') do if not SEAT_POSES[tonumber(p)] then return true end end
+  end
+  return false
+end
 local seat = { goid = nil, since = nil, gun = nil, pose_since = nil }
 N.seat = seat
 local function seat_gun(s, grip, now)
@@ -388,7 +398,7 @@ local function seat_gun(s, grip, now)
       local d = ref and math.abs(goid - ref) or 50
       local why = nil
       if ref and goid == ref then why, d = 'the object you\'re at', 0
-      elseif o.picked_at and math.abs(o.picked_at - start) <= 5 then why = 'onto you as you sat'   -- (1.5.58: any id: the field held the next emplacement's object once while luka sat the AT)
+      elseif o.picked_at and math.abs(o.picked_at - start) <= 5 and not hand_pose_weapon(t) then why = 'onto you as you sat'   -- (1.5.58: any id: the field held the next emplacement's object once while luka sat the AT; 2.0.12: never a weapon with a hand pose of its own — luka's Torcher and Sterilizer were "mounted guns" at every hand pose 0 of a city run, and his Apex on a client the night before)
       elseif not HANDHELD[t.id] and t.has.carry and grip == 51 then why = 'not a hand weapon' d = d + 200 end   -- (1.5.57: the Grenadier's pose only: its gun stays "on you" after you leave, and showed at every dive's pose 0)
       if why and d < bd then best, bd, how = goid, d, why end
     end

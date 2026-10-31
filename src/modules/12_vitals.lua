@@ -60,7 +60,7 @@ N.vitals_state = vs
 local FNAME = {}
 for id, name in string.gmatch(DATA.fieldnames or '', '(%x+) (%S+)') do FNAME[id] = name end
 N.FNAME_AIM = FNAME['95c46304']
-local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100 }
+local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100, view = nil, ads = nil }
 local function strat_held()
   local k = N.keys and N.keys.strat
   if k and k.down and k.down() == true then return true end
@@ -75,7 +75,7 @@ local function read_state(s, now)
   if held then st8.strat_at = now end   -- (1.5.56: the throw line tells a stratagem ball from a mine at the same pose by it)
   local av = me.avatar
   if not av or not alive(s, av, TYPES[2]) then return end
-  if st8.goid ~= av then st8.goid, st8.aim, st8.emote = av, 0, -1 end
+  if st8.goid ~= av then st8.goid, st8.aim, st8.emote, st8.view, st8.ads = av, 0, -1, nil, nil end
   if now - st8.at < 0.1 then return end
   st8.at = now
   local e = call('avatar.emote', 'GameSession.game_object_field', s, av, 'active_emote')
@@ -85,6 +85,29 @@ local function read_state(s, now)
     local a = tonumber((call('avatar.aim', 'GameSession.game_object_field', s, av, FNAME['95c46304'] or 'ww3bwxa'))) or 0
     if cfg.research and a ~= st8.aim then log('research: field 95c46304 (aim) %s > %s at hand pose %s', tostring(st8.aim), tostring(a), tostring(N.hand and N.hand.grip)) end
     st8.aim = a
+  end
+  -- (2.0.1) your Helldiver's flags block 6ff0e58a, three 64-bit words as hex strings, read every 0.1 s like the
+  -- rest. Word 1 bit 48: first person (luka's 2026-10-31 log: 8 of 8 flips within 0.1 s of the camera test, the
+  -- Sightliner and the Maxigun). Word 2 bit 18 (0x40000): aiming, as a state — set while the aim is held or toggled
+  -- on, through a swap to first person and back, cleared when the aim ends; the stance field 95c46304 stayed 0
+  -- through all of it, so it's the signal for toggle-aim players, for whom the aim button isn't held. Both nil
+  -- when the field can't be read (the camera and the button decide then, as before).
+  local f = call('avatar.flags', 'GameSession.game_object_field', s, av, FNAME['6ff0e58a'] or 'gz3n3yj')
+  local w1, w2 = type(f) == 'table' and f[1], type(f) == 'table' and f[2]
+  local view = type(w1) == 'string' and #w1 == 16 and (tonumber(w1:sub(4, 4), 16) or 0) % 2 or nil
+  local ads = type(w2) == 'string' and #w2 == 16 and math.floor((tonumber(w2:sub(12, 12), 16) or 0) / 4) % 2 or nil
+  if view ~= st8.view then
+    if cfg.research and (st8.view ~= nil or view ~= nil) then
+      local cam = N.first_person and N.first_person()
+      log('research: view bit (6ff0e58a word 1, bit 48) %s > %s; the camera says %s person, hand pose %s', tostring(st8.view), tostring(view), cam and 'first' or 'third', tostring(N.hand and N.hand.grip))
+    end
+    st8.view = view
+  end
+  if ads ~= st8.ads then
+    if cfg.research and (st8.ads ~= nil or ads ~= nil) then
+      log('research: aim bit (6ff0e58a word 2, bit 18) %s > %s; the aim button %s, stance %s, hand pose %s', tostring(st8.ads), tostring(ads), tostring(N.input and N.input.aiming), tostring(st8.aim), tostring(N.hand and N.hand.grip))
+    end
+    st8.ads = ads
   end
   -- (the armour: your player object's armor_set, once a second, for the stim duration)
   if me.player and now - st8.armor_at >= 1 then

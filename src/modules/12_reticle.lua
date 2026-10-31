@@ -9,6 +9,12 @@
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local cfg, input = N.cfg, N.input
 local SNIPERS = { b697955d = 'APW-1 Anti-Materiel Rifle', ['30294946'] = 'R-40 Sightliner', a4eff4fa = 'AMW-20 Apex' }
+-- (2.0.1, a Nexus request) weapons the game gives no crosshair in first person: the ring and dot there, always.
+-- (2.0.11, luka's five marks, 2026-10-31: the flamethrowers, under their own row, off by default — a flamethrower is
+-- aimed by its stream; one user asked. luka's names: 104184f7 the Torcher, 0fe87029 the Crisper, def25ee4 the
+-- Flamethrower, 2ddd091d the Sterilizer, 15f1a9f0 the Cremator)
+local FIRST_PERSON = { b3246bb7 = { 'Maxigun', 'reticle_fp' } }
+for id, name in string.gmatch('15f1a9f0=Cremator def25ee4=Flamethrower 2ddd091d=Sterilizer 104184f7=Torcher 0fe87029=Crisper', '(%x+)=(%a+)') do FIRST_PERSON[id] = { name, 'reticle_flame' } end
 local rt = { on = false, said = nil }
 local function first_person()
   local cam = chef.camera()
@@ -19,15 +25,25 @@ local function first_person()
   local dx, dy = cam.x - x, cam.y - y
   return dx * dx + dy * dy < 0.25                   -- (half a metre across: the camera at your head, not behind you)
 end
--- d: the weapon shown (its tid); drawn while aimed (the aim button, or the stance field at 4) in third person
+N.first_person = first_person
+-- d: the weapon shown (its tid). A sniper rifle: drawn in third person while aimed (the aim button, or the stance
+-- field at 4), or whenever it's in hand ("Sniper crosshair: Always", 2.0.1, a Nexus request). A FIRST_PERSON weapon:
+-- drawn in first person, where the game draws none for it.
 local function draw_reticle(d, now)
-  if not cfg.reticle or not d or not SNIPERS[d.tid] then rt.on = false return end
+  local sn, fpe = d and SNIPERS[d.tid], d and FIRST_PERSON[d.tid]
+  local fp = fpe and cfg[fpe[2]] and fpe[1] or nil          -- (the weapon's row on: its name)
+  if not d or not ((sn and cfg.reticle) or fp) then rt.on = false return end
   local st8 = N.state8
-  local aimed = input.aiming or (st8 and st8.aim == 4)
-  local on = aimed and not first_person()
+  -- (2.0.1: the game's own aim and view bits where they read — a toggled aim counts; the button and the camera
+  -- where they don't)
+  local aimed = (st8 and st8.ads ~= nil) and st8.ads == 1 or ((not st8 or st8.ads == nil) and (input.aiming or (st8 and st8.aim == 4)))
+  local first = (st8 and st8.view ~= nil) and st8.view == 1 or ((not st8 or st8.view == nil) and first_person())
+  local on
+  if first then on = fp and true or false
+  else on = (sn and cfg.reticle) and (aimed or cfg.reticle_always) or false end
   if on ~= rt.on then
     rt.on = on
-    if cfg.research then log('research: sniper crosshair %s (%s; aim button %s, stance %s)', on and 'shown' or 'hidden', SNIPERS[d.tid], tostring(input.aiming), tostring(st8 and st8.aim)) end
+    if cfg.research then log('research: crosshair %s (%s; %s person, aim bit %s, aim button %s, stance %s)', on and 'shown' or 'hidden', sn or fp, first and 'first' or 'third', tostring(st8 and st8.ads), tostring(input.aiming), tostring(st8 and st8.aim)) end
   end
   if not on then return end
   local w, h = chef.screen()

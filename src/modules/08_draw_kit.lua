@@ -263,6 +263,20 @@ local function col(c, a)
   end
   return chef.color(r, g, b, alpha)
 end
+-- (2.0.17) a colour for the lines drawn in the game's world (chef.line: the drop and throw lines, the landing
+-- mark), which go through the world's tone mapping whatever layer the HUD is on: luka's screenshots had the cream
+-- line white and the red mark pure red, as the HUD was in 1.5.61. (2.0.18) The correction is off: the planet's
+-- grading made each planet's lines a colour of their own (luka: rather white everywhere than that); cfg.world_tone
+-- = true turns it on (no row). What's tuned instead is the opacity (Line opacity, 02_settings): a (0..255) is the
+-- colour's full strength, scaled by the row
+local function wcol(c, a)
+  local alpha = math.floor((a or 235) * N.alpha_k * (cfg.line_alpha or 0.65) / 0.65 + 0.5)
+  if alpha > 255 then alpha = 255 end
+  if cfg.world_tone ~= true then return chef.color(c[1], c[2], c[3], alpha) end
+  local af = alpha / 255
+  return chef.color(math.floor(tone_fix(1, c[1], af) + 0.5), math.floor(tone_fix(2, c[2], af) + 0.5), math.floor(tone_fix(3, c[3], af) + 0.5), alpha)
+end
+N.wcol = wcol
 N.tone = tone
 N.tone_inv = tone_inv
 -- (research) the swatches: four rows of sixteen steps (grey, red, green, blue: 0, 17 ... 255) at the screen's bottom
@@ -358,7 +372,7 @@ end
 local function txt_right(x, y, str, cap, c, layer) txt(x - txt_width(str, cap), y, str, cap, c, layer) end
 -- The mode labels ("HEAT  APHET  AUTO  750 RPM"), with the option each mode in its own colour: the same mode always
 -- the same, and a weapon's modes never sharing one (cream, blue, green). HEAT, UB and the rate of fire stay cream.
-local MODE_TONE = { SEMI = 1, AUTO = 2, BURST = 3, VOLLEY = 3, SAFE = 1, UNSAFE = 2, TOTAL = 3,
+local MODE_TONE = { SEMI = 1, AUTO = 2, BURST = 3, VOLLEY = 3, SAFE = 1, UNSAFE = 2, TOTAL = 1,   -- (2.0.23: TOTAL cream — the Variable has AUTO, VOLLEY and TOTAL, luka)
   GUIDED = 1, UNGUIDED = 2, APHET = 1, FLAK = 2, CLUSTER = 3, HE = 2, DEPLOY = 1, DETONATE = 2, ARTILLERY = 2,
   LASER = 2, ['NO LASER'] = 1, FLECHETTE = 1, STUN = 2 }
 local function txt_modes(x, y, str, cap, a, layer, right)
@@ -567,6 +581,11 @@ local TEST_BLUE = { 60, 110, 255 }
 local function mode_icon(e, x, y, tw, L, word)
   local way = cfg.mode_icons
   local c = mode_rgb(word)
+  -- (2.0.20) a sprite of our own (the all-barrels one: the game's material for it draws nothing): our texture
+  if e.tex then
+    local ok = icon_texture(e.tex, x, y, tw, c, 1, L)
+    return ok == true, ok and nil or 'our texture not drawn (Chef says why above)'
+  end
   if way == 2 then
     local ok = chef.bitmap_uv and chef.bitmap_uv(e[1], e[2], e[3], e[4], e[5], x, y, tw, tw, col(c, 220), L) == true
     return ok, ok and nil or 'Chef says why above'

@@ -1,7 +1,9 @@
 -- NarrowHUD icon textures, made by tools/make_textures.py from art/icons/*.svg: each icon in a ladder of sizes
 -- (size, the icon's height in it, the resource id, its width), smallest first, for chef.texture_sizes and chef.bitmap,
--- and once in the game's icon layout. The stim and the reticle are luka189's; the grenade was traced by dogo314 (used with permission).
+-- and once in the game's icon layout. The stim, the reticle and the all-barrels icon are luka189's; the grenade was traced by dogo314 (used with permission).
 return {
+  all_barrels = { { 64, 64, 'b626867874426b97', 64 }, { 128, 128, 'f02b209ebf7c832f', 128 }, { 256, 256, '5a3a38f0c37a1ed7', 256 } },   -- (square textures, the icon centred: 256 wide, 256 high in the largest)
+  all_barrels_game = { { 256, 256, 'e9c523d5e2d76f0d', 256 } },   -- (the game's icon layout: BC3, 9 mip levels; the icon 256 wide, 256 high, centred)
   grenade = { { 64, 56, 'ebf6c256d2ff13ca', 38 }, { 128, 112, 'bee9f3d5af5d952b', 75 }, { 256, 224, '6608f6235da63257', 149 } },   -- (square textures, the icon centred: 149 wide, 224 high in the largest)
   grenade_game = { { 256, 224, '4c6c95419a57eff1', 149 } },   -- (the game's icon layout: BC3, 9 mip levels; the icon 149 wide, 224 high, centred)
   reticle = { { 64, 56, '4d16a7367325e5c2', 56 }, { 128, 112, '45f732810dd22885', 112 }, { 256, 224, 'd4c0f1ca124a1d9e', 224 } },   -- (square textures, the icon centred: 224 wide, 224 high in the largest)

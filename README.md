@@ -47,6 +47,9 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
 - A **drop line** for grenade launchers, rockets and plasma: the shot's flight from the weapon, bending down, hidden
   where it enters the ground (while aiming down the sights by default; or whenever the weapon is in hand).
 - A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
+- A **landing mark** where a drop or throw line lands: a ring and an arrow on the ground, from the map's own heights
+  (the rocks, trees and props, calibrated by where Helldivers walk, remembered per planet); faint where the ground
+  is a guess. It turns **red** where the shot would hit a bug hole, a fabricator, a warp ship or an Illuminate tower.
 
 Four built-in layouts: the **horizontal** stack (the bars under the crosshair), the **arcs** (centred on the
 crosshair, the meters and the backpack inside), the **vertical pair** (the ammo bar standing right of the crosshair,
@@ -58,20 +61,21 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 - Layout: four built-in ones (the horizontal stack, the arcs, the vertical pair, the block) or Custom: every part
   placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
   size; one sideways and one up / down offset that moves any of them; Spread (the two sides of the crosshair closer
-  or farther apart); opacity.
-- Show: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon and fire
-  modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina): off, always,
-  while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming; a part held
-  back hidden or dimmed.
-- Look: the empty magazine squares shown or hidden; bar edges (none, an outline or
-  the game's brackets) and the shade behind the bars; the modes in their own colours; colours standard or
-  colourblind (white, sky blue, yellow, magenta: told apart by brightness too); drawn in the game's UI layer (the
-  colours exact on every planet).
-- Extras: a stim timer, warning pulses, a reload line, and dimming or hiding when nothing has changed for a while.
-- Motion: parts sliding, bars easing and one-shot pulses, off, quick or normal; the Spread and the opacity while
-  aiming.
-- The world: the sniper crosshair, the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its length), the
-  throw line, and the lines' thickness.
+  or farther apart) and how it changes while you aim; opacity; motion (parts sliding, bars easing and one-shot
+  pulses: off, quick or normal).
+- Visibility: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon
+  and fire modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina):
+  off, always, while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming;
+  a part held back hidden or dimmed; the opacity while aiming; dimming or hiding when nothing has changed for a
+  while; a stim timer, warning pulses, a reload line.
+- Look: the empty magazine squares shown or hidden; bar edges (none, an outline or the game's brackets) and the
+  shade behind the bars; the modes in their own colours; colours standard or colourblind (white, sky blue, yellow,
+  magenta: told apart by brightness too). The HUD is drawn in the game's UI layer, so the colours are exact on
+  every planet.
+- The world: the sniper crosshair (while aiming or always; and one for the Maxigun and, if you like, the
+  flamethrowers in first person), the map pin and death marker, the drop line (while aiming, whenever in hand, or
+  off; its length), the throw line, the landing mark and its size, structure hits (the mark red), the lines'
+  thickness and opacity.
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.
@@ -119,9 +123,9 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
 - Weapon heat and charge values, stim durations, each projectile's speed, mass, drag and gravity: the [Helldivers 2 wiki](https://helldivers.wiki.gg).
 - Uses research from [HD2Runtime by SkyeShade](https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line).
 - The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used here.
-- The grenade icon was traced by dogo314 and is used with his permission. The stim icon and the sniper crosshair (a
+- The grenade icon was traced by dogo314 and is used with his permission. The stim icon, the all-barrels icon and the sniper crosshair (a
   tracing of the game's default reticle) are luka189's.
-- Chef Shared Loader by Th3chef runs it; filediver (BSD) takes the network config out of the game files.
+- Chef Shared Loader by Th3chef runs it; filediver (BSD) takes the network config out of the game files, and its known-path lists name the map's units for the landing mark and the research log.
 
 ## License
 

@@ -123,7 +123,7 @@ local function draw_drop(tid)
   local pitch = math.atan2(fz, hl)
   local pts = flight_of(tid, pitch, len)
   local hx, hy = fx / hl, fy / hl                   -- the aim's horizontal direction
-  local c = N.col(N.CREAM, 170)
+  local c = N.wcol(N.CREAM, 170)                  -- (2.0.17: the world's tone curve)
   local function world(p) return x0 + hx * p[1], y0 + hy * p[1], z0 + p[2] end
   -- thickness: the line drawn again beside itself, offset across the view by a share of its distance from the
   -- camera (the same width on the screen at any distance); the engine's lines are one pixel wide
@@ -135,9 +135,24 @@ local function draw_drop(tid)
   local n = 0
   local lx, ly, lz, lpath = nil, nil, nil, 0
   local from = start_hand(BALLISTICS[tid])
+  local mark = cfg.landing_mark and N.ground_landing
+  local marked, mst = false, {}
+  local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the shot hits one
+  local sst = shit and {}
   for i = 1, #pts do
     local p = pts[i]
     local wx, wy, wz = world(p)
+    -- (2.0.13) where the flight meets the ground (12_ground's guess): a ring there; the line runs on to its end
+    -- (2.0.14, luka: the game's own depth test hides the part under the ground, and a ring a little off keeps a
+    -- whole line rather than a cut one); never within 20 m of you (7 m for the Ultimatum's lob)
+    if shit and not marked and lx and lpath >= from then
+      local hx, hy, hz = shit(lx, ly, lz, wx, wy, wz, sst, x0, y0)
+      if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, x0, y0) marked = true end
+    end
+    if mark and not marked and lx and lpath >= from then
+      local gx, gy, gz, conf = mark(lx, ly, lz, wx, wy, wz, x0, y0, mst, from == 3 and 7 or 20)
+      if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, x0, y0) marked = true end
+    end
     if lx and lpath >= from then
       for k = 1, lines do
         -- (each line a pixel or so beside the last, centred on the flight)
@@ -157,6 +172,6 @@ end
 local function drop_clear()
   if not chef.line then return end
   local cam = chef.camera()
-  if cam then chef.line(cam.x, cam.y, cam.z, cam.x, cam.y, cam.z, N.col(N.CREAM, 0)) end
+  if cam then chef.line(cam.x, cam.y, cam.z, cam.x, cam.y, cam.z, N.wcol(N.CREAM, 0)) end
 end
 N.draw_drop, N.drop_fly, N.drop_drops, N.drop_clear = draw_drop, fly, drops, drop_clear

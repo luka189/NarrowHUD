@@ -20,6 +20,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 SIZES = [64, 128, 256]                          # the sizes shipped: squares, powers of two
 PREFIX = 'mods/luka189/narrowhud/tex/'
+AS_DRAWN = {'all_barrels'}                      # icons kept in their canvas's own framing (see render)
 
 
 def resource_hash(name):
@@ -58,6 +59,12 @@ def render(svg, size):
     sat = rgb.max(-1) - rgb.min(-1)
     white = np.clip(rgb.mean(-1) * (1 - sat), 0, 1)
     full = (al * white * 255).round().astype(np.uint8)
+    # (2.0.23) an icon drawn on a square canvas with its own padding (luka's all-barrels: made to the game's own
+    # icon framing, so it comes out the size of the game's mode sprites): the whole canvas is the texture, and
+    # the icon's width and height are the canvas's (the line advances by the full square, as for the game's)
+    if Path(svg).stem in AS_DRAWN:
+        mask = np.array(Image.fromarray(full).resize((size, size), Image.LANCZOS))
+        return mask, size, size
     # crop to the icon's own box, then fit the larger side to the square (a margin of 1/16 so mips don't bleed)
     ys, xs = np.nonzero(full)
     full = full[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
@@ -192,7 +199,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     lua = ['-- NarrowHUD icon textures, made by tools/make_textures.py from art/icons/*.svg: each icon in a ladder of sizes',
            "-- (size, the icon's height in it, the resource id, its width), smallest first, for chef.texture_sizes and chef.bitmap,",
-           "-- and once in the game's icon layout. The stim and the reticle are luka189's; the grenade was traced by dogo314 (used with permission).", 'return {']
+           "-- and once in the game's icon layout. The stim, the reticle and the all-barrels icon are luka189's; the grenade was traced by dogo314 (used with permission).", 'return {']
     for svg in sorted((ROOT / 'art' / 'icons').glob('*.svg')):
         name = svg.stem
         entries = []

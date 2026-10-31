@@ -74,7 +74,7 @@ HAS14 = nil                  -- Chef 1.4 (the players event); ONS: the event lis
 ONS = {}
 GUIS = 0
 SPECS = {}                   -- the option rows registered, in order (the menu tests)
-OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5 }, {}, {}
+OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100)
 LAYOUT = { _v = 1, elements = {} }   -- (2.0: the tests run on Layout: Custom with an empty file — Under's look through the defaults, as the old Under position drew)   -- the F9 menu's values (the tests run with the research log on; the mode icons off unless a test turns them on; the host's objects read, as before 1.5.38, since many tests put the host's objects in; the tone correction off (1.5.62: on by default in the game) so the colours checked are the ones asked for)
 OBJINFO = nil           -- Network.object_info, when a test gives one
 PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
@@ -120,7 +120,31 @@ chef = {
     end
     rec({ 'sprite', x, y, #rows, cell, 0, 0, 0, 0 })
   end,
-  has = function(x) return x == 'menu' or x == 'bind' or (HAS14 == true and (x == 'players_event' or x == 'option_headings')) end, title = function() end,
+  has = function(x) return x == 'menu' or x == 'bind' or x == 'ray_box' or (HAS14 == true and (x == 'players_event' or x == 'option_headings')) end, title = function() end,
+  -- (2.0.16) a ray against a unit's box (axis-aligned here: UNITS entries with box = { hx, hy, hz } at their position)
+  ray_box = function(from, dir, u)
+    RAYS = (RAYS or 0) + 1
+    for _, e in ipairs(UNITS or {}) do
+      if e[1] == u and e.box and e.dead ~= true then
+        local l = math.sqrt(dir[1] ^ 2 + dir[2] ^ 2 + dir[3] ^ 2)
+        local tmin, tmax = -1e9, 1e9
+        for i = 1, 3 do
+          local d, f, c, h = dir[i] / l, from[i], e[2 + i], e.box[i]
+          if math.abs(d) < 1e-9 then
+            if f < c - h or f > c + h then return nil end
+          else
+            local t1, t2 = (c - h - f) / d, (c + h - f) / d
+            if t1 > t2 then t1, t2 = t2, t1 end
+            if t1 > tmin then tmin = t1 end
+            if t2 < tmax then tmax = t2 end
+          end
+        end
+        if tmax < 0 or tmin > tmax then return nil end
+        return tmin >= 0 and tmin or tmax
+      end
+    end
+    return nil
+  end,
   on = function(ev, f) ONS[ev] = f end, players = function() return 4 end, joining = function() return 0 end, in_session = function() return true end,
   bind = function(id, key, label) SPECS[#SPECS + 1] = { id = id, label = label } return { pressed = function() return BINDS[id] == true or KEYS[key] == true end,
     down = function() return BINDS[id] == true end, key = function() return key end }, { row = id } end,
@@ -149,7 +173,7 @@ chef = {
     return 1720 + fx / fy * 1000, 720 + (z - 1) / fy * 1000
   end,
   unit_alive = function() return true end,
-  unit_position = function(u, node) if WPOS and WPOS[u] == false then return nil end if WPOS and WPOS[u] then return WPOS[u][1], WPOS[u][2], WPOS[u][3] end return 100, 200, 10 end,
+  unit_position = function(u, node) if WPOS and WPOS[u] == false then return nil end if WPOS and WPOS[u] then local hz = (HAND_UP and node == 42) and 1.3 or 0 return WPOS[u][1], WPOS[u][2], WPOS[u][3] + hz end return 100, 200, 10 end,
   unit_kind = function(u) return u == 'U' and 'a57ae2a703c02899' or (u == 'B' and '16f397ca5f51f271' or (u == 'G' and (GKIND or 'ee4c107b941ab7f4') or 'wkind')) end,
   unit_node = function(u, name) if u == 'U' and name == 'attach_hand_r' then return 42 end return nil end,
   call_kind = function(name, kind, s, a, b, c, d, e, f)
@@ -224,12 +248,22 @@ chef = {
     if name == 'Material.set_vector4' then VECS = VECS or {} VECS[#VECS + 1] = { a, b } return true end
     -- Gui.bitmap_uv(gui, material, uv00, uv11, pos, size, color)
     if name == 'Gui.bitmap_uv' then rec({ 'bitmap', d[1], d[2], e[1], e[2], 0, 0, 0, 0, tex = a, uv = true, own = true }) return true end
+    -- (2.0.4) the ground census: every unit in the world and its kind; UNITS = { { 'U', '4d1c334d294dfa97' }, ... }
+    if name == 'World.units' then if UNITS == nil then return nil, 'none' end local l = {} for _, u in ipairs(UNITS) do l[#l + 1] = u[1] end return l end
+    if name == 'Unit.debug_name' then for _, u in ipairs(UNITS or {}) do if u[1] == s then return '#ID[' .. u[2] .. ']' end end return nil end
+    if name == 'Unit.world_position' then if a ~= 1 then error('Unit.world_position without the node index (2.0.11)') end for _, u in ipairs(UNITS or {}) do if u[1] == s and u[3] then return { u[3], u[4], u[5] } end end return nil end
+    if name == 'Unit.alive' and UNITS then for _, u in ipairs(UNITS) do if u[1] == s then return u.dead ~= true end end return false end
+    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s and u.box then return 'POSE', { u.box[1], u.box[2], u.box[3] } end end return nil end
+    if name == 'Vector3.to_elements' and type(s) == 'table' and #s == 3 then return s[1], s[2], s[3] end
     error('unexpected call ' .. name)
   end,
 }
 function type_name_of(id) return TYPE_NAMES[id] end
 function run(seconds)
   local n = math.floor(seconds * 60)
+  -- (2.0.3: the reads level has no menu row; OPTS.read_level sets it as the row did)
+  if M and M.debug_read_level and OPTS.read_level then M.debug_read_level(OPTS.read_level) end
+  if M and M.debug_cfg and OPTS.world_tone ~= nil then M.debug_cfg('world_tone', OPTS.world_tone) end   -- (2.0.17: the world lines' tone correction, off in the tests but one)
   for i = 1, n do draws = {} T = T + 1 / 60 M.update(1 / 60) end
 end
 function texts()
@@ -543,6 +577,14 @@ def main():
     said = [l for l in rt.eval('logs').values() if 'mode sprites' in l]
     rt.execute('M.debug_cfg("mode_icons", 1)')
     check('Autocannon: FLAK and AUTO icons both drawn %s' % said[-2:], any('6115051c9558c50e+' in l for l in said) and any('9dcc0312a14e11e6+' in l for l in said))
+    # (2.0.19) the Variable's TOTAL fire mode (7): the all-barrels sprite (luka's log: no icon in 2.0.18)
+    rt.execute('M.debug_cfg("mode_icons", 3) OBJ[17].fields[ROLE.fire_mode] = 7 run(1)')
+    said = [l for l in rt.eval('logs').values() if 'mode sprites' in l]
+    t = rt.eval('texts()')
+    rt.execute('M.debug_cfg("mode_icons", 1)')
+    tex = [l for l in rt.eval('logs').values() if 'the all_barrels texture' in l]
+    check('fire mode 7 (TOTAL): the all-barrels icon drawn as our texture, not the game\'s empty material %s %s' % (tex[-1:], said[-1:]),
+          any('the all_barrels texture drawn' in l for l in tex) and any('ad2ec8830fa5a193+' in l for l in said))
     rt.execute('OBJ[17] = nil OBJ[18] = nil OBJ[19] = nil GRIP = 10 run(1.5)')
 
     # a single-shot launcher (the Recoilless): magazine 0, one in the chamber: one full tick, normal color, HEAT
@@ -1613,7 +1655,7 @@ def main():
     # (1.5.82) on a Chef before 1.4 (no headings): the labels keep their group's word in front
     sp0 = {x.id: x for x in r.eval('SPECS').values()}
     check('an older Chef: no headings, the group word in front (%s, %s)' % (sp0['vis_bar'].label, sp0['research'].label),
-          sp0['vis_bar'].label == 'Show: Ammo / heat bar' and sp0['research'].label == 'Testing: Research log' and not any(x.heading for x in sp0.values()) and sp0['layout'].label == 'Layout')
+          sp0['vis_bar'].label == 'Visibility: Ammo / heat bar' and sp0['research'].label == 'Testing: Research log' and not any(x.heading for x in sp0.values()) and sp0['layout'].label == 'Layout')
     # (1.5.31) on Chef 1.4 (its players event is the mark): textures through the plain bitmap call (the uv call was the
     # 1.3 strobe workaround), no line of nothing after the drop line, the players event logged, the count in the end line
     r = lua51.LuaRuntime()
@@ -1624,7 +1666,8 @@ def main():
     L = list(r.eval('logs').values())
     check('Chef 1.4: the stim and grenade through the plain bitmap call, way 5 (%s)' % sorted(set((d.tex, bool(d.uv)) for d in bm)),
           len(bm) >= 2 and all(not d.uv for d in bm) and any('texture drawn, way 5' in l for l in L))
-    # (1.5.82) the menu with Chef 1.4's headings and hints: eight headings in order, Layout always open, the labels
+    # (1.5.82) the menu with Chef 1.4's headings and hints: the headings in order (2.0.3: six — Visibility holds the
+    # Show rules and the old Extras, Motion and the aim Spread are under Layout), Layout always open, the labels
     # without their group's word, every Show row with a hint; the Keys heading on the fire-button row, Testing's on
     # the research toggle with the forget keys after it
     sp = list(r.eval('SPECS').values())
@@ -1632,9 +1675,15 @@ def main():
     labels = {x.id: x.label for x in sp}
     order = [x.id for x in sp]
     check('Chef 1.4 menu: the headings %s' % [h[0] for h in heads],
-          [h[0] for h in heads] == ['Layout', 'Show', 'Look', 'Extras', 'Motion', 'World', 'Keys', 'Testing'] and heads[0][1] is False and all(h[1] is None for h in heads[1:]))
+          [h[0] for h in heads] == ['Layout', 'Visibility', 'Look', 'World', 'Keys', 'Testing'] and heads[0][1] is False and all(h[1] is None for h in heads[1:]))
     check('Chef 1.4 menu: labels without the group word (%s, %s, %s)' % (labels.get('vis_bar'), labels.get('fire'), labels.get('research')),
           labels.get('vis_bar') == 'Ammo / heat bar' and labels.get('fire') == 'Fire button' and labels.get('research') == 'Research log' and labels.get('swap_primary') == 'Swap to primary')
+    long = [(x.id, len(x.hint)) for x in sp if x.hint and len(x.hint) > 200]
+    check('Chef 1.4 menu: every hint within Chef\'s 200 characters (2.0.0 lost five rows to longer ones) %s' % long, not long and all(x.id in labels for x in sp) and all(k in labels for k in ('vis_bar', 'vis_count', 'vis_mags', 'vis_charge', 'vis_pack')))
+    check('2.0.3 order: aim spread under Spread and Motion in Layout; aim opacity and the extras under Visibility; no UI-layer, tone, swatches or reads rows',
+          order.index('aim_spread') == order.index('spread') + 1 and order.index('motion') < order.index('vis_bar') and [x.heading for x in sp if x.id == 'vis_bar'] == ['Visibility']
+          and order.index('aim_opacity') > order.index('show_rest') and order.index('stim_timer') > order.index('aim_opacity') and order.index('idle') < order.index('mags_empty')
+          and not any(k in labels for k in ('top_world', 'tone_fix', 'swatches', 'read_level', 'icon_tex')))
     check('Chef 1.4 menu: hints on the Show rows, the Keys heading on the fire button, Testing before the forget keys',
           all(x.hint for x in sp if x.id.startswith('vis_')) and [x.heading for x in sp if x.id == 'fire'] == ['Keys'] and [x.heading for x in sp if x.id == 'research'] == ['Testing']
           and order.index('research') < order.index('forget_weapon') and order.index('reload_layout') < order.index('research'))
@@ -1693,6 +1742,59 @@ def main():
     cross = r.eval(mid)
     r.execute('BITMAP = nil AIM = false run(0.3)')
     check('where the texture can\'t be drawn: the cross (five bars, %d)' % cross, cross == 5)
+    # (2.0.1) "Shown: Always": the rifle out from the hip draws it too, third person only
+    r.execute('CHANGE.reticle_when(2) run(0.3)')
+    always_hip = r.eval(mid)
+    r.execute('WPOS = { U = { 0.1, 0.2, 0 } } run(0.3)')
+    always_fp = r.eval(mid)
+    r.execute('WPOS = { U = { 0.4, 3, 0.4 } } CHANGE.reticle_when(1) run(0.3)')
+    check('Sniper crosshair, Always: from the hip (%d), still none in first person (%d)' % (always_hip, always_fp), always_hip == 5 and always_fp == 0)
+    # (2.0.1) the game's own bits decide where they read: the Helldiver's flags block 6ff0e58a (stand-in name gz3n3yj;
+    # word 2 bit 18 = aiming as a state (a toggled aim, the button up: the ring shows), word 1 bit 48 =
+    # first person (the ring goes, whatever the camera says); and the research lines on each flip
+    r.execute('''AIM = false WPOS = { U = { 0.4, 3, 0.4 } } OBJ[2].fields['gz3n3yj'] = { '000400000000020a', '0000000000040000', '0000000000000000' } run(0.3)''')
+    bit_ads = r.eval(mid)
+    r.execute('''OBJ[2].fields['gz3n3yj'] = { '000500000000020a', '0000000000040000', '0000000000000000' } run(0.3)''')
+    bit_fp = r.eval(mid)
+    r.execute('''AIM = true OBJ[2].fields['gz3n3yj'] = { '000400000000020a', '0000000000000000', '0000000000000000' } run(0.3)''')
+    bit_off = r.eval(mid)
+    logs = list(r.eval('logs').values())
+    check('the aim bit set, the button up: the ring (%d); the view bit set, the camera behind you: none (%d); the aim bit clear, the button held: none (%d)' % (bit_ads, bit_fp, bit_off),
+          bit_ads == 5 and bit_fp == 0 and bit_off == 0)
+    check('research lines on the bits', any('aim bit (6ff0e58a word 2, bit 18) nil > 1' in l for l in logs) and any('view bit (6ff0e58a word 1, bit 48) 0 > 1' in l for l in logs))
+    r.execute('''OBJ[2].fields['gz3n3yj'] = nil AIM = false run(0.3)''')
+    # (2.0.1) the Maxigun (b3246bb7): the ring and dot in first person, where the game draws none; not in third
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil WPOS = { U = { 0.4, 3, 0.4 } } M = (function(...) ''' + SRC + ''' end)(chef) run(12)
+      OBJ[9] = { name = NAMES.pack, fields = {} } OBJ[9].fields[ROLE.remaining] = 930 OBJ[9].fields[ROLE.carry] = 0
+      OBJ[10] = { name = NAMES.fed, fields = {} } OBJ[10].fields[ROLE.carry] = 0 OBJ[10].fields[ROLE.fire_mode] = 1 OBJ[10].fields[ROLE.reload_stage] = 0
+      GRIP = 50 run(2) OBJ[9].fields[ROLE.remaining] = 920 run(0.5)''')
+    mx_third = r.eval(mid)
+    r.execute('AIM = true run(0.3)')
+    mx_third_aim = r.eval(mid)
+    r.execute('WPOS = { U = { 0.1, 0.2, 0 } } run(0.3)')
+    mx_first = r.eval(mid)
+    r.execute('CHANGE.reticle_fp(false) run(0.3)')
+    mx_off = r.eval(mid)
+    check('the Maxigun: no crosshair in third person (%d, aimed %d), the ring and dot in first person (%d), none with its row off (%d)' % (mx_third, mx_third_aim, mx_first, mx_off),
+          mx_third == 0 and mx_third_aim == 0 and mx_first == 5 and mx_off == 0)
+    # (2.0.11) the flamethrowers (luka's five marks: 15f1a9f0 the Cremator, def25ee4, 2ddd091d, 104184f7, 0fe87029): the
+    # same, under their own row; the Maxigun's row off doesn't touch them
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil OBJ[50] = { name = type_name_of('0fe87029'), fields = {} } local f = OBJ[50].fields f[ROLE.rounds] = 50 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 f[ROLE.fire_mode] = 1 saved = { grip = { ['0fe87029'] = 78 } } WPOS = { U = { 0.1, 0.2, 0 } }
+      M = (function(...) ''' + SRC + ''' end)(chef) GRIP = 78 CHANGE.reticle_fp(false) run(2)''')
+    fl_default = r.eval(mid)
+    r.execute('CHANGE.reticle_flame(true) run(0.5)')
+    fl_first = r.eval(mid)
+    r.execute('CHANGE.reticle_flame(false) run(0.3)')
+    fl_off = r.eval(mid)
+    r.execute('CHANGE.reticle_flame(true) WPOS = { U = { 0.4, 3, 0.4 } } AIM = true run(0.3)')
+    fl_third = r.eval(mid)
+    check('a flamethrower: none by default (%d); its row on: the ring in first person with the Maxigun row off (%d), none with its own row off (%d), none in third person aimed (%d)' % (fl_default, fl_first, fl_off, fl_third),
+          fl_default == 0 and fl_first == 5 and fl_off == 0 and fl_third == 0)
     # (1.5.47) a scope's zeroing step: the Apex (seeded) shows the game's low / medium / high icon by its options
     # bits 16 / 32; a rifle not seeded learns it when those bits move on their own, and not when the fire mode moves
     r = lua51.LuaRuntime()
@@ -1752,7 +1854,7 @@ def main():
     check('a rifle learns its scope when the zoom bits move alone (%s), not with a fire-mode change (%s)' % ([l for l in L if 'zeroing' in l][-1:], taught_wrong),
           any('type 8fcdd35c has a scope with zeroing' in l for l in L) and not taught_wrong and r.eval('saved.zoom["8fcdd35c"]') is True)
     # (1.5.38) the default: the host's objects never listed; a Testing level brings them back; research off: level 2
-    for opts, want in (('OPTS.read_level = nil', 0), ('OPTS.read_level = nil OPTS.research = false', 0), ('OPTS.read_level = 1', 2)):
+    for opts, want in (('OPTS.read_level = 2', 0), ('OPTS.read_level = 2 OPTS.research = false', 0), ('OPTS.read_level = 1', 2)):
         r = lua51.LuaRuntime()
         setup(r)
         r.execute(opts + ''' M = (function(...) ''' + SRC + ''' end)(chef) HOST = '1111111111111111' OBJ[90] = { name = NAMES.player, fields = { u4d1h9a = 91 } }
@@ -1768,18 +1870,18 @@ def main():
     r.execute('''HOST = '1111111111111111' OBJ[90] = { name = NAMES.player, fields = { u4d1h9a = 91 } }
       OBJ[91] = { name = NAMES.avatar, fields = { du7kbt = 9, ei6_t2 = 8 } } HOSTS[90] = true HOSTS[91] = true run(3)''')
     base = r.eval('texts()')
-    r.execute('CHANGE.read_level(2) run(3)')
+    r.execute('OPTS.read_level = nil M.debug_read_level(2) run(3)')
     lv2 = (r.eval('texts()'), r.eval('M.debug_hosts()'))
-    r.execute('CHANGE.read_level(3) run(3)')
+    r.execute('M.debug_read_level(3) run(3)')
     lv3 = r.eval('texts()')
-    r.execute('CHANGE.read_level(4) run(3)')
+    r.execute('M.debug_read_level(4) run(3)')
     lv4 = (r.eval('texts()'), r.eval('M.debug_hosts()'))
-    r.execute('CHANGE.read_level(5) run(3)')
+    r.execute('M.debug_read_level(5) run(3)')
     L = list(r.eval('logs').values())
     lv5 = [l for l in L if 'hand pose not read' in l][-1:]
-    r.execute('CHANGE.read_level(6) OBJ[3].fields[ROLE.underbarrel] = 8 OBJ[3].fields[ROLE.fire_mode] = 9 run(2)')
+    r.execute('M.debug_read_level(6) OBJ[3].fields[ROLE.underbarrel] = 8 OBJ[3].fields[ROLE.fire_mode] = 9 run(2)')
     lv6 = r.eval('texts()')
-    r.execute('OBJ[3].fields[ROLE.underbarrel] = 32767 OBJ[3].fields[ROLE.fire_mode] = 1 CHANGE.read_level(1) run(3)')
+    r.execute('OBJ[3].fields[ROLE.underbarrel] = 32767 OBJ[3].fields[ROLE.fire_mode] = 1 M.debug_read_level(1) run(3)')
     back = r.eval('texts()')
     check('Testing: reads: all [%s]; 2 no host objects (%s); 3 no fields [%s]; 4 no objects (%s); 5 no unit calls %s; 6 no ref fields: an underbarrel fitted goes unseen [%s]; back [%s]' % (base, lv2, lv3, lv4, lv5, lv6, back),
           '45' in base and lv2[1] == 0 and '45' in lv2[0] and lv3 == '' and lv4[0] == '' and lv4[1] == 0 and lv5 and 'hand pose not read' in lv5[0]
@@ -1814,6 +1916,139 @@ def main():
     check("dead: the still line says you're dead (%s), the end line when you were last dead (%s)" % (hs[:1], end and end[0][end[0].find('you were'):][:50]),
           hs and "(you're dead)" in hs[0] and end and 'you were alive (last dead 2 s before it)' in end[0])
     r.execute('MATES = nil WPOS = nil')
+    # (2.0.13) the ground: the feet grid (every Helldiver unit's feet every 0.25 s into 5 m cells, a jump skipped),
+    # the walk (every unit in the world: a count first, then the positions of the map's kinds — ten or more of an
+    # unnamed kind, the named enemies and structures, never the runtime-built kind, the Helldivers' things or a dead
+    # unit), each kind's height offset learned where its units stand in feet cells (3 cells, spread 0.6 m or under:
+    # trusted) and kept in the learned file, the height anywhere from feet, trusted props, the cells around, or the
+    # lowest loose unit; a ring where the drop line meets it
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''MATES = { items = { { unit = 'U', x = 0, y = 0, z = 0 }, { unit = 'M1', x = 20, y = 0, z = 3 }, { unit = 'M2', x = 40, y = 0, z = 1 } } } WPOS = { U = { 0.4, 3, 0.4 }, M1 = { 20, 0, 3 }, M2 = { 40, 0, 1 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'M1', '4d1c334d294dfa97' }, { 'M2', '4d1c334d294dfa97' }, { 'E1', '1a7fcdff98c664b0', 1, 1, 0.5 }, { 'E2', '1a7fcdff98c664b0', 21, 1, 3.5 },
+        { 'X', 'ffffffffffffffff', 40, 40, 9 }, { 'R', '46cab355bd8d4d37' }, { 'N', 'ffffffffffffffff', 0/0, 0/0, 0/0 }, { 'D', 'ffffffffffffffff', 50, 50, 1, dead = true } }
+      -- a rock kind, 12 of them: three in feet cells (0.4 + 2 and 3 + 2: sunk 2 m, i.e. the root 2 m over the ground... the root 2 m above the feet),
+      -- the rest out on the map at a height of their own
+      for i = 1, 12 do UNITS[#UNITS + 1] = { 'K' .. i, 'eeeeeeeeeeeeeeee', 60 + i * 6, 60, 12 } end
+      UNITS[#UNITS + 1] = { 'KA', 'eeeeeeeeeeeeeeee', 1, 2, 2.4 } UNITS[#UNITS + 1] = { 'KB', 'eeeeeeeeeeeeeeee', 21, 2, 5.0 } UNITS[#UNITS + 1] = { 'KC', 'eeeeeeeeeeeeeeee', 41, 1, 3.0 }
+      UNITS[#UNITS + 1] = { 'KN', 'eeeeeeeeeeeeeeee', 0/0, 0/0, 0/0 }
+      M = (function(...) ''' + SRC + ''' end)(chef) run(2)''')
+    cells, samples, skipped, h_mid, _c = r.eval('M.debug_ground(10, 0)')
+    r.execute('WPOS = { U = { 0.4, 3, 6 }, M1 = { 20, 0, 3 }, M2 = { 40, 0, 1 } } run(0.3) WPOS = { U = { 0.4, 3, 0.4 }, M1 = { 20, 0, 3 }, M2 = { 40, 0, 1 } } run(0.3)')
+    cells2, samples2, skipped2, h_far, _c2 = r.eval('M.debug_ground(200, 200)')
+    check('the feet grid: three cells from three Helldivers (%s cells, %s samples), the height between them from both (%s), none far away (%s), a jump skipped (%s)' % (cells, samples, h_mid, h_far, skipped2),
+          cells and cells >= 3 and samples >= 18 and h_mid is not None and 0.3 < h_mid < 2.7 and h_far is None and skipped2 >= 2)
+    # the walks: the count, then the positions (both within the first seconds); every 20 s after (the rocks become
+    # trusted samples one walk after their offset is learned: the walk meets them before the three in feet cells)
+    r.execute('run(45)')
+    L = list(r.eval('logs').values())
+    walks = [l for l in L if l.startswith('research: ground walk')]
+    kinds = [l for l in L if l.startswith('research: ground kinds:')]
+    off = r.eval("M.debug_ground_kind('eeeeeeeeeeeeeeee')")
+    _, _, _, h_rock, conf_rock = r.eval('M.debug_ground(90, 60)')
+    _, _, _, h_x, conf_x = r.eval('M.debug_ground(40, 40)')
+    check('the walk: counted, then the positions, every 20 s (%d walks: %s)' % (len(walks), walks[:1]),
+          len(walks) >= 3 and '25 units of 5 kinds' in walks[0] and 'walk 2:' in walks[1])
+    check('the rock kind: 12+ units, its offset learned from the three feet cells (+2.0, trusted: %s); the Charger named in the kinds line' % (off,),
+          off is not None and abs(off - 2.0) < 0.05 and any('1a7fcdff98c664b0 x2 in 2 cells' in l and 'cha_charger' in l for l in kinds))
+    check('the ground out on the map from the trusted rocks: 12 - 2 = 10 m (%s, %s); the rare unknown kind never asked: nothing there (%s, %s)' % (h_rock, conf_rock, h_x, conf_x),
+          h_rock is not None and abs(h_rock - 10) < 0.05 and conf_rock == 'props' and h_x is None and conf_x is None)
+    check('never asked: the runtime-built kind, the Helldivers, the dead unit, the rare unknown kind; the nowhere rock counted (%s)' % walks[1:2],
+          walks[1:2] and '1 unreadable, 1 nowhere' in walks[1] and not any('4d1c334d294dfa97' in l or '46cab355bd8d4d37' in l for l in kinds))
+    check('the offset in the learned file (ground.eeeeeeeeeeeeeeee = "sum,sumsq,n")', r.eval('M.debug_learned("ground", "eeeeeeeeeeeeeeee")') == '6.00,12.00,3')
+    # the ring: the drop line (the GL-21, lobbed, the camera pitched down) gets a 16-segment ring and a cross where it
+    # meets the ground — feet cells you walked a moment ago — full strength, and runs on past it to its full length
+    # (2.0.14: the terrain hides the rest; a ring a little off never cuts the line); aimed short of the feet cells, the
+    # ground is a guess (near) and the ring faint; within 25 m of you (the guess is worst there), no ring at all
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+
+    def lines_all_of(r):
+        return [d for d in r.eval('draws').values() if d[1] == 'line']
+
+    def ring_and_line():
+        lines_all = lines_all_of(r)
+        level = [d for d in lines_all if abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]   # (cream: the landing mark)
+        drop = [d for d in lines_all if d[10] == 170]
+        return level, drop
+    level, drop = ring_and_line()
+    arrow = [d for d in lines_all_of(r) if d[10] == 200 and abs(d.z2 - d[4]) > 1e-6]
+    check('the landing mark: a level ring of 16 segments, a cross and an arrow\'s top where the lobbed shot meets the walked ground, 33 m out (%d level segments at y %.1f, alpha %s), the arrow\'s two sides (%d, 1.6 m tall: %.1f); the line runs on past it (%d segments, ending at z %.1f)' % (len(level), level[0][3] if level else 0, sorted(set(d[10] for d in level)), len(arrow), abs(arrow[0].z2 - arrow[0][4]) if arrow else 0, len(drop), drop[-1].z2 if drop else 0),
+          len(level) == 19 and all(d[10] == 200 for d in level) and level and abs(level[0][3] - 36.5) < 1 and len(arrow) == 2 and abs(abs(arrow[0].z2 - arrow[0][4]) - 1.6) < 1e-6 and len(drop) >= 30 and drop[-1].z2 < -10)
+    r.execute('CAM_FZ = -0.035 run(0.5)')
+    level, drop = ring_and_line()
+    check('aimed shorter, before the walked cells: the ring faint, where the line crosses the guessed height, not at the gate (%d segments at y %.1f, alpha %s)' % (len(level), level[0][3] if level else 0, sorted(set(d[10] for d in level))),
+          len(level) == 19 and all(d[10] == 90 for d in level) and abs(level[0][3] - 25.2) < 0.5)
+    r.execute('CAM_FZ = -0.12 run(0.5)')
+    level, drop = ring_and_line()
+    check('aimed at your feet (under 20 m): no ring, the line still drawn (%d level segments, %d line segments)' % (len(level), len(drop)),
+          not level and len(drop) >= 30)
+    # (2.0.16) a bug hole (a structure kind, with a box) in the shot's path: the mark red at the hit, no landing ring;
+    # the row off: the landing ring as before
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '2e454bd4d24eb04a', 0.4, 30, 0.4, box = { 1.5, 1.5, 1.5 } }, { 'HM', 'd8594b707256850e', 0.4, 30, 0.4, box = { 9, 9, 9 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3) RAYS = 0 run(1 / 60)''')
+    red = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
+    level, drop = ring_and_line()
+    rays = r.eval('RAYS')
+    listed = [l for l in r.eval('logs').values() if l.startswith('research: structures:')]
+    boxes = [l for l in r.eval('logs').values() if l.startswith('research: structure box:')]
+    check('a bug hole in the shot\'s path: the mark red at the hit (%d red lines at y %.1f), no landing ring (%d); the hole listed, its marker kind not (%s); its box asked once (%s); %s rays a frame' % (len(red), red[0][3] if red else 0, len(level), listed[:1], boxes, rays),
+          len(red) == 21 and red and 27 < red[0][3] < 30 and not level and len(listed) == 1 and 'bug_spawner_small_01 x1' in listed[0] and '_marker' not in listed[0] and len(boxes) == 1 and 'half 1.5 x 1.5 x 1.5' in boxes[0] and 1 <= rays <= 3)
+    r.execute('CHANGE.struct_mark(false) run(0.5)')
+    red = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
+    level, drop = ring_and_line()
+    check('the Structure hits row off: the landing ring again (%d level, %d red)' % (len(level), len(red)), len(level) == 19 and not red)
+    # (2.0.17) the world lines' colours through the world's tone curve (luka: the cream line white, the red mark pure
+    # red on screen, as the HUD was in 1.5.61): the line's cream sent darker, so the curve brings it out as cream
+    r.execute('CHANGE.struct_mark(true) OPTS.world_tone = true M.debug_cfg("world_tone", true) run(0.5)')
+    drop_c = [d for d in lines_all_of(r) if d[10] == 170 and d[7] < 236]
+    red_c = [d for d in lines_all_of(r) if d[10] == 200 and d[7] < 210 and d[8] < 80]
+    check('the world lines through the tone curve (cfg.world_tone, off since 2.0.18): the drop line\'s cream sent as %s, the mark\'s red as %s' % (
+          [drop_c[0][7], drop_c[0][8], drop_c[0][9]] if drop_c else None, [red_c[0][7], red_c[0][8], red_c[0][9]] if red_c else None),
+          len(drop_c) >= 30 and drop_c[0][7] < 150 and len(red_c) >= 16 and red_c[0][7] < 150 and red_c[0][7] > red_c[0][8])
+    r.execute('OPTS.world_tone = false')
+    # (2.0.18) Line opacity: the row's 20-100 is 10-50 % in the engine (2.0.19, luka: over 50 % looks like 100 %); the
+    # default 60 (30 %) sends the lines at 78 and the mark at 92; 100 -> 131 and 154; 20 -> 26 and 31
+    r.execute('M.debug_cfg("world_tone", false) CHANGE.line_alpha(100) run(0.5)')
+    al = sorted(set(d[10] for d in lines_all_of(r) if d[7] == 236 or d[7] == 210))
+    r.execute('CHANGE.line_alpha(20) run(0.5)')
+    al2 = sorted(set(d[10] for d in lines_all_of(r) if d[7] == 236 or d[7] == 210))
+    r.execute('CHANGE.line_alpha(60) run(0.5)')
+    al3 = sorted(set(d[10] for d in lines_all_of(r) if d[7] == 236 or d[7] == 210))
+    check('Line opacity: 100 -> alphas %s, 20 -> %s, 60 (the default) -> %s' % (al, al2, al3),
+          al == [131, 154] and al2 == [26, 31] and al3 == [78, 92])
+    # (2.0.20) Mark size: the ring's radius and the arrow scaled (0.5: the arrow 0.8 m tall, the ring 0.3 m)
+    r.execute('CHANGE.mark_size(0.5) run(0.5)')
+    arrow = [d for d in lines_all_of(r) if d[7] == 210 and abs(d.z2 - d[4]) > 1e-6]
+    ring = [d for d in lines_all_of(r) if d[7] == 210 and abs(d.z2 - d[4]) < 1e-9]
+    rr = (max(d[2] for d in ring) - min(d[2] for d in ring)) / 2 if ring else 0
+    check('Mark size 0.5: the arrow %.2f m tall, the ring\'s radius %.2f' % (abs(arrow[0].z2 - arrow[0][4]) if arrow else 0, rr),
+          arrow and abs(abs(arrow[0].z2 - arrow[0][4]) - 0.8) < 1e-6 and abs(rr - 0.3) < 0.02)
+    r.execute('CHANGE.mark_size(1)')
+    # a bug hole as the game boxes them (the whole mesh, 7 x 7 x 10 m, luka's log: a small hole's is 8 x 9 x 11): the
+    # mark where the shot meets the ground inside the footprint, not where the line enters the box in the air
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '2e454bd4d24eb04a', 0.4, 34, 0.4, box = { 3.5, 3.5, 5 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+    red = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
+    red_level = [d for d in red if abs(d.z2 - d[4]) < 1e-9]
+    check('a bug hole boxed whole: the red mark on the ground at the landing inside the footprint (y %.1f, z %.2f), not at the box\'s side (30.5 m, 0.8 m up)' % (red_level[0][3] if red_level else 0, red_level[0][4] if red_level else 0),
+          red_level and abs(red_level[0][3] - 36.5) < 1 and abs(red_level[0][4] - 0.48) < 0.05)
+    r.execute('HAND_UP = nil CAM_FZ = nil')
+    r.execute('MATES = nil WPOS = nil UNITS = nil')
     r = lua51.LuaRuntime()
     setup(r)
     r.execute("HOST = '1111111111111111' PING = nil run(5)")
@@ -2048,15 +2283,15 @@ def main():
     check('a curved bar with brackets, no shade: the fill and the brackets, no faint piece (%d triangles, alphas %s)' % (len(tris), sorted(set(d[9] for d in tris))),
           tris and 210 in set(d[9] for d in tris) and 45 not in set(d[9] for d in tris))
     r.execute('CHANGE.shade(true) CHANGE.edge(1)')
-    # (1.5.63) drawn in the game's UI layer by default: every layer from chef.TOP; off, the game's world's 905
+    # (1.5.63) drawn in the game's UI layer: every layer from chef.TOP; (2.0.3: no row for it; the world path, a Chef without chef.TOP, through debug_cfg) off, the game's world's 905
     r.execute('''LAYOUT.elements.bar.style = 'horizontal' LAYOUT.elements.bar.edge = 'none' LAYOUT.elements.bar.shade = 'on' BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.5)''')
     layers = sorted(set(d['l'] for d in r.eval('draws').values() if d[1] in ('rect', 'text') and d['l']))
-    check('UI layer on (default): the HUD\'s layers from chef.TOP (%s)' % (layers,), layers and layers[0] >= 2000 and layers[-1] < 2950)
-    r.execute('CHANGE.top_world(false) run(0.3)')
+    check('UI layer (always): the HUD\'s layers from chef.TOP (%s)' % (layers,), layers and layers[0] >= 2000 and layers[-1] < 2950)
+    r.execute('M.debug_cfg("top_world", false) run(0.3)')
     layers = sorted(set(d['l'] for d in r.eval('draws').values() if d[1] in ('rect', 'text') and d['l']))
     check('UI layer off: the game\'s world, layers around 905 (%s)' % (layers,), layers and 905 in layers and layers[-1] < 1000)
     # (1.5.61) the tone-mapping correction (the game's world only): the cream asked for comes out as the input whose output is the cream
-    r.execute('CHANGE.tone_fix(true) run(0.5)')
+    r.execute('M.debug_cfg("tone_fix", true) run(0.5)')
     fills = [(d[6], d[7], d[8]) for d in r.eval('draws').values() if d[1] == 'rect' and d[5] == 10 and d[9] == 235]
     check('tone correction on: the bar\'s cream given as the curve\'s inverse (%s: around 100 on every channel)' % (fills[:1],),
           fills and all(90 <= v <= 110 for v in fills[0]))
@@ -2064,18 +2299,18 @@ def main():
     faint = [(d[6], d[7], d[8]) for d in r.eval('draws').values() if d[1] == 'rect' and d[5] == 10 and d[9] == 45]
     check('a faint piece (alpha 45) corrected for the blend: lighter than the opaque one (%s)' % (faint[:1],),
           faint and faint[0][0] > fills[0][0] + 20)
-    r.execute('CHANGE.tone_fix(false) run(0.3)')
+    r.execute('M.debug_cfg("tone_fix", false) run(0.3)')
     fills = [(d[6], d[7], d[8]) for d in r.eval('draws').values() if d[1] == 'rect' and d[5] == 10 and d[9] == 235]
     check('tone correction off: the cream as it is (%s)' % (fills[:1],), fills and fills[0] == (236, 229, 206))
-    r.execute('CHANGE.tone_fix(true) CHANGE.top_world(true) run(0.3)')
+    r.execute('M.debug_cfg("tone_fix", true) M.debug_cfg("top_world", true) run(0.3)')
     fills = [(d[6], d[7], d[8]) for d in r.eval('draws').values() if d[1] == 'rect' and d[5] == 10 and d[9] == 235]
     check('in the UI layer the correction is left out: the cream as it is (%s)' % (fills[:1],), fills and fills[0] == (236, 229, 206))
-    r.execute('CHANGE.tone_fix(false) run(0.3)')
-    r.execute('CHANGE.swatches(true) run(0.3)')
+    r.execute('M.debug_cfg("tone_fix", false) run(0.3)')
+    r.execute('M.debug_cfg("swatches", true) run(0.3)')
     sw = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[4] == 40 and d[5] == 40]
     check('the swatches: 64 squares, the grey row\'s last white, the red row\'s last pure red (%d)' % len(sw),
           len(sw) == 64 and any(q[6] == 255 and q[7] == 255 and q[8] == 255 for q in sw) and any(q[6] == 255 and q[7] == 0 and q[8] == 0 for q in sw))
-    r.execute('CHANGE.swatches(false) run(0.3)')
+    r.execute('M.debug_cfg("swatches", false) run(0.3)')
     # (1.5.54) the modes as two parts: mode1 the weapon mode, mode2 the fire mode pinned right of it; off unless a
     # file turns them on
     r.execute('''LAYOUT = { _v = 1, elements = { modes = { on = false }, bar = { on = false }, count = { on = false }, mags = { on = false }, charge = { on = false }, icons = { on = false }, rpm = { on = false }, pack = { on = false }, stims = { on = false }, grenades = { on = false },
@@ -2099,9 +2334,9 @@ def main():
     # (1.5.79) the icons' own GUI in the game's UI world (the first of Application.worlds that isn't the game's) while
     # the UI layer is on, so they keep the cream; in the game's world with it off
     check('the mode icons\' GUI made in the UI world (%s)' % r.eval('GUI_WORLD'), r.eval('GUI_WORLD') == 'TOPW')
-    r.execute('CHANGE.top_world(false) run(0.5)')
+    r.execute('M.debug_cfg("top_world", false) run(0.5)')
     check('UI layer off: the icons\' GUI made in the game\'s world again (%s)' % r.eval('GUI_WORLD'), r.eval('GUI_WORLD') == 'W')
-    r.execute('CHANGE.top_world(true) run(0.5)')
+    r.execute('M.debug_cfg("top_world", true) run(0.5)')
     # (1.5.70) Small never shrinks the icons below Medium's size (luka: too small to read); a pinned part's nudge
     # scales with Size as its gap does (a free part's x / y stay a place)
     r.execute('''LAYOUT = { _v = 1, elements = { bar = { anchor = 'center', x = 0, y = -9, align = 'bottom', style = 'horizontal', length = 200, thickness = 10 },

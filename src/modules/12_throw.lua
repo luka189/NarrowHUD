@@ -253,16 +253,30 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
   N.last_aim = entry
   local vx, vy, vz = hx * speed * math.cos(pitch), hy * speed * math.cos(pitch), speed * math.sin(pitch)
   local x, y, z = ox, oy, oz + p.up
-  local c = N.col(N.CREAM, 170)
+  local c = N.wcol(N.CREAM, 170)                  -- (2.0.17: the world's tone curve)
   local lines = cfg.drop_thick or 2
   local crx, cry = cam.fy, -cam.fx
   local cl = math.sqrt(crx * crx + cry * cry)
   if cl < 1e-4 then lines = 1 else crx, cry = crx / cl, cry / cl end
   local n, t = 0, 0
   local floor = (feet_z or z) - DEEPEST
+  local mark = cfg.landing_mark and N.ground_landing
+  local marked, mst = false, {}
+  local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the throw hits one
+  local sst = shit and {}
   while t < MOST_T and z > floor do
     local nx, ny, nz = x + vx * STEP, y + vy * STEP, z + (vz - G * STEP / 2) * STEP
     vz = vz - G * STEP
+    -- (2.0.13) where the arc meets the ground (12_ground's guess): a ring there; the arc runs on (2.0.14, luka:
+    -- the depth test hides the rest; never within 7 m of you)
+    if shit and not marked and t > 0.1 then
+      local hx, hy, hz = shit(x, y, z, nx, ny, nz, sst, ox, oy)
+      if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, ox, oy) marked = true end
+    end
+    if mark and not marked and t > 0.1 then
+      local gx, gy, gz, conf = mark(x, y, z, nx, ny, nz, ox, oy, mst, 7)
+      if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, ox, oy) marked = true end
+    end
     for k = 1, lines do
       local o = 0.0012 * (k - (lines + 1) / 2)
       local d1 = math.sqrt((x - cam.x) ^ 2 + (y - cam.y) ^ 2 + (z - cam.z) ^ 2) * o

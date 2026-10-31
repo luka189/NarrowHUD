@@ -2,16 +2,16 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 2.0.0
+Version: 2.1.0
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v2.0.0.zip (archive the older main files and the R0 / R1 research builds)
+Main file: NarrowHUD-v2.1.0.zip (archive the older main files and the R0 / R1 research builds)
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.2.3 or newer"
 
 Summary (the short line under the title, at most 350 characters):
 --------------------------------------------------------------------
 A narrow ammo and heat readout by your crosshair: bar, count, magazines, modes, stims, grenades, backpack, health,
-stamina, emplacement guns. Drop lines for launchers, throw lines for stratagems and every grenade, your map pin and
-where you died. Presets or your own layout from the online editor; a rule per part for when it shows. Reads only.
+stamina, emplacement guns. Drop and throw lines with a landing mark (red on a bug hole or fabricator), your map pin
+and where you died. Presets or your own layout from the online editor; a rule per part for when it shows. Reads only.
 
 Description (paste into the BBCode editor):
 -------------------------------------------
@@ -20,6 +20,13 @@ Description (paste into the BBCode editor):
 
 A small ammo and heat readout right by your crosshair, so you never have to look at the corner of the screen
 mid-fight.
+
+[size=4][b]NEW in 2.1[/b][/size]
+[list]
+[*][b]A landing mark[/b] where a drop or throw line lands: a ring and an arrow on the ground, from the map's own heights (its rocks, trees and props, calibrated by where Helldivers walk, remembered per planet). Faint where the ground is a guess; [b]red[/b] where the shot would hit a bug hole, a fabricator, a warp ship or an Illuminate tower.
+[*][b]Aiming read from the game:[/b] toggle aim counts, and the sniper crosshair can show always with the rifle out. The Maxigun gets a crosshair in first person; the flamethrowers can.
+[*]The F9 menu regrouped (Layout, Visibility, Look, World, Keys); line opacity and mark size sliders; the Variable's TOTAL icon.
+[/list]
 
 [size=4][b]NEW in 2.0[/b][/size]
 [list]
@@ -50,7 +57,7 @@ Drag every part anywhere, pin parts to each other, make bars vertical or curved,
 [*][b]Fire modes, weapon modes, underbarrels[/b] and the rate of fire, as words and as the game's own icons.
 [*][b]Stims, grenades[/b], your [b]backpack[/b], [b]health and stamina[/b], a stim timer, reload progress.
 [*][b]Emplacement guns[/b] while you're seated.
-[*][b]Drop lines[/b] for launchers, rockets and plasma; [b]throw lines[/b] for stratagem balls, grenades and C4.
+[*][b]Drop lines[/b] for launchers, rockets and plasma; [b]throw lines[/b] for stratagem balls, grenades and C4; a [b]landing mark[/b] where they land, red on an enemy structure.
 [*]Your [b]map pin[/b] and [b]where you last died[/b], with their distance.
 [/list]
 
@@ -58,7 +65,7 @@ Drag every part anywhere, pin parts to each other, make bars vertical or curved,
 The horizontal stack, the arcs, the vertical pair, the block, or your own from the editor. Every part has its own rule for when it shows.
 
 [size=4][b]Settings[/b][/size] (F9 > NarrowHUD)
-Layout, size, offsets, Spread and opacity; a Show rule per part; the look (bar edges, shade, colours); extras (stim timer, warnings, reload line, idle dimming); motion; the world (crosshair, markers, lines); your keys as bound in the game.
+Layout, size, offsets, Spread, opacity and motion; Visibility (a rule per part, the aim opacity, stim timer, warnings, reload line, idle dimming); Look (bar edges, shade, colours); World (crosshairs, markers, lines, the landing mark and structure hits); your keys as bound in the game.
 
 [size=4][b]Install[/b][/size]
 [list=1]
@@ -75,7 +82,7 @@ NarrowHUD [b]only reads[/b] game state through Chef Shared Loader; it never writ
 [b]It shows the wrong weapon.[/b] Fire the one you're holding. If it keeps happening: F9 > "Testing: forget this weapon", press it holding the weapon, fire.
 [b]I changed my fire button or swap keys in the game.[/b] Set the same under Keys in F9. If your mouse wheel doesn't swap weapons in the game, set "Keys: wheel swaps weapons" to No, or a scroll can switch the HUD to the wrong weapon.
 [b]"NarrowHUD is off: the game was updated".[/b] Wait for an update, or turn on "Testing: any game version" at your own risk.
-[b]Over the map?[/b] 2.0 draws in the game's UI layer so the colours are right. "Look: in the game's UI layer" off puts it back under.
+[b]Over the map?[/b] The HUD draws in the game's UI layer so the colours are right; the map is nowhere near it.
 [b]Multiplayer?[/b] Yes, hosting and joining. Only your own weapons and pack.
 [b]Performance?[/b] About 0.2 ms a frame.
 
@@ -92,11 +99,30 @@ Bug reports: see the pinned post (both logs, please).
 [*]Uses research from HD2Runtime by SkyeShade (https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line).
 [*]The stratagem ball's unit is found the way Stratagem and C4 Trajectory (Nexus 17945) finds it; the throw numbers are NarrowHUD's own, fitted from recorded throws. None of its code is used.
 [*]The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used.
-[*]The grenade icon was traced by dogo314 and is used with his permission; the stim icon is luka189's. The mode icons are
+[*]The grenade icon was traced by dogo314 and is used with his permission; the stim and all-barrels icons are luka189's. The other mode icons are
 the game's own, drawn from its HUD sprites in play; none of the game's art is in the download.
+[*]The names of the map's units for the landing mark come from filediver's known-path lists (BSD licence).
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
+
+Changelog for the Nexus "Changelogs" tab (2.1.0)
+------------------------------------------------
+- Landing mark: a ring and an arrow on the ground where the drop line or the throw line lands, from the map's own
+  heights (its rocks, trees and props, calibrated by where you and your teammates walk, remembered per planet);
+  faint where the ground is a guess; never within 20 m of you. F9 > World > Landing mark, Mark size.
+- Structure hits: the mark turns red where the shot or throw would hit a bug hole, a fabricator, a warp ship or an
+  Illuminate tower before the ground.
+- Line opacity for the drop and throw lines and the mark.
+- Aiming is read from the game's own state: a toggled aim counts, and being knocked out of it ends it. The sniper
+  crosshair, "while aiming" rules, the aim Spread and opacity all follow.
+- Sniper crosshair: "Shown" — While aiming or Always (with the rifle out, in third person).
+- The Maxigun gets the crosshair in first person, where the game draws none; the flamethrowers can (off by default).
+- The Variable's TOTAL fire mode gets an icon.
+- The F9 menu regrouped: Layout, Visibility (every part's rule and the extras), Look, World, Keys, Testing.
+- Fixed: five Visibility rows (the ammo bar, the count, the spare magazines, the charge meter and the backpack
+  bar) and their heading were missing from the F9 menu in 2.0.0. Fixed: a few weapons could be taken for an
+  emplacement gun when picked up.
 
 Changelog for the Nexus "Changelogs" tab (2.0.0)
 ------------------------------------------------
@@ -219,7 +245,7 @@ Changelog for the Nexus "Changelogs" tab (1.5.13)
 - NEW: a fourth layout, the curved pair around the crosshair; the layout editor has it, and can show a screenshot of
   your game behind the parts.
 - Health and stamina bars are on by default now. Everything new has its off switch in F9.
-- F9 settings in topic blocks (Show, Bars, Look, World, Keys, Testing), shorter labels.
+- F9 settings in topic blocks (Layout, Visibility, Look, World, Keys, Testing), shorter labels.
 - The Talon's heat bar no longer runs too high; a support weapon fresh out of its hellpod shows at once; a jump pack
   lying on the map no longer shows a recharge bar.
 - Needs Chef Shared Loader 1.2.3 or newer, as before.

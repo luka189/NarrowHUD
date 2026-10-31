@@ -427,6 +427,7 @@ function M.update(dt)
     if N.stim then N.stim.prev_s, N.stim.at = nil, nil end   -- (a new mission's stim count isn't a stim used)
     if N.reload_reset then N.reload_reset() end
     if N.markers_reset then N.markers_reset() end
+    if N.ground_reset then N.ground_reset() end
     next_scan = now
   end
   local t0 = cfg.research and clock and clock() or nil
@@ -578,6 +579,7 @@ function M.update(dt)
   local vit = N.vitals_step(s, now, items_now)
   if N.dead then vital.dead_at = now end
   N.read_markers(s, now)
+  if N.ground_update then N.ground_update(now) end   -- (2.0.4: the ground grid's samples and the research census)
   t0 = lap('items', t0)
   -- Heat, every frame, between the field's values (12_heat)
   local d = shown_now
@@ -634,7 +636,11 @@ function M.update(dt)
   else hand.fade = target end
   -- (1.5.55) the events that move something (08_motion), and aiming as a state
   N.motion_events(shown_now, items_now, vit, hand.goid)
-  N.aim_now = (N.input and N.input.aiming) or (N.state8 and N.state8.aim == 4) or false
+  -- (2.0.1: the aim as the game's own state bit where it reads — a toggled aim counts, a knock out of it ends it;
+  -- the aim button or the stance field where it doesn't, as before)
+  local st8a = N.state8
+  if st8a and st8a.ads ~= nil then N.aim_now = st8a.ads == 1
+  else N.aim_now = (N.input and N.input.aiming) or (st8a and st8a.aim == 4) or false end
   local aim_alpha = N.ease('aimalpha', N.aim_now and (cfg.aim_opacity or 1) or 1, 120)
   -- (1.5.60) each part's Show rule, eased (08_show); health and stamina take theirs through vit.show_h / show_s
   N.show_step(shown_now, items_now, vit, now)
@@ -720,7 +726,9 @@ end
 
 function M.debug_objs() return objs end   -- (tests)
 function M.debug_fly(b, pitch, len) return N.drop_fly(b, pitch, len) end
-function M.debug_cfg(k, v) cfg[k] = v end   -- (tests: a setting with no menu row, such as the texture test's way)
+function M.debug_cfg(k, v) cfg[k] = v end
+function M.debug_tone(ch, v) return N.tone(ch, v) end   -- (tests: the world's tone curve)   -- (tests: a setting with no menu row, such as the texture test's way)
+function M.debug_read_level(v) if v ~= N.read_level then log('Testing: reads %s', tostring(v)) end N.read_level = v end   -- (tests: the reads bisection, 2.0.3: no menu row)
 function M.debug_made() return N.engine_made and N.engine_made.mat end   -- (tests: material copies made)
 function M.debug_hosts() return session.hosts end   -- (tests: the host's objects seen by the last scan)
 function M.debug_handheld(id) return N.HANDHELD[id] end   -- (tests)
@@ -730,6 +738,8 @@ function M.debug_icons() local l = N.mode_icons and N.mode_icons() local out = {
 function M.debug_boxes() local out = {} for id, b in pairs(N.layout.boxes or {}) do out[id] = string.format('%d,%d %dx%d%s%s', b.x, b.y, b.w, b.h, b.hidden and ' hidden' or '', b.held and ' held' or '') end return out end
 function M.debug_state8(k, v) N.state8[k] = v end   -- (tests)
 function M.debug_aim() return N.last_aim end   -- (tests: the last throw line drawn)
+function M.debug_ground(x, y) local g = N.ground local h, conf if N.ground_height then h, conf = N.ground_height(x, y) end return g and g.n, g and g.samples, g and g.skipped, h, conf end   -- (tests, 2.0.4 / 2.0.13)
+function M.debug_ground_kind(k) return N.ground_kind_offset and N.ground_kind_offset(k) end   -- (tests, 2.0.13: a kind's trusted offset)
 function M.debug_learned(kind, id) return learned[kind] and learned[kind][id] end   -- (tests: what's learned or seeded)
 function M.shutdown()
   if N.dirty_at then save_learned() end

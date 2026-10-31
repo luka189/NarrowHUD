@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.1.0
+
+- Landing mark: a ring and an arrow on the ground where the drop line or the throw line lands. The ground's
+  heights come from the map's own rocks, trees and props, calibrated by where you and your teammates walk, and
+  are remembered per planet across missions; the mark is faint where the ground is a guess. Never within 20 m of
+  you (7 m for throws and the Ultimatum). F9 > World > Landing mark, Mark size (0.3–1 m).
+- Structure hits: the mark turns red where the shot or throw would hit a bug hole, a fabricator, a warp ship or
+  an Illuminate tower before the ground. F9 > World > Structure hits.
+- Line opacity (F9 > World) for the drop and throw lines and the mark.
+- Aiming is read from the game's own state, not the aim button: a toggled aim counts, and being knocked out of
+  it ends it. The sniper crosshair, "while aiming" rules, the aim Spread and opacity all follow. First vs third
+  person is read from the game too.
+- Sniper crosshair: "Shown" — While aiming (as before) or Always, with the rifle out in third person.
+- The Maxigun gets the crosshair in first person, where the game draws none (on by default); the flamethrowers
+  can (F9 > World > Flamethrower crosshair, off by default).
+- The Variable's TOTAL fire mode gets an icon.
+- The F9 menu regrouped: Layout (with the aim Spread and Motion), Visibility (every part's rule, the aim
+  opacity, idle dimming, the stim timer, warning pulses and reload line), Look, World, Keys, Testing.
+- Fixed: five Visibility rows (the ammo bar, the count, the spare magazines, the charge meter and the backpack
+  bar) and their heading were missing from the F9 menu in 2.0.0. Fixed: the Torcher, Sterilizer and a few other
+  weapons could be taken for an emplacement gun when picked up.
+
 ## 2.0.0
 
 Your settings carry over but the layout choice. The F9 menu is regrouped, with short labels. Old Custom layout

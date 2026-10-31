@@ -6,7 +6,7 @@ local HANDHELD, cfg = N.HANDHELD, N.cfg
 local learned = { grip = {}, mag = {}, heat = {}, rest = {}, charge2 = {}, up = {}, down = {}, modes = {}, rpms = {},
                   pack = {}, options1 = {}, packres = {}, rest2 = {}, poses = {},
                   packshow = {}, rpmadj = {}, rpmbase = {}, slot = {}, resmax = {}, reload_t = {}, reload_e = {},
-                  stim = {}, shot = {}, zoom = {} }
+                  stim = {}, shot = {}, zoom = {}, ground = {} }
 -- The learned file: what each kind holds per type id (8 hex digits), and the file's version (_v). Entries that don't
 -- fit (a damaged or hand-edited file) are dropped and counted in the log; a file from a newer NarrowHUD is read for
 -- what fits.
@@ -15,7 +15,7 @@ local LEARNED_SHAPE = { grip = 'number', mag = 'number', heat = 'number', rest =
   up = 'number', down = 'number', modes = 'string', rpms = 'string', pack = 'number', options1 = 'string',
   packres = 'boolean', rest2 = 'number', poses = 'string', packshow = 'boolean', rpmadj = 'boolean',
   rpmbase = 'string', slot = 'number', resmax = 'number', reload_t = 'number', reload_e = 'number', stim = 'number', shot = 'number',
-  zoom = 'boolean' }
+  zoom = 'boolean', ground = 'string' }   -- (ground: 2.0.13, a unit kind's height offset "sum,sumsq,n"; 16-hex ids)
 local function read_learned(t)
   local kept, dropped = 0, 0
   for kind, want in pairs(LEARNED_SHAPE) do
@@ -23,7 +23,7 @@ local function read_learned(t)
     if type(src) == 'table' then
       local out = {}
       for id, v in pairs(src) do
-        local ok = type(id) == 'string' and string.find(id, '^%x%x%x%x%x%x%x%x$') ~= nil and type(v) == want
+        local ok = type(id) == 'string' and string.find(id, kind == 'ground' and '^%x+$' or '^%x%x%x%x%x%x%x%x$') ~= nil and type(v) == want
         if ok and want == 'number' then ok = v == v and v > -1e9 and v < 1e9 end
         if ok then out[id], kept = v, kept + 1 else dropped = dropped + 1 end
       end

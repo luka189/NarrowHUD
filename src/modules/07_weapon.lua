@@ -19,6 +19,10 @@ N.ATLAS = {
   SEMI     = { 'f9a3f22a93eedcbd', 0.943115234375, 0.1640625, 0.974365234375, 0.2265625, '3efff09cd12fb89a' },
   BURST    = { 'f9a3f22a93eedcbd', 0.786865234375, 0.1640625, 0.818115234375, 0.2265625, '131742904d846798' },
   VOLLEY   = { 'f9a3f22a93eedcbd', 0.634521484375, 0.0078125, 0.665771484375, 0.0703125, '16413ee2e6725687' },
+  -- (2.0.19) the Variable's TOTAL (all barrels): the sprite's id from its path (weapon_function/firemode_all_barrels)
+  -- — the game's icon material by that id draws nothing (luka, 2.0.19: "+" in the log, no icon on screen), so this
+  -- one is our own texture (art/icons/all_barrels.svg, tex: 08_draw_kit's icon_texture, as the stim's), 2.0.20
+  ALL_BARRELS = { 'f9a3f22a93eedcbd', 0, 0, 0, 0, 'ad2ec8830fa5a193', tex = 'all_barrels' },
   UNDERBARREL = { 'f9a3f22a93eedcbd', 0.301513671875, 0.2265625, 0.332763671875, 0.2890625, 'b019df1ca8b6d4a2' },
   UNDERBARREL_SHOTGUN = { 'f9a3f22a93eedcbd', 0.947021484375, 0.0859375, 0.978271484375, 0.1484375, '067bb0962f896bbb' },
   UNDERBARREL_FLAMER = { 'f9a3f22a93eedcbd', 0.340576171875, 0.2265625, 0.371826171875, 0.2890625, 'cd87fdddec2a6bfc' },
@@ -49,7 +53,7 @@ N.ATLAS = {
 -- the words of what's shown -> the sprite the game's HUD uses for them (the fire modes; the weapon's own modes: the
 -- WASP's BURST is burst_fire, its ARTILLERY the airstrike, the Airburst's CLUSTER the frag; the Railgun's SAFE the
 -- single, UNSAFE the burst; seen against the HUD 2026-10-28)
-local FIRE_SPRITES = { AUTO = 'AUTO', SEMI = 'SEMI', BURST = 'BURST', VOLLEY = 'VOLLEY', SAFE = 'SEMI', UNSAFE = 'BURST' }
+local FIRE_SPRITES = { AUTO = 'AUTO', SEMI = 'SEMI', BURST = 'BURST', VOLLEY = 'VOLLEY', SAFE = 'SEMI', UNSAFE = 'BURST', TOTAL = 'ALL_BARRELS' }
 local OPTION_SPRITES = { APHET = 'APHET', FLAK = 'FLAK', HEAT = 'HEAT', HE = 'HE', FLECHETTE = 'FLECHETTE', STUN = 'STUN',
   LASER = 'LASER', ['NO LASER'] = 'NO_LASER', GUIDED = 'GUIDED', UNGUIDED = 'UNGUIDED', DEPLOY = 'DEPLOY', DETONATE = 'DETONATE',
   CLUSTER = 'FRAG', ARTILLERY = 'AIRSTRIKE', BURST = 'BURST_FIRE' }
@@ -65,7 +69,7 @@ local function with_word(e, word)
   local key = e[6] .. word
   local w = worded[key]
   if not w then
-    w = { e[1], e[2], e[3], e[4], e[5], e[6], word = word }
+    w = { e[1], e[2], e[3], e[4], e[5], e[6], word = word, tex = e.tex }   -- (2.0.22: tex kept — the all-barrels icon drew the game's empty material)
     worded[key] = w
   end
   return w
