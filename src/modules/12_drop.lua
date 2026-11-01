@@ -22,9 +22,9 @@ local TURN = 0.05                                 -- ... or sooner, once the fli
                                                   -- steep lob's first metres looked broken, the 1.4.2 log)
 local MUZZLE = 0.25                               -- metres from the hand node to the muzzle, along the shot
 local HAND_LEFT = 0.1                             -- the shot starts a hand's width left of the hand node (as seen)
--- (from the hand: the first metres are of no use, and any mismatch with the muzzle shows there: 10 m out, 3 m for
--- the Ultimatum's lob (its whole curve is in the first metres))
-local function start_hand(b) return b.v <= 25 and 3 or 10 end
+-- (from the hand: the first metres are of no use, and any mismatch with the muzzle shows there: 7 m out (2.1.4,
+-- luka: never earlier than 7; 10 before), 3 m for the Ultimatum's lob (its whole curve is in the first metres))
+local function start_hand(b) return b.v <= 25 and 3 or 7 end
 local CONVERGE = 100                              -- metres along the camera's line where the shot is taken to go
 local hand_of = { u = nil, node = nil }
 
@@ -86,6 +86,24 @@ local function flight_of(tid, pitch, len)
   end
   return cache.pts
 end
+-- (2.1.1, luka: the Verdict's and the Recoilless's lines began right by the hand with no drop to show) where the
+-- line starts: the path at which the shot, fired level, has fallen cfg.drop_from centimetres below the straight aim
+-- (0: the hand's 10 m). Level, once per weapon and setting, so the start doesn't wander with the aim (2.1.2, luka:
+-- per pitch it moved as he aimed); the drop at a pitch differs a little, which is fine for a start
+local dstart = { tid = nil, cm = nil, len = nil, path = 0 }
+local function drop_start(tid, len)
+  local cm = cfg.drop_from or 0
+  if cm <= 0 then return 0 end
+  if dstart.tid ~= tid or dstart.cm ~= cm or dstart.len ~= len then
+    local path = 0
+    for _, p in ipairs(fly(BALLISTICS[tid], 0, len)) do
+      if -p[2] >= cm / 100 then path = p[3] break end
+    end
+    dstart.tid, dstart.cm, dstart.len, dstart.path = tid, cm, len, path
+    if cfg.research then log('research: drop line start: %s from a drop of %s cm at %.1f m of path (the hand\'s %d m at least)', tid, tostring(cm), path, start_hand(BALLISTICS[tid])) end
+  end
+  return dstart.path
+end
 N.drop_lines = 0                                  -- (lines drawn this frame, for the timing line)
 -- the line, from the view camera along the crosshair
 local function draw_drop(tid)
@@ -134,7 +152,7 @@ local function draw_drop(tid)
   if cl < 1e-4 then lines = 1 else crx, cry = crx / cl, cry / cl end
   local n = 0
   local lx, ly, lz, lpath = nil, nil, nil, 0
-  local from = start_hand(BALLISTICS[tid])
+  local from = math.max(start_hand(BALLISTICS[tid]), drop_start(tid, len))
   local mark = cfg.landing_mark and N.ground_landing
   local marked, mst = false, {}
   local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the shot hits one
@@ -152,6 +170,12 @@ local function draw_drop(tid)
     if mark and not marked and lx and lpath >= from then
       local gx, gy, gz, conf = mark(lx, ly, lz, wx, wy, wz, x0, y0, mst, from == 3 and 7 or 20)
       if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, x0, y0) marked = true end
+    end
+    -- (2.1.2) the line begins at `from` exactly: the segment it falls in is cut there (the flight's points sit at
+    -- different paths at different pitches, so a start at the next point wandered with the aim)
+    if lx and lpath < from and p[3] > from and p[3] > lpath then
+      local t = (from - lpath) / (p[3] - lpath)
+      lx, ly, lz, lpath = lx + (wx - lx) * t, ly + (wy - ly) * t, lz + (wz - lz) * t, from
     end
     if lx and lpath >= from then
       for k = 1, lines do

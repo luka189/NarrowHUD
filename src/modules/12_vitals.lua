@@ -60,7 +60,7 @@ N.vitals_state = vs
 local FNAME = {}
 for id, name in string.gmatch(DATA.fieldnames or '', '(%x+) (%S+)') do FNAME[id] = name end
 N.FNAME_AIM = FNAME['95c46304']
-local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100, view = nil, ads = nil }
+local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100, view = nil, ads = nil, wheel = nil }
 local function strat_held()
   local k = N.keys and N.keys.strat
   if k and k.down and k.down() == true then return true end
@@ -75,7 +75,7 @@ local function read_state(s, now)
   if held then st8.strat_at = now end   -- (1.5.56: the throw line tells a stratagem ball from a mine at the same pose by it)
   local av = me.avatar
   if not av or not alive(s, av, TYPES[2]) then return end
-  if st8.goid ~= av then st8.goid, st8.aim, st8.emote, st8.view, st8.ads = av, 0, -1, nil, nil end
+  if st8.goid ~= av then st8.goid, st8.aim, st8.emote, st8.view, st8.ads, st8.wheel = av, 0, -1, nil, nil, nil end
   if now - st8.at < 0.1 then return end
   st8.at = now
   local e = call('avatar.emote', 'GameSession.game_object_field', s, av, 'active_emote')
@@ -96,6 +96,13 @@ local function read_state(s, now)
   local w1, w2 = type(f) == 'table' and f[1], type(f) == 'table' and f[2]
   local view = type(w1) == 'string' and #w1 == 16 and (tonumber(w1:sub(4, 4), 16) or 0) % 2 or nil
   local ads = type(w2) == 'string' and #w2 == 16 and math.floor((tonumber(w2:sub(12, 12), 16) or 0) / 4) % 2 or nil
+  -- (2.1.1) word 2 bit 22 (0x400000): the weapon settings wheel is open (luka's 2026-11-01 log: six opens, each with
+  -- it and with the Helldiver's cd889dbc going 90 > 122; nothing else set it)
+  local wheel = type(w2) == 'string' and #w2 == 16 and math.floor((tonumber(w2:sub(11, 11), 16) or 0) / 4) % 2 or nil
+  if wheel ~= st8.wheel then
+    if cfg.research and (st8.wheel ~= nil or wheel ~= nil) then log('research: wheel bit (6ff0e58a word 2, bit 22) %s > %s', tostring(st8.wheel), tostring(wheel)) end
+    st8.wheel = wheel
+  end
   if view ~= st8.view then
     if cfg.research and (st8.view ~= nil or view ~= nil) then
       local cam = N.first_person and N.first_person()

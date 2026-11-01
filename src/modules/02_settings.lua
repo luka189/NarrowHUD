@@ -9,7 +9,7 @@ local cfg = { size = 1, off_x = 0, off_y = 0, custom = true, builtin = 'horizont
               show_stims = true, show_grenades = true, pack = true, font = true,
               research = false, any_build = false, opacity = 1, idle = 1, idle_secs = 4, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1, wheel = 1, health = 2, stamina = 2, stim_timer = false, stim_secs = 1, warn = false,
-              reload_line = false, hide_strat = true, hide_emote = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_thick = 2, throw_line = true, landing_mark = true, mark_size = 0.7, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
+              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 2, throw_line = true, landing_mark = true, mark_size = 0.7, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
 N.apply_palette = nil                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
 if chef.has and chef.has('menu') then
@@ -162,6 +162,10 @@ if chef.has and chef.has('menu') then
   choice('edge', 'Bar edges', { 'None', 'Outline', 'Brackets' }, 1, function(v) cfg.edge = v end,
     'The bars\' edges: none, an outline, or square brackets at the ends as the game\'s own bars have. A layout can set its own per bar.')
   toggle('shade', 'Shade behind bars', true, 'The faint fill behind a bar\'s empty part. A layout can set its own per bar.')
+  -- (2.2.0) the count's digits: fixed, the number right-aligned in a box as wide as it gets, so it never slides as
+  -- it falls (a Nexus comment, 2026-11-01); a layout's count part can set its own
+  choice('count_digits', 'Count digits', { 'Fixed', 'Tight' }, 1, function(v) cfg.count_tight = v == 2 end,
+    'Fixed: the count sits right-aligned in a box as wide as the full magazine, so it never slides as it falls and the parts after it stay put. Tight: the box is the number\'s own width. A layout can set its own.')
   toggle('mode_colors', 'Modes in colour', false, 'The fire and weapon modes (words and icons) each in a colour of their own, so a switch is easy to see.')
   choice('palette', 'Colours', { 'Standard', 'Colourblind' }, 1, function(v) cfg.palette = v if N.apply_palette then N.apply_palette() end end,
     'Colourblind: white, sky blue, yellow and magenta, told apart by brightness too.')
@@ -193,6 +197,8 @@ if chef.has and chef.has('menu') then
   choice('drop_line', 'Drop line', { 'Off', 'While aiming', 'In hand' }, 2, function(v) cfg.drop_line = v end,
     'Where the shot goes, for grenade launchers, rockets, the crossbow and plasma: a line from the weapon, bending as the round drops.')
   slider('drop_len', '   Drop line length, m', 50, 300, 25, 150, function(v) cfg.drop_len = v end)
+  slider('drop_from', '   Line from a drop of, cm', 0, 50, 1, 10, function(v) cfg.drop_from = v end,
+    'The line starts where the shot has fallen this far below a straight aim: a flat-shooting gun\'s line begins far out, a lobbed one\'s near the hand. 0: from the hand.')
   toggle('throw_line', 'Throw line', true, 'Where a stratagem ball, a grenade or C4 goes while you aim it, from your hand to where it lands.')
   -- (2.0.13) the landing mark: a ring where a line meets the ground as 12_ground guesses it (from the map's own
   -- props, calibrated by where Helldivers walk); faint where the ground is a guess between known cells
@@ -213,10 +219,12 @@ if chef.has and chef.has('menu') then
     -- (the game's stratagem input and an emote: the HUD out of the way; health and stamina stay for the stratagems)
     toggle('hide_strat', 'Hide on stratagem', true, 'The HUD out of the way while the stratagem key is held (health and stamina stay).')
     toggle('hide_emote', 'Hide on emote', true, 'The HUD out of the way while you emote.')
+    toggle('hide_wheel', 'Hide on weapon settings', true, 'The HUD out of the way while the weapon settings wheel is open.')
   end
   function N.settings_testing()
     group('Testing', 'Testing: ')
     toggle('research', 'Research log', false, 'For bug reports: what the mod reads, in narrowhud_research.log, from the next start. Post it with narrowhud.log.')
+    if N.research_types then N.research_types() end
     toggle('any_build', 'Any game version', false, 'Run on a game version the mod wasn\'t made for. It may crash the game.')
     -- (1.5.38) the host's objects are never listed, sorted or read: with them, a client lost its host 12 to 17
     -- minutes into every mission (luka's three drops, the reporters'); without them, none in 44 minutes (the
@@ -246,20 +254,46 @@ local SPECIAL = {
   c89adf0c = { kind = 'warp', field = '35ff0b52' },
   ['3a9a3ab0'] = { kind = 'timer', field = 'faaa8598', on_rise = true, secs = 13.2 },  -- jump pack (15 s from the
   -- jump press; the flag comes 1.8 s after it, timed by the player)
-  -- (the hover pack's recharge depends on the keys held while landing: not shown)
+  -- (2.1.3) the hover pack: the jump pack's twin in the network config (the same 16 fields), found by the probe in
+  -- luka's 2026-11-01 log (object 469, taken from a pod). f8d23bd2 is true while it flies (on at each lift-off, off
+  -- at each of his three touchdown marks within a second). No fuel field anywhere: the fuel is modelled — it drains
+  -- for as long as the flag is on and refills in as long again (2.1.4: 1.0, from 1.3 — the flag stays on about a
+  -- second past the touchdown, so measured from the flag going off his full marks came 7.4 / 9.0 / 6.3 s after
+  -- flights of 7.1 / 9.5 / 7.1 s; at 1.3 the bar finished 1–2 s late, luka)
+  -- (2.1.5: his ten flights to empty all had the flag on 8.1 s, two 10.9 s with a jump in them — the tank is 8.1 s,
+  -- not "the longest flight seen"; the full marks came 9.4, 9.7, 8.5, 11.7, 7.3, 10.2, 9.2 s after a full drain:
+  -- 1.1 x, between the two sessions' 0.96 and 1.15)
+  -- (2.1.9: the fuel burns for as long as the flag is on, past the tank (a drop down a slope lends a little that
+  -- directional input spends), and what comes back is the refill x that time: 1.15 fits his 2.1.5 plain flights
+  -- (8.1 s, full 9.4 after) and his 2.1.8 slope ones (10.8 s, full 10.3 and 11.4 after; 6.5 s, 7.5 and 8.5) alike)
+  efb4a22e = { kind = 'hover', field = 'f8d23bd2', refill = 1.15, most = 8.1 },
+  -- (2.1.5) the shield backpack: 1ad6d70f is its strength, 150 full (luka's log: 150 > 110 > 15 as it took hits,
+  -- 0 broken, 15 > 133.7 > 150 as it came back; b19ad128=active goes false when it breaks, 6fee6b03 true while
+  -- it's down, 24cf7e78 true while it regenerates). The backpack bar: strength over 150, red at 0
+  -- (2.1.6: the strength is sent only when it has moved by its tolerance (39), so a break can leave it reading 15
+  -- and a refill 133.7 — the down flag says broken, the regen flag says it's coming back, and once that ends it's
+  -- full; the refill itself is near-instant in the game and animated here over a second)
+  b0b9f710 = { kind = 'shield', field = '1ad6d70f', top = 150, more = { down = '6fee6b03', regen = '24cf7e78' } },
 }
 local KNOWN_FIELDS = {}                              -- (left out of the research log)
 for id, sp in pairs(SPECIAL) do
   local name = string.match(DATA.others or '', id .. ' (%S+)')
   sp.fname = string.match(DATA.fieldnames or '', sp.field .. ' (%S+)')
   KNOWN_FIELDS[sp.field] = true
+  if sp.more then
+    sp.mnames = {}
+    for k, f in pairs(sp.more) do sp.mnames[k] = string.match(DATA.fieldnames or '', f .. ' (%S+)') KNOWN_FIELDS[f] = true end
+  end
   if name and sp.fname then
     TYPES[#TYPES + 1] = { id = id, name = name, has = { carry = true }, other = true, special = sp }
   end
 end
 -- with the research log on (from the start of a session), every other carried thing too (jump, hover and warp packs
--- ...): known by type, its fields watched, never shown
-if cfg.research then
+-- ...): known by type, its fields watched, never shown. (2.1.3: called from N.settings_testing once the Research
+-- row has been read — since 2.0.3 put the Testing group last, this ran before it and cfg.research was still false,
+-- so no other carried type was known in any research log since; luka's packs read as unknown types)
+function N.research_types()
+  if not cfg.research then return end
   local n0 = #TYPES
   for line in string.gmatch(DATA.others or '', '[^\n]+') do
     local id, name = string.match(line, '^(%x+) (%S+)$')

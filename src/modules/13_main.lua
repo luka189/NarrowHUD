@@ -303,15 +303,16 @@ end
 -- (1.2.2) a mark in the log, for testing: the key set in F9 writes a numbered line with what's shown, so a moment
 -- in play can be found in the log ("at mark 3 the HUD blinked")
 local marks = 0
-local function read_forget_keys(now)
+local function read_forget_keys(now, s)
   if keys.log_mark and keys.log_mark.pressed and keys.log_mark.pressed() == true then
     marks = marks + 1
     local o = hand.goid and objs[hand.goid]
     -- (1.5.16: the camera too, for the icon strobe that comes with one half of a map's view)
     local cam = chef.camera and chef.camera()
     local where = cam and string.format(', camera at %.0f,%.0f,%.0f yaw %.0f', cam.x, cam.y, cam.z, math.deg(cam.yaw or 0)) or ''
-    log('==== MARK %d ==== hand pose %s, shown: %s (object %s), fire button %.1f s ago, swap %.1f s ago%s', marks,
-      tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100), where)
+    local kit = (cfg.research and s and o and o.t) and (', kit ' .. N.kit_text(s, hand.goid, TYPES[o.t])) or ''
+    log('==== MARK %d ==== hand pose %s, shown: %s (object %s), fire button %.1f s ago, swap %.1f s ago%s%s', marks,
+      tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100), where, kit)
     flash.text, flash.till = string.format('NarrowHUD: mark %d in the log', marks), now + 1.5
   end
   if N.startup_flash then flash.text, flash.till, N.startup_flash = N.startup_flash, now + 8, nil end
@@ -461,12 +462,21 @@ function M.update(dt)
       log('session: you %s, host %s; %d objects yours, %d the host\'s; your player %s; %d weapons on you; a weapon\'s owner field reads %s (%s); packs on you: %s',
         tostring(peer), tostring(session.host), session.mine, session.hosts, me.player and 'found' or 'not found', on,
         tostring(sample), type(sample), #packs > 0 and table.concat(packs, ' ') or 'none')
+      if cfg.research then
+        for goid, o in pairs(objs) do
+          local t = o.t and TYPES[o.t]
+          if t and o.on and not t.pack and not t.other and not t.player and not t.avatar and alive(s, goid, t) then
+            log('research: kit of weapon %s (object %s%s): %s', t.id, tostring(goid), goid == hand.goid and ', in hand' or '', N.kit_text(s, goid, t))
+          end
+        end
+        if me.avatar and alive(s, me.avatar, TYPES[2]) then log('research: kit of your Helldiver: %s', N.kit_text(s, me.avatar, TYPES[2])) end
+      end
     end
   end
   read_fire_button(now)
   if (cfg.drop_line or 1) == 2 or cfg.throw_line or (cfg.aim_spread or 0) ~= 0 or (cfg.aim_opacity or 1) ~= 1 then N.read_aim_button(now) end
   read_swap(now)
-  read_forget_keys(now)
+  read_forget_keys(now, s)
 
   t0 = lap('scan', t0)
   if now >= next_read then
@@ -561,6 +571,51 @@ function M.update(dt)
               items_now.draining = true
             elseif o.sp_t then f = math.min(1, (now - o.sp_t) / sp.secs) end
             if not maps then items_now.recharge = f else items_now.draining = nil end
+          elseif sp.kind == 'hover' and type(v) == 'boolean' then
+            -- (2.1.3) the hover pack's fuel, modelled (02_settings' SPECIAL): used up for as long as the flag is on,
+            -- back at 1 / refill of that rate on the ground; the bar against the longest flight seen (sp.most to begin)
+            local dt = math.min(1, now - (o.sp_at or now))
+            o.sp_at = now
+            o.fuel = o.fuel or 0
+            if v then
+              -- (2.1.9) burnt for the whole time the flag is on, past the 8.1 s tank: dropping down a slope the pack
+              -- stops burning for a moment and takes a little back, which luka spends on the way with directional
+              -- input, landing at zero — 2.1.7's refill in flight had the bar climbing while the game's sat empty,
+              -- 2.1.5's cap had it full too soon. What comes back is the refill x the flag's time: his 2.1.8 run's
+              -- flights of 8.7 to 10.9 s were full 10.3 to 11.4 s after the flag went off (one 8.0, landed with some
+              -- left), 6.5 s ones 7.5 and 8.5; 2.1.5's plain 8.1 s drains 9.4 on average. The bar: empty from 8.1 s
+              -- on, then climbing from touchdown to full over the whole refill
+              o.fuel, o.fuel_land = o.fuel + dt, nil
+              items_now.draining = true
+            else
+              o.fuel_land = o.fuel_land or o.fuel
+              o.fuel = math.max(0, o.fuel - dt / sp.refill)
+            end
+            if not maps then items_now.recharge = math.max(0, 1 - o.fuel / math.max(sp.most, o.fuel_land or 0)) else items_now.draining = nil end
+          elseif sp.kind == 'shield' and type(v) == 'number' then
+            -- (2.1.5) the shield backpack's strength as the pack bar; (2.1.6) with its flags: down = broken, shown
+            -- empty and red whatever the last strength sent (a break left it reading 15, luka); regen = coming back,
+            -- animated from the last strength to full over a second (the field jumps: it's sent by tolerance); once
+            -- the regen ends it's full until the strength moves again
+            local top = o.sp_top or sp.top
+            if v > top then o.sp_top, top = v, v end
+            local mn = sp.mnames or {}
+            local down = mn.down and call(t.id .. '.special', 'GameSession.game_object_field', s, sgoid, mn.down) == true
+            local regen = mn.regen and call(t.id .. '.special', 'GameSession.game_object_field', s, sgoid, mn.regen) == true
+            if v ~= o.sh_v then o.sh_v, o.sh_full = v, false end
+            local shown = v
+            if down then
+              shown, o.sh_regen_t, o.sh_full = 0, nil, false
+            elseif regen then
+              if not o.sh_regen_t then o.sh_regen_t, o.sh_regen_from = now, math.min(v, top) end
+              shown = math.max(v, o.sh_regen_from + (top - o.sh_regen_from) * math.min(1, (now - o.sh_regen_t) / 1))
+              -- (2.1.7: the animation runs every frame, below, not only on this quarter-second tick: luka saw steps)
+              if not maps then items_now.sh_anim = { t0 = o.sh_regen_t, from = o.sh_regen_from, top = top, floor = v } end
+            else
+              if o.sh_regen_t then o.sh_regen_t, o.sh_full = nil, true end
+              if o.sh_full then shown = top end
+            end
+            if not maps then items_now.pack, items_now.pack_top = shown, top end
           end
           o.sp_prev = v
         end
@@ -576,6 +631,11 @@ function M.update(dt)
     end
   end
 
+  -- (2.1.7) the shield backpack's refill animated every frame (its reads come every quarter second)
+  if items_now and items_now.sh_anim then
+    local a = items_now.sh_anim
+    items_now.pack = math.max(a.floor, a.from + (a.top - a.from) * math.min(1, (now - a.t0) / 1))
+  end
   local vit = N.vitals_step(s, now, items_now)
   if N.dead then vital.dead_at = now end
   N.read_markers(s, now)
@@ -651,8 +711,10 @@ function M.update(dt)
   -- (the stratagem input, an emote: hidden over a quarter second, back at once)
   local st8 = N.state8
   local hide = st8.strat or (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)
+    or (cfg.hide_wheel and st8.wheel == 1)   -- (2.1.1: the weapon settings wheel)
   hand.hidef = hide and math.max(0, (hand.hidef or 1) - (dt or 0.016) * 4) or 1
   local vhide = (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)   -- (1.5.72: the game's menu hides the vitals too)
+    or (cfg.hide_wheel and st8.wheel == 1)   -- (2.1.2, luka: the wheel hides them too, unlike the stratagem key)
   N.alpha_k = cfg.opacity * hand.fade * hand.hidef * N.swap_k() * aim_alpha
   if RESEARCH_BUILD == 'R1' then N.drop_lines = 0 end   -- (reads everything, draws nothing)
   if RESEARCH_BUILD ~= 'R1' and (shown_now or (items_now and hand.grip and hand.grip ~= 0)) and hand.fade > 0.01 and hand.hidef > 0.01 then
@@ -741,6 +803,7 @@ function M.debug_aim() return N.last_aim end   -- (tests: the last throw line dr
 function M.debug_ground(x, y) local g = N.ground local h, conf if N.ground_height then h, conf = N.ground_height(x, y) end return g and g.n, g and g.samples, g and g.skipped, h, conf end   -- (tests, 2.0.4 / 2.0.13)
 function M.debug_ground_kind(k) return N.ground_kind_offset and N.ground_kind_offset(k) end   -- (tests, 2.0.13: a kind's trusted offset)
 function M.debug_learned(kind, id) return learned[kind] and learned[kind][id] end   -- (tests: what's learned or seeded)
+function M.debug_top() local d = N.shown_d return d and d.top, d and d.kind end   -- (tests, 2.1.12: the shown bar's top)
 function M.shutdown()
   if N.dirty_at then save_learned() end
 end

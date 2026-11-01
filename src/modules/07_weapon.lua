@@ -254,6 +254,10 @@ local function shown(s, goid, t, w, o)
     end
   end
   d.tid = t.id                                                   -- (the weapon shown: the underbarrel when selected)
+  -- (2.1.12) its attachments, read once an object: what was learned with this kit comes first (06_kit). The weapon
+  -- itself (d.goid0), not its underbarrel; an underbarrel's magazine isn't learned by kit
+  local kit = o and N.kit_key(s, d.goid0, d.t0, o)
+  if d.underbarrel then kit = nil end
   if t.has.heat and not t.has.rounds then
     d.kind = 'heat'
     local h = tonumber(w.heat) or 0
@@ -265,7 +269,7 @@ local function shown(s, goid, t, w, o)
     -- the heat just before counts too, and a point under 30 never does (no weapon overheats that low). A lower point is
     -- taken only from an overheat seen starting (not one already under way when the weapon was first shown: its heat
     -- had cooled some).
-    local top = learned.heat[t.id] or 100
+    local top = (kit and learned.kitheat[kit]) or learned.heat[t.id] or 100
     local ho = (not d.underbarrel) and o or nil
     local now = chef.time()
     if ho and type(w.heat) == 'number' then
@@ -293,6 +297,7 @@ local function shown(s, goid, t, w, o)
             if k then log('learned: type %s overheats at %d (was %d: an attachment?)', t.id, top, k) end
             learn('heat', t.id, top)
           end
+          if kit and top >= 30 and learned.kitheat[kit] ~= top then learn('kitheat', kit, top) end
         end
         ho.h_before, ho.h_before_t = h, now
       end
@@ -351,12 +356,14 @@ local function shown(s, goid, t, w, o)
       d.top = d.pack_top
     else
       if d.mag > (learned.mag[t.id] or 0) then learn('mag', t.id, d.mag) end
+      local kmag = kit and learned.kitmag[kit]                     -- (2.1.12: the size seen with this kit)
       -- The magazine's size is this weapon's in this mission: attachments change it (the Liberator Penetrator's
       -- shortened magazine: 30 instead of 45), and they're set for the whole mission. The most this object has held
       -- is its size, once it's known to have been full: it was there in the mission's first 30 s (you drop with
       -- full magazines), held as much as the most learned, or was reloaded. Until then, the most learned.
-      local top = learned.mag[t.id] or d.mag
+      local top = kmag or learned.mag[t.id] or d.mag
       local o = objs[goid]                                         -- (the underbarrel's own object when it's selected)
+      local whole = o                                              -- (the object itself: the kit's size is learned from it alone)
       -- (two loaded ammo types, the Halt's: each its own magazine, kept apart, so a switch isn't taken for a reload)
       if o and t.has.slot1 and t.has.selected and SELECTED_NAMES[t.id] then
         local sel = tonumber(w.selected) or 0
@@ -367,14 +374,21 @@ local function shown(s, goid, t, w, o)
       if o then
         if o.mag_max == nil then
           o.mag_max = d.mag
-          o.mag_full = (blocked.since ~= nil and chef.time() - blocked.since < 30) or d.mag >= (learned.mag[t.id] or 0)
+          o.mag_full = (blocked.since ~= nil and chef.time() - blocked.since < 30) or d.mag >= (kmag or learned.mag[t.id] or 0)
         elseif d.mag > o.mag_max then
           o.mag_max, o.mag_full = d.mag, true
         elseif o.mag_prev and d.mag > o.mag_prev then
           o.mag_full = true
         end
         o.mag_prev = d.mag
-        if o.mag_full then top = o.mag_max end
+        if o.mag_full then
+          top = o.mag_max
+          -- (2.1.12: the size this kit gives, for the next mission's first frame; not the Halt's per ammo type)
+          if kit and o == whole and top > 0 and learned.kitmag[kit] ~= top then
+            log('learned: type %s holds %d with this kit%s', t.id, top, kmag and (' (was ' .. kmag .. ')') or '')
+            learn('kitmag', kit, top)
+          end
+        end
       end
       d.top = math.max(1, top)                                     -- (a single-shot weapon's magazine is always 0)
     end

@@ -108,13 +108,15 @@ local function heat_model(s, d, now)
     local cooling = not (o.shots and o.shots[1] and now - o.shots[1] < DELAY)
     if model_shots then
       if cooling then o.sim = o.sim - cool * dt end
-    elseif trig then
+    elseif trig and can then
       o.sim = o.sim + (heat_rate('up', d.tid) or 0) * dt
     else
       o.sim = o.sim - cool * dt
     end
     if cooling and o.row then o.row.tcool = o.row.tcool + dt end
-  elseif trig then
+  elseif trig and can and not CHARGE_WEAPONS[d.tid] then
+    -- (2.1.1, luka's Nova: the trigger held through the overheat keeps the charging field true, and the bar climbed
+    -- while the gun could only cool; a charge weapon's rise is its charge animation (13_main), never the trigger)
     o.sim = o.sim + (heat_rate('up', d.tid) or 0) * dt
   else
     o.sim = o.sim - cool * dt

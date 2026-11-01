@@ -175,7 +175,11 @@ local function ground_cross(x1, y1, z1, x2, y2, z2, st)
   if a1 <= 0 then return nil end
   local t = a1 / (a1 - a2)
   if t ~= t or t < 0 or t > 1 then t = 1 end
-  return x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, h1 + (h2 - h1) * t, conf
+  local cx, cy = x1 + (x2 - x1) * t, y1 + (y2 - y1) * t
+  -- (2.1.4: the confidence at the crossing itself, not at the segment's far end: a segment ending a cell past a
+  -- walked one drew the ring faint)
+  local _, cconf = height_at(cx, cy)
+  return cx, cy, h1 + (h2 - h1) * t, cconf or conf
 end
 N.ground_cross = ground_cross
 -- the landing of a line's segment, as the lines use it, with st the line's own state ({} per line: whether it

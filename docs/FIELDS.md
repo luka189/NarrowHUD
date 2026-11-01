@@ -73,7 +73,12 @@ is_overheated, is_charging, reload_stage, underbarrel_goid, original_owner), plu
 - **is_firing** (3132608f): what NarrowHUD calls "held".
 - **position**, **rotation**, **is_moving**, **enabled_mask**: (0, 0, 0) while carried; a dropped weapon (on your
   body after a death) gets a position and is_moving true, enabled_mask 1 or 2.
-- 98b4aaf0: a list of 64-bit ids, 5 on a customized Liberator, 1 on others (guess: the attachments).
+- 98b4aaf0 (game name hpinuxg): the attachments, one 64-bit id per customization slot the weapon has (2.1.12, luka's
+  differential missions: an attachment's id is the same on every weapon and after a restart; the reflex sight
+  fa994cd576b2f912, the full choke 75713afac474d9c4, the Breaker's short / extended magazine 9992e382b80955cc /
+  68b8d040421e8a49, its 1.5x tube red dot 490c9e167b3aaf8c). Not the hash of any known name or path; NarrowHUD
+  learns per kit (06_kit). Not every weapon type has the field — reading it from one that doesn't (the HMG
+  emplacement's gun fa6ddf17) crashes the game.
 - c20428c6 / 6d1d5cfb: one-entry lists ({12} / {1}; the Railgun {10} / {1.1}); not the scope zoom (below).
 - **The scope's zoom step is in options (31f86165), bits 16 and 32** (luka's 2026-10-30 marks: the R-40 Sightliner's
   options 80 → 96 → 64 → 80 and the AMW-20 Apex's 96 → 64 → 80 → 96, one zoom press each; nothing else on the

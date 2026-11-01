@@ -59,7 +59,10 @@ local ELEMENTS = {
       thickness = { 'number', 14, 1, 200 }, ticks_max = { 'number', 30, 1, 200 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   { id = 'charge', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
       length = { 'number', 260, 10, 2000 }, thickness = { 'number', 4, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
-  { id = 'count', fields = {} },
+  -- (2.1.13) digits: fixed — the number sits right-aligned in a box as wide as it gets (the full magazine, the full
+  -- heat), so it never slides as it falls and what's pinned after it stays put (a player, 2026-11-01: "the 9 where
+  -- the 0 of 10 was"); tight — the box is the number's own width, as before; auto (2.2.0) — as F9's Look row
+  { id = 'count', fields = { digits = { 'choice', 'auto', { auto = 1, fixed = 1, tight = 1 } } } },
   { id = 'mags', fields = { style = { 'choice', 'number', { number = 1, squares = 1 } },
       empty = { 'choice', 'shown', { shown = 1, hidden = 1 } }, divider = { 'boolean', false } } },
   -- (1.5.54) the modes as two parts, to pin apart: the weapon mode (HEAT, UB, APHET ...) and the fire mode (AUTO ...,
@@ -503,8 +506,16 @@ function EL_DRAW.count(e, k, d, x, y, dry)
   local frac, tone = weapon_tone(d)
   local str = d.kind == 'heat' and string.format('%d%%', math.floor(frac * (d.pct_top or 100) + 0.5)) or tostring(d.value)
   local big = math.floor(28 * k + 0.5)
-  if not dry then txt(x, y, str, big, col(N.pulsed('bar', tone), 245), L_CUSTOM) end
-  return txt_width(str, big), big
+  local w = txt_width(str, big)
+  local box = w
+  local tight = e.digits == 'tight' or (e.digits ~= 'fixed' and cfg.count_tight)
+  if not tight then
+    local most = d.kind == 'heat' and (string.rep('0', #tostring(math.floor(d.pct_top or 100))) .. '%')
+      or string.rep('0', #tostring(math.floor(math.max(d.top or 0, d.value or 0))))
+    box = math.max(w, txt_width(most, big))
+  end
+  if not dry then txt(x + box - w, y, str, big, col(N.pulsed('bar', tone), 245), L_CUSTOM) end
+  return box, big
 end
 function EL_DRAW.mags(e, k, d, x, y, dry)
   if not d or not d.reserve then return nil end

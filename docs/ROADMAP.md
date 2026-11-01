@@ -190,6 +190,22 @@ Both only change the preview: nothing of them goes into the layout file.
   the sniper crosshair; edges / shade / magazines collage; sizes; colours on two planets; F9 in both looks; a short
   video.
 
+## Next (luka, 2026-10-31, after 2.1.0): custom colours, attachments, the heat simulation
+
+1. **Per-part colours** (4, below): a colour per part, Chef 1.4 `type='color'` rows / the layout file.
+2. ~~**Weapon attachments**~~ — done in 2.1.12 (dev): the 98b4aaf0 list is read and the magazine's size and the
+   overheat point are learned per kit (06_kit). Not decoded (the ids match no known name); the slots' order is
+   partly known (optic 2nd, muzzle 4th, magazine 5th on the Breaker). Open: naming attachments in the research
+   log, which needs a few more one-change missions (foregrip, paint).
+3. **Alignment by ink** (a Nexus comment, 2026-11-01; the count's fixed digits are done in 2.1.13): place text and
+   icon parts by their visible bounds (glyph extents from `Gui.text_extents`, the icons' real bounds) rather than
+   their boxes, so parts at the same x share a visible left edge. Medium: the layout's boxes are the pin chain.
+4. **A pixel nudge in the editor** (the same comment): arrow keys move the selected part 1 px at the chosen
+   resolution, the x / y shown in pixels beside the %; or a snap grid. Editor only, no mod build.
+5. **The heat simulation, fine-tuned**, and a bug to look at first: **holding the fire button while a heat weapon is
+   cooling makes the readout go weird for a bit** (luka, 2026-10-31; a research log with the moment marked would
+   show whether it's the shot-detection, the cooling rate or the mode read).
+
 ## After 2.0
 
 - **Shared hand poses, settled**: the weapon unit at the hand (UnitSynchronizer.game_object_id_to_unit on your own

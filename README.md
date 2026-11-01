@@ -39,13 +39,16 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
   setting; the modes as the **game's own icons** too, beside the stims. With a setting, each mode in its own colour
   (cream, blue or green), icons and words alike, so a switch is easy to see.
 - **Lock-on** (Spear, WASP ...) and **charge meters** (Railgun, Epoch).
-- **Stims, grenades** and how full your **backpack** is; the warp pack's heat and the jump pack's recharge.
+- **Stims, grenades** and how full your **backpack** is; the warp pack's heat, the jump pack's recharge, the hover
+  pack's fuel and the shield backpack's strength (orange when low, red when broken).
 - **Health and stamina** bars: always (the default), or only while they aren't full.
-- A **stim timer**, **reload progress**, low-health **warnings**, and the HUD **out of the way** while you call in a stratagem or emote.
+- A **stim timer**, **reload progress**, low-health **warnings**, and the HUD **out of the way** while you call in a
+  stratagem, emote or open the weapon settings wheel.
 - **Your map pin** and **where you last died** on the screen, where they are in the world, with their distance; an
   arrow at the screen's edge when one is out of view.
-- A **drop line** for grenade launchers, rockets and plasma: the shot's flight from the weapon, bending down, hidden
-  where it enters the ground (while aiming down the sights by default; or whenever the weapon is in hand).
+- A **drop line** for grenade launchers, rockets and plasma: the shot's flight, bending down, hidden where it enters
+  the ground (while aiming down the sights by default; or whenever the weapon is in hand). It starts where the shot
+  has fallen a set distance below a straight aim (10 cm by default), so a flat-shooting gun's line begins far out.
 - A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
 - A **landing mark** where a drop or throw line lands: a ring and an arrow on the ground, from the map's own heights
   (the rocks, trees and props, calibrated by where Helldivers walk, remembered per planet); faint where the ground
@@ -67,14 +70,15 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   and fire modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina):
   off, always, while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming;
   a part held back hidden or dimmed; the opacity while aiming; dimming or hiding when nothing has changed for a
-  while; a stim timer, warning pulses, a reload line.
+  while; hiding while the weapon settings wheel is open; a stim timer, warning pulses, a reload line.
 - Look: the empty magazine squares shown or hidden; bar edges (none, an outline or the game's brackets) and the
-  shade behind the bars; the modes in their own colours; colours standard or colourblind (white, sky blue, yellow,
+  shade behind the bars; the count's digits fixed (it never slides as it falls) or tight; the modes in their own
+  colours; colours standard or colourblind (white, sky blue, yellow,
   magenta: told apart by brightness too). The HUD is drawn in the game's UI layer, so the colours are exact on
   every planet.
 - The world: the sniper crosshair (while aiming or always; and one for the Maxigun and, if you like, the
   flamethrowers in first person), the map pin and death marker, the drop line (while aiming, whenever in hand, or
-  off; its length), the throw line, the landing mark and its size, structure hits (the mark red), the lines'
+  off; its length and where it starts), the throw line, the landing mark and its size, structure hits (the mark red), the lines'
   thickness and opacity.
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).

@@ -2,9 +2,9 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 2.1.0
+Version: 2.2.0
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v2.1.0.zip (archive the older main files and the R0 / R1 research builds)
+Main file: NarrowHUD-v2.2.0.zip (archive the older main files and the R0 / R1 research builds)
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.2.3 or newer"
 
 Summary (the short line under the title, at most 350 characters):
@@ -20,6 +20,15 @@ Description (paste into the BBCode editor):
 
 A small ammo and heat readout right by your crosshair, so you never have to look at the corner of the screen
 mid-fight.
+
+[size=4][b]NEW in 2.2[/b][/size]
+[list]
+[*][b]Drop line start[/b] where the shot has fallen a set distance below a straight aim (F9 > World, default 10 cm), so a flat-shooting gun's line begins far out.
+[*][b]Hide on weapon settings:[/b] the HUD, health and stamina step aside while the weapon settings wheel is open.
+[*][b]Hover pack and shield backpack[/b] on the backpack bar: the hover pack's fuel; the shield's strength, orange when low, red when broken.
+[*][b]Attachments:[/b] the magazine size and the overheat point are remembered per set of attachments, right from the first shot the next time.
+[*]The count no longer slides as it falls: it sits in a box as wide as the full magazine (F9 > Look > Count digits).
+[/list]
 
 [size=4][b]NEW in 2.1[/b][/size]
 [list]
@@ -105,6 +114,22 @@ the game's own, drawn from its HUD sprites in play; none of the game's art is in
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
+
+Changelog for the Nexus "Changelogs" tab (2.2.0)
+------------------------------------------------
+- Drop line start (F9 > World > Line from a drop of, cm): the line begins where the shot has fallen that far below
+  a straight aim, so a flat-shooting gun's line starts far out; never closer than 7 m. Default 10 cm, 0 for the
+  old start.
+- Hide on weapon settings (F9 > Visibility): the HUD, health and stamina go out of the way while the weapon
+  settings wheel is open.
+- The hover pack: the backpack bar shows its fuel, draining in flight, back in a little over the flight's time on
+  the ground.
+- The shield backpack: the backpack bar shows its strength, orange when low, red when broken.
+- Attachments: the magazine size and the overheat point are remembered per set of attachments, so they're right
+  from the first shot the next time the same set comes out.
+- The count no longer slides as it falls: it sits right-aligned in a box as wide as the full magazine, so the
+  parts after it stay put (F9 > Look > Count digits: Tight for the old way; a layout's Count part can set its own).
+- The Nova's and the Quasar's heat no longer climbs while the trigger is held through an overheat.
 
 Changelog for the Nexus "Changelogs" tab (2.1.0)
 ------------------------------------------------

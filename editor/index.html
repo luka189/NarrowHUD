@@ -366,7 +366,7 @@ const ELEMENTS = [
       length: ['number', 260, 10, 2000], radius: ['number', 150, 10, 2000], thickness: ['number', 14, 1, 200], ticks_max: ['number', 30, 1, 200], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'charge', name: 'Charge meter', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
       thickness: ['number', 4, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
-  { id: 'count', name: 'Count', fields: {} },
+  { id: 'count', name: 'Count', fields: { digits: ['choice', 'auto', ['auto', 'fixed', 'tight']] } },
   { id: 'mags', name: 'Spare magazines', fields: { style: ['choice', 'number', ['number', 'squares']], empty: ['choice', 'shown', ['shown', 'hidden']],
       divider: ['boolean', false] } },
   // (1.5.54) the modes as two parts, to pin apart (1.5.66: the grouped "Modes" part is gone)
@@ -979,8 +979,15 @@ const EL_DRAW = {
     const [frac, tone] = weaponTone(d);
     const s = d.kind === 'heat' ? fl(frac * 100 + 0.5) + '%' : String(d.value);
     const big = fl(28 * k + 0.5);
-    if (!dry) txt(x, y, s, big, col(tone, 245));
-    return [txtWidth(s, big), big];
+    const w = txtWidth(s, big);
+    let box = w;
+    if (e.digits !== 'tight') {   // (auto: F9's Look row, Fixed by default)
+      // (2.1.13) the box as wide as the number gets, the digits right-aligned in it: the count never slides as it falls
+      const most = d.kind === 'heat' ? '000%' : '0'.repeat(String(Math.max(d.top || 0, d.value || 0)).length);
+      box = Math.max(w, txtWidth(most, big));
+    }
+    if (!dry) txt(x + box - w, y, s, big, col(tone, 245));
+    return [box, big];
   },
   mags(e, k, d, x, y, dry) {
     if (!d || d.reserve === undefined) return null;
@@ -1413,6 +1420,7 @@ const FIELD_HELP = {
   ticks_max: 'Rounds in a magazine.',
   empty: 'Squares for magazines you\'ve used.',
   divider: 'A thin line before the number, as tall as the count.',
+  digits: 'Auto: as the F9 menu\'s Look > Count digits row (Fixed by default). Fixed: the count sits right-aligned in a box as wide as it gets (the full magazine), so it never slides as it falls and the parts pinned after it stay put. Tight: the box is the number\'s own width.',
   x: '% of the screen\'s height from the anchor, + right.',
   y: '% of the screen\'s height from the anchor, + up.',
   size: 'Times the F9 Size.',

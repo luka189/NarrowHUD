@@ -74,7 +74,7 @@ HAS14 = nil                  -- Chef 1.4 (the players event); ONS: the event lis
 ONS = {}
 GUIS = 0
 SPECS = {}                   -- the option rows registered, in order (the menu tests)
-OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100)
+OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1, drop_from = 0 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100)
 LAYOUT = { _v = 1, elements = {} }   -- (2.0: the tests run on Layout: Custom with an empty file — Under's look through the defaults, as the old Under position drew)   -- the F9 menu's values (the tests run with the research log on; the mode icons off unless a test turns them on; the host's objects read, as before 1.5.38, since many tests put the host's objects in; the tone correction off (1.5.62: on by default in the game) so the colours checked are the ones asked for)
 OBJINFO = nil           -- Network.object_info, when a test gives one
 PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
@@ -336,6 +336,10 @@ def main():
     check('stratagem in hand (pose 40): only the grenade/stim line [%s]' % rt.eval('texts()'),
           rt.eval('count("rect")') == 0 and rt.eval('count("sprite") + count("bitmap")') == 2)
 
+    # (2.1.3) the research log on: the other carried types are known (the jump, hover and warp packs' kin) — since
+    # 2.0.3 the block ran before the Research row was read and loaded none
+    ot = [l for l in rt.eval('logs').values() if l.startswith('research log on:')]
+    check('research log on: the other carried types loaded %s' % ot[:1], len(ot) == 1 and 'other carried types' in ot[0] and int(ot[0].split('on: ')[1].split(' ')[0]) > 300)
     # Nova (seeded pose 52, rests at 5, 1.6 s charge)
     rt.execute('GRIP = 52 run(1)')
     t = rt.eval('texts()')
@@ -365,6 +369,25 @@ def main():
     check('cooled and learned the rest (4): 0%% [%s]' % t, '0%' in t.split(' | ') and rt.eval('saved.rest2["17783758"]') in (None, 4) )
     check('rest logged', any('cools down to 4.0' in l for l in rt.eval('logs').values()))
 
+    # (2.1.1, luka's log) the trigger held on through the overheat: the charging field stays true while the gun can
+    # only cool; the bar must follow the field down, not climb (it rose at the beam rate and the band pulled it back).
+    # Its own runtime: the Nova at pose 52, its rest (4) and charge (1.6 s) known
+    rn = lua51.LuaRuntime()
+    setup(rn)
+    rn.execute('''saved = { rest2 = { ["17783758"] = 4 }, charge2 = { ["17783758"] = 1.6 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      OBJ[5].fields[ROLE.heat] = 4 GRIP = 52 run(2)''')
+    rn.execute('OBJ[5].fields[ROLE.overheated] = false OBJ[5].fields[ROLE.heat] = 4 run(1) OBJ[5].fields[ROLE.charging] = true run(1.7) OBJ[5].fields[ROLE.heat] = 100 OBJ[5].fields[ROLE.overheated] = true run(0.5)')
+    held = []
+    for h in (84, 68, 52, 36, 20):
+        rn.execute('OBJ[5].fields[ROLE.heat] = %d run(0.5)' % h)
+        held.append(int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1]))
+    rn.execute('OBJ[5].fields[ROLE.overheated] = false OBJ[5].fields[ROLE.heat] = 5 run(0.5)')
+    p5a = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
+    rn.execute('run(0.8)')
+    p5b = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
+    check('Nova held through the overheat (charging true all along): the bar follows the field down %s, and stays down once cooled (%d%% then %d%%)' % (held, p5a, p5b),
+          all(held[i] > held[i + 1] for i in range(len(held) - 1)) and held[-1] <= 30 and p5b <= p5a + 2 and p5b < 15)
+    rn.execute('OBJ[5].fields[ROLE.charging] = false run(0.5)')
     # cooling with the field changing only twice a second: the bar moves every frame in between
     rt.execute('OBJ[5].fields[ROLE.heat] = 90 run(0.5) OBJ[5].fields[ROLE.heat] = 74 run(0.5) OBJ[5].fields[ROLE.heat] = 58 run(0.2)')
     a = rt.eval('texts()')
@@ -684,6 +707,55 @@ def main():
     bg = rt.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 7 and d[9] == 45 then return d[4] end end end)()")
     check('jump pack 7.5 s after a jump: about half recharged (%s of %s)' % (w, bg), w and bg and 0.4 < w / bg < 0.6)
     rt.execute('OBJ[31] = nil run(1.5)')
+    # (2.1.3) the hover pack (efb4a22e, ee_mx7c; f8d23bd2 = vnbwh6a true while it flies): the fuel modelled — a 4 s
+    # flight against the 8 s most leaves half (drawn cream while draining), back at the same rate on the ground
+    # (2.1.4): 2.6 s later 83 % (orange, recharging), 4 s later full (cream)
+    def bar(a):
+        return rt.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 7 and d[9] == %d then return d[4] end end end)()" % a)
+    rt.execute('''OBJ[32] = { name = "ee_mx7c", fields = { vnbwh6a = false } } OBJ[32].fields[ROLE.carry] = 0 run(3)
+      OBJ[32].fields.vnbwh6a = true run(4)''')
+    hf, hbg = bar(215), bar(45)
+    rt.execute('OBJ[32].fields.vnbwh6a = false run(2.6)')
+    hr = bar(180)
+    rt.execute('run(2.2)')
+    hfull = bar(215)
+    # (2.1.5: the tank 8.1 s; 2.1.9: the flag on 12 s burns 12 s — a slope's lent fuel spent — and the bar stays empty
+    # for them all, nothing back in flight; refilled in 1.15 x of the 12: climbing from touchdown, half at 6.9 s, full
+    # at 13.8)
+    rt.execute('OBJ[32].fields.vnbwh6a = true run(8.2)')
+    hempty = bar(215)
+    rt.execute('run(3.8)')
+    hstill = bar(215)
+    rt.execute('OBJ[32].fields.vnbwh6a = false run(6.9)')
+    hhalf = bar(180)
+    rt.execute('run(6.3)')
+    hnear = bar(180)
+    rt.execute('run(0.8)')
+    hagain = bar(215)
+    check('hover pack: 4 s flown of 8.1: half, draining (%s of %s); 2.6 s on the ground: 78 %%, recharging (%s); 4.8 s: full (%s); 8.2 s with the flag on: the tank empty (%s), 3.8 s more: still (%s, 2.1.9); 6.9 s after the flag: half (%s), 13.2 s: near (%s), 14 s: full (%s)' % (hf, hbg, hr, hfull, hempty, hstill, hhalf, hnear, hagain),
+          hf and hbg and 0.45 < hf / hbg < 0.55 and hr and 0.73 < hr / hbg < 0.85 and hfull and hfull / hbg > 0.98 and (hempty or 0) < 0.05 * hbg and (hstill or 0) < 0.05 * hbg
+          and hhalf and 0.42 < hhalf / hbg < 0.58 and hnear and 0.9 < hnear / hbg < 0.99 and hagain and hagain / hbg > 0.98)
+    rt.execute('OBJ[32] = nil run(1.5)')
+    # (2.1.5) the shield backpack (b0b9f710, xp006w; 1ad6d70f = charge (its real name) its strength, 150 full): the pack bar at
+    # the strength, red at 0 (broken), orange under a quarter
+    rt.execute('''OBJ[35] = { name = "xp006w", fields = { charge = 150, broken = false, ndatup = false } } OBJ[35].fields[ROLE.carry] = 0 run(3)''')
+    snone = bar(215)
+    rt.execute('OBJ[35].fields.charge = 140 run(0.5) OBJ[35].fields.charge = 150 run(0.5)')
+    sfull = bar(215)
+    rt.execute('OBJ[35].fields.charge = 30 run(0.5)')
+    slow = rt.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 7 and d[6] == 240 and d[7] == 170 then return d[4] end end end)()")
+    # (2.1.6) the flags: broken (6fee6b03) = empty and red whatever the strength last sent (15 here); regenerating
+    # (24cf7e78 = ndatup) = animated to full over a second from the last strength; the regen over = full although
+    # the strength still reads 133.7 (sent by tolerance)
+    rt.execute('OBJ[35].fields.charge = 15 OBJ[35].fields.broken = true run(0.5)')
+    sred = rt.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 7 and d[6] == 210 and d[7] == 80 then return d[4] end end end)()")
+    rt.execute('OBJ[35].fields.broken = false OBJ[35].fields.ndatup = true run(0.75)')
+    sreg = bar(215)
+    rt.execute('run(0.6) OBJ[35].fields.charge = 133.7 OBJ[35].fields.ndatup = false run(0.5)')
+    sdone = bar(215)
+    check('shield backpack: full (%s of %s; at the start %s), at 30 orange (%s), broken: empty, red (%s), regenerating three quarters of a second: 45-80 %% (%s), regen over at 133.7: full (%s)' % (sfull, hbg, snone, slow, sred, sreg, sdone),
+          sfull and sfull / hbg > 0.98 and slow and 0.15 < slow / hbg < 0.25 and sred == 0 and sreg and 0.45 < sreg / hbg < 0.8 and sdone and sdone / hbg > 0.98)
+    rt.execute('OBJ[35] = nil run(1.5)')
 
     # someone else's game: your weapon owned by the host, its owner field says you; the host's own isn't yours
     rt.execute('''HOST = '1111111111111111' OBJ[33] = { name = NAMES.verdict, fields = {} } OBJ[33].fields[ROLE.rounds] = 10
@@ -697,7 +769,6 @@ def main():
     check('a session line logged once a mission %s' % [l for l in rt.eval('logs').values() if l.startswith('session')],
           any(l.startswith('session: you 0b99cf5492296d6e, host 0b99cf5492296d6e') for l in rt.eval('logs').values()))
     rt.execute("OBJ[33] = nil OBJ[34] = nil HOSTS = {} HOST = '0b99cf5492296d6e' GRIP = 10 run(1.5)")
-
     # a new mission: object ids start over; an id that was nothing of ours last mission is our weapon now
     rt.execute('''OBJ[60] = { name = 'nothing60', fields = {} } run(3)
       WORLD = 2 OBJ[60] = { name = NAMES.verdict, fields = {} } OBJ[60].fields[ROLE.rounds] = 10 OBJ[60].fields[ROLE.magazines] = 6
@@ -779,7 +850,7 @@ def main():
           rt.eval('M.debug_aim().kind') == 'grenade' and abs(rt.eval('M.debug_aim().speed') - 10 * 1.004) < 0.01)
     rt.execute('GRIP = 10 run(1) M.debug_state8("strat_at", T) GRIP = 40 run(1)')
     check('pose 40 right after a stratagem input: the ball line', rt.eval('M.debug_aim().kind') == 'ball')
-    rt.execute('GRIP = 10 run(1) GKIND = nil GRIP = 41 run(0.05)')
+    rt.execute('GRIP = 10 run(1) GKIND = nil GRIP = 41 run(0.25)')   # (0.25: the hand pose is read every 0.1 s; the phase made 0.05 and 0.1 flaky)
     check('pose 41 after the Caltrops, before any unit is seen: the Caltrops line at once [%s]' % rt.eval('M.debug_aim().speed'),
           abs(rt.eval('M.debug_aim().speed') - 10 * 1.004) < 0.01)
     rt.execute('GKIND = "5c14f27759dd3be0" GREN = true WPOS = { G = { 100.2, 200, 10.3 } } run(1)')
@@ -871,6 +942,85 @@ def main():
       for i = 1, 5 do OBJ[20].fields[ROLE.heat] = 90 - i * 12.75 run(1) end''')
     check('cold planet measured: x1.5 %s' % [l for l in rt5.eval('logs').values() if 'planet' in l],
           any('planet cooling x1.50 (cold)' in l for l in rt5.eval('logs').values()))
+
+    # (2.1.11) the kit lines after the session line (research on): the 98b4aaf0 list read from a weapon whose type has
+    # the field only — luka's HMG emplacement gun (fa6ddf17: rounds, no owner, counted as yours) has none, and the
+    # read of it crashed his game (2.1.10). (Its own runtime: the main one's shield tests are sensitive to the clock)
+    rk = lua51.LuaRuntime()
+    setup(rk)
+    rk.execute('''OBJ[36] = { name = NAMES.verdict, fields = { hpinuxg = { '309f7e645a8d2b56' } } } OBJ[36].fields[ROLE.rounds] = 10
+      OBJ[36].fields[ROLE.magazines] = 6 OBJ[36].fields[ROLE.chamber] = true OBJ[36].fields[ROLE.carry] = 0
+      OBJ[37] = { name = type_name_of('fa6ddf17'), fields = setmetatable({}, { __index = function(_, k) if k == 'hpinuxg' then error('the game crashed: hpinuxg read on fa6ddf17') end end }) }
+      OBJ[37].fields[ROLE.rounds] = 500 GRIP = 36 run(9.5)''')
+    kit = [l for l in rk.eval('logs').values() if l.startswith('research: kit of weapon') and 'object 3' in l]
+    check('kit lines after the session line: the Verdict\'s list, the emplacement gun\'s "no such field" without a read %s' % kit,
+          any(l.startswith('research: kit of weapon c7dfd9eb') and '{309f7e645a8d2b56}' in l for l in kit)
+          and any(l.startswith('research: kit of weapon fa6ddf17') and 'no such field' in l for l in kit))
+
+    # (2.1.12) per kit: the magazine's size seen with a kit is the bar's top from the first frame the next time that
+    # kit comes out, in place of the type's most; an unknown kit falls back to the type's. The Verdict (c7dfd9eb has the
+    # field): kit A holds 15, kit B 10
+    rk.execute('''OBJ[36] = nil OBJ[37] = nil run(1) WORLD = 2
+      OBJ[40] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'a2a2a2a2a2a2a2a2' } } } OBJ[40].fields[ROLE.rounds] = 15
+      OBJ[40].fields[ROLE.magazines] = 6 OBJ[40].fields[ROLE.chamber] = true OBJ[40].fields[ROLE.carry] = 0 GRIP = 36 run(3)
+      OBJ[40].fields[ROLE.rounds] = 14 run(1) OBJ[40].fields[ROLE.rounds] = 15 run(1) OBJ[40] = nil run(1) WORLD = 3
+      OBJ[41] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[41].fields[ROLE.rounds] = 10
+      OBJ[41].fields[ROLE.magazines] = 6 OBJ[41].fields[ROLE.chamber] = true OBJ[41].fields[ROLE.carry] = 0 run(3)
+      OBJ[41].fields[ROLE.rounds] = 9 run(1)''')
+    ka, kb = rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+a2a2a2a2a2a2a2a2")'), rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")')
+    check('kit A holds 15, kit B 10, the type\'s most 15 (%s %s %s)' % (ka, kb, rk.eval('M.debug_learned("mag", "c7dfd9eb")')),
+          ka == 15 and kb == 10 and rk.eval('M.debug_learned("mag", "c7dfd9eb")') == 15)
+    # the next mission, 40 s in (no "full at the start"): kit B half fired shows over 10, an unknown kit over the type's 15
+    rk.execute('''OBJ[41] = nil run(1) WORLD = 4 GRIP = 10 run(40)
+      OBJ[42] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[42].fields[ROLE.rounds] = 6
+      OBJ[42].fields[ROLE.magazines] = 6 OBJ[42].fields[ROLE.chamber] = true OBJ[42].fields[ROLE.carry] = 0 GRIP = 36 run(3)''')
+    tb = rk.eval('M.debug_top()')[0]
+    rk.execute('''OBJ[42] = nil run(1)
+      OBJ[43] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'c3c3c3c3c3c3c3c3' } } } OBJ[43].fields[ROLE.rounds] = 6
+      OBJ[43].fields[ROLE.magazines] = 6 OBJ[43].fields[ROLE.chamber] = true OBJ[43].fields[ROLE.carry] = 0 run(3)''')
+    tc = rk.eval('M.debug_top()')[0]
+    check('kit B half fired, 40 s in: the bar over 10 (%s); an unknown kit: over the type\'s 15 (%s)' % (tb, tc), tb == 10 and tc == 15)
+    # the overheat point by kit: the Scythe (42a6b5ba) with kit H overheats at 60; a new mission with kit H starts at 60,
+    # with another kit at the type's last (60 too, as the type keeps the last seen) — and a kit seen at 150 at 150
+    rk.execute('''OBJ[43] = nil OBJ[3] = nil run(1) WORLD = 5
+      OBJ[44] = { name = NAMES.scythe, fields = { hpinuxg = { 'd4d4d4d4d4d4d4d4', 'e5e5e5e5e5e5e5e5' } } } local f = OBJ[44].fields f[ROLE.heat] = 0
+      f[ROLE.overheated] = false f[ROLE.charging] = false f[ROLE.held] = false f[ROLE.carry] = 0 GRIP = 10 run(3)
+      f[ROLE.heat] = 20 run(1) f[ROLE.heat] = 40 run(1)
+      f[ROLE.heat] = 60 f[ROLE.overheated] = true run(1) f[ROLE.overheated] = false f[ROLE.heat] = 30 run(0.3) f[ROLE.heat] = 0 run(3)
+      OBJ[44] = nil run(1) WORLD = 6
+      OBJ[45] = { name = NAMES.scythe, fields = { hpinuxg = { 'd4d4d4d4d4d4d4d4', 'f6f6f6f6f6f6f6f6' } } } f = OBJ[45].fields f[ROLE.heat] = 0
+      f[ROLE.overheated] = false f[ROLE.charging] = false f[ROLE.held] = false f[ROLE.carry] = 0 run(3)
+      f[ROLE.heat] = 150 f[ROLE.overheated] = true run(0.3) f[ROLE.overheated] = false f[ROLE.heat] = 75 run(0.3) f[ROLE.heat] = 0 run(3)
+      OBJ[45] = nil run(1) WORLD = 7
+      OBJ[46] = { name = NAMES.scythe, fields = { hpinuxg = { 'd4d4d4d4d4d4d4d4', 'e5e5e5e5e5e5e5e5' } } } f = OBJ[46].fields f[ROLE.heat] = 0
+      f[ROLE.overheated] = false f[ROLE.charging] = false f[ROLE.held] = false f[ROLE.carry] = 0 run(3)''')
+    th = rk.eval('M.debug_top()')[0]
+    check('the Scythe\'s kit H back out after a 150 kit: its overheat point 60 from the start, the type\'s last 150 (%s, %s)' % (th, rk.eval('M.debug_learned("heat", "42a6b5ba")')),
+          th == 60 and rk.eval('M.debug_learned("heat", "42a6b5ba")') == 150)
+
+    # (2.1.13) the count's digits fixed: its box as wide as the number gets (the full magazine), the digits right-aligned
+    # in it — 9 of 45 takes the same box as 45, drawn at its right; tight: the number's own width
+    rd = lua51.LuaRuntime()
+    setup(rd)
+    rd.execute('OBJ[3].fields[ROLE.rounds] = 45 run(2)')
+    def cbox(r):
+        b = r.eval('M.debug_boxes()')['count']
+        p, sz = b.split(' ')[0], b.split(' ')[1]
+        return tuple(int(v) for v in p.split(',')) + tuple(int(v) for v in sz.split('x'))
+    def ctext(r):
+        return [(d[4], d[2]) for d in r.eval('draws').values() if d[1] == 'text' and d[4] in ('46', '6')]   # (a round in the chamber: 45 + 1)
+    b45, t45 = cbox(rd), ctext(rd)
+    rd.execute('OBJ[3].fields[ROLE.rounds] = 5 run(1)')
+    b9, t9 = cbox(rd), ctext(rd)   # (shown as 6)
+    rd.execute('''LAYOUT = { _v = 1, elements = { count = { digits = 'tight' } } } CHANGE.layout(5) BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(1)''')
+    b9t, t9t = cbox(rd), ctext(rd)
+    rd.execute('''LAYOUT = { _v = 1, elements = {} } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false CHANGE.count_digits(2) run(1)''')
+    b9f = cbox(rd)
+    rd.execute('CHANGE.count_digits(1) run(1)')
+    b9b = cbox(rd)
+    check('F9 Look > Count digits: Tight narrows the box of a layout left at auto (%s), Fixed again (%s)' % (b9f, b9b), b9f[2] == b9t[2] and b9b[2] == b9[2])
+    check('count digits fixed: 6 in the box of 46 (%s / %s), drawn at its right (%s / %s); tight: a narrower box, the 6 at its left (%s, %s)' % (b45, b9, t45, t9, b9t, t9t),
+          b45[2] == b9[2] and b45[0] == b9[0] and t45 and t9 and t9[0][1] > t45[0][1] and b9t[2] < b9[2] and t9t and t9t[0][1] == b9t[0])
 
     # the Scythe's heat sinks move where it overheats (60, 100, 150; a player's report): taken from each overheat, per
     # weapon, and kept for the type
@@ -1073,8 +1223,14 @@ def main():
         if name == NAMES.avatar then local f = {} for i = 1, 70 do f[i] = { id = string.format('%08x', i) } end f[5] = { id = 'cb0453ea' } return { fields = f } end
         return { fields = { { id = string.gsub(DATA_ROLES.rounds, '^0+', ''), type = 1, min = 0,
         max = 255, bits = 8, tolerance = 0 }, { id = 'abc', type = 2 }, { id = 'def', type = 0 } } } end
-      run(16) OBJ[3].fields[ROLE.rounds] = 40 HP = 90 run(1)''')
+      OBJ[7] = { name = 'zzzzunknown', fields = {} } OBJ[7].fields[ROLE.rounds] = 3
+      run(16) OBJ[3].fields[ROLE.rounds] = 40 HP = 90 run(1) OBJ[7].fields[ROLE.rounds] = 2 run(1)''')
     logs = [l for l in r.eval('logs').values() if 'all fields' in l]
+    # (2.1.1) an object of yours of a type NarrowHUD doesn't know, near your weapons' ids: read by its id, the values
+    # by index (no names), its changes
+    unk = [l for l in logs if 'object of an unknown type' in l]
+    check('all fields: an unknown-typed object of yours (the Helldiver\'s field 7 points at it; else near the weapons) read by id, its values and a change %s' % unk[:1],
+          any('(object 7): #1 ?=3' in l for l in unk) and any('#1 ? 3>2' in l for l in unk))
     check('all fields: the Helldiver\'s packed list unpacked, a named field\'s change %s' % [l for l in logs if 'Helldiver' in l][:4],
           any('your Helldiver' in l and '#1 1=1, #2 2=2' in l for l in logs)
           and any('#5 cb0453ea=health=125' in l for l in logs) and any('#65 41=650' in l for l in logs)
@@ -1143,6 +1299,17 @@ def main():
     t5 = r.eval('texts()')
     check('hidden while the stratagem key is held and for an emote, not while aiming (3, 4) [%s / aiming %s / %s / %s / %s / %s; F9 off: %s]' % (t0, t_aim, t1, t2, t3, t4, t5),
           t0.startswith('45') and t_aim.startswith('45') and t1 == '' and t2.startswith('45') and t3 == '' and t4.startswith('45') and t5.startswith('45'))
+    # (2.1.1) the weapon settings wheel: the flags block's word 2 bit 22 (luka's log, six opens), its own row
+    r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400000000060a', '0000000000400000', '0000000000000000' } run(0.5)""")
+    w1, r1 = r.eval('texts()'), r.eval('count("rect")')
+    r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400000000060a', '0000000000000000', '0000000000000000' } run(0.3)""")
+    w2 = r.eval('texts()')
+    wl = [l for l in r.eval('logs').values() if l.startswith('research: wheel bit')]
+    r.execute("""CHANGE.hide_wheel(false) OBJ[2].fields['gz3n3yj'] = { '000400000000060a', '0000000000400000', '0000000000000000' } run(0.5)""")
+    w3 = r.eval('texts()')
+    r.execute("""CHANGE.hide_wheel(true) OBJ[2].fields['gz3n3yj'] = nil run(0.3)""")
+    check('hidden while the weapon settings wheel is open (word 2 bit 22) [%s / %s], the vitals too (%d rects), not with its row off [%s]; logged %s' % (w1, w2, r1, w3, wl[:2]),
+          w1 == '' and r1 == 0 and w2.startswith('45') and w3.startswith('45') and len(wl) == 2 and '> 1' in wl[0] and '1 > 0' in wl[1])
     # the stim timer: a stim used (the count down) shows a green line shrinking over 4 s; 6 s with an armour that has
     # the Med-Kit passive (the CM-09 Bonesnapper, 1c6c05fa, from HD2Runtime's armour catalog)
     r = lua51.LuaRuntime()
@@ -1298,15 +1465,27 @@ def main():
     n2 = len(r.eval('lines()'))
     check('thickness Medium: the line drawn twice (%d, was %d)' % (n2, n1), n2 == 2 * n1)
     r.execute('CHANGE.drop_thick(1) run(0.2)')
+    # (2.1.1) "Line from a drop of, cm": the line starts where the flight has fallen that far below the straight aim
+    # (the GL's lob at 10 cm: 18 m out instead of the hand's 13; at 50 cm farther still); 0: the hand's 10 m
+    r.execute('CHANGE.drop_from(10) run(0.2)')
+    f10 = min(l[3] for l in r.eval('lines()').values())
+    r.execute('CAM_FZ = -0.1 run(0.2)')
+    f10b = min(l[3] for l in r.eval('lines()').values())
+    r.execute('CAM_FZ = nil CHANGE.drop_from(50) run(0.2)')
+    f50 = min(l[3] for l in r.eval('lines()').values())
+    r.execute('CHANGE.drop_from(0) run(0.2)')
+    f0 = min(l[3] for l in r.eval('lines()').values())
+    check('Line from a drop of 10 cm: the GL line from %.1f m (aimed down: %.1f, the start fixed per weapon, not per aim); 50 cm: %.1f m; 0: %.1f m (the hand\'s)' % (f10, f10b, f50, f0),
+          17 <= f10 <= 21 and abs(f10b - f10) < 1 and f50 > f10 + 5 and 9 <= f0 <= 12)
     # from the right hand (0.4 m right, 3 m ahead of the camera, 0.4 up... the mock's unit position), toward the
     # point 100 m along the camera's line: the first segment by the hand, x back near 0 by 100 m
     first = min(l[3] for l in ls)
     near100 = [l for l in ls if l[10] == 170 and 90 <= l[3] <= 110]
-    check('the line starts past the hand (%.1f m out, x %.1f: a hand\'s width left of 0.4) and converges on the crosshair (x %.2f at 100 m)' % (first, ls[0][2], near100[0][2] if near100 else 9),
-          12 <= first <= 15 and 0.2 < ls[0][2] <= 0.35 and near100 and abs(near100[0][2]) < 0.1)
+    check('the line starts past the hand (%.1f m out, 7 m from it: x %.1f, a hand\'s width left of 0.4) and converges on the crosshair (x %.2f at 100 m)' % (first, ls[0][2], near100[0][2] if near100 else 9),
+          9 <= first <= 12 and 0.2 < ls[0][2] <= 0.35 and near100 and abs(near100[0][2]) < 0.1)
     r.execute('WPOS = { U = false } run(0.5)')
     first = min(l[3] for l in r.eval('lines()').values())
-    check('with no hand position (the unit can\'t be asked): from the view, %.1f m out' % first, 9 <= first <= 12)
+    check('with no hand position (the unit can\'t be asked): from the view, %.1f m out' % first, 6 <= first <= 9)
     ys = [l[3] for l in ls]
     check('the line runs along the aim (y up to %.0f)' % max(ys), max(ys) > 40 and min(l[2] for l in ls) > -2)
     r.execute('OPTS.drop_line = 2 M = (function(...) ' + SRC + ' end)(chef) GRIP = 51 run(2)')
@@ -1536,8 +1715,9 @@ def main():
     w = r.eval("chef.text_width('%s', 4)" % cnt[0]) if False else None
     r.execute('OBJ[3].fields[ROLE.rounds] = 4 run(0.5)')
     rect_x2 = [d[2] for d in r.eval('draws').values() if d[1] == 'rect' and d[4] <= 3 and d[5] >= 20]
-    check('Under\'s look in Custom: the magazines follow the count (divider at %s for 45, %s for 5)' % (rect_x, rect_x2),
-          rect_x and rect_x2 and rect_x[0] > cx and rect_x2[0] < rect_x[0])
+    # (2.1.13: the count's digits fixed — the divider stays where the full magazine put it as the count falls)
+    check('Under\'s look in Custom: the magazines sit after the count\'s full width and stay as it falls (divider at %s for 45, %s for 5)' % (rect_x, rect_x2),
+          rect_x and rect_x2 and rect_x[0] > cx and rect_x2[0] == rect_x[0])
     # F9's offsets move a Custom layout only when its file says use_offsets = true
     def bar_xy(r):
         b = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[4] == 260 and d[5] == 14]
@@ -2669,7 +2849,7 @@ def main():
     rt14b.execute("BUILD_ID = 'stingray:99999 0000'")
     setup(rt14b)
     rt14b.execute('''OBJINFO = function(name)
-        local f = { { id = '0f27c68e' }, { id = 'd92082f9' }, { id = '5f8eb478' }, { id = '35ff0b52' }, { id = 'faaa8598' } }
+        local f = { { id = '0f27c68e' }, { id = 'd92082f9' }, { id = '5f8eb478' }, { id = '35ff0b52' }, { id = 'faaa8598' }, { id = '1ad6d70f' } }
         for role, r in pairs(DATA_ROLES) do
           if not (name == NAMES.arb and role == 'rounds') then f[#f + 1] = { id = string.gsub(r, '^0+', '') } end
         end

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.2.0
+
+- Drop line start (F9 > World > Line from a drop of, cm): the line begins where the shot has fallen that far below a
+  straight aim, so a flat-shooting gun's line starts far out; never closer than 7 m. Default 10 cm, 0 for the old
+  start.
+- Hide on weapon settings (F9 > Visibility): the HUD, health and stamina go out of the way while the weapon
+  settings wheel is open.
+- The hover pack: the backpack bar shows its fuel — draining in flight, back in a little over the flight's time on
+  the ground.
+- The shield backpack: the backpack bar shows its strength — orange when low, red when broken.
+- Attachments: the magazine size and the overheat point are remembered per set of attachments, so they're right
+  from the first shot the next time the same set comes out.
+- The count no longer slides as it falls: it sits right-aligned in a box as wide as the full magazine, so the
+  parts after it stay put (F9 > Look > Count digits: Tight for the old way; a layout's Count part can set its own).
+- The Nova's and the Quasar's heat no longer climbs while the trigger is held through an overheat.
+
 ## 2.1.0
 
 - Landing mark: a ring and an arrow on the ground where the drop line or the throw line lands. The ground's

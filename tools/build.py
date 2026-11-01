@@ -62,10 +62,17 @@ def make_archive(resources):
 
 
 def textures():
-    """the icon textures tools/make_textures.py wrote (build/textures/<id>.texture + .gpu)"""
+    """the icon textures tools/make_textures.py wrote (build/textures/<id>.texture + .gpu): only those in the game's own
+    icon layout (the *_game entries of src/textures_generated.lua). (2.1.8) The size ladder (a DDS layout of our own,
+    one mip) is left out of the package: nothing draws it since the game layout came (1.5.18; the ways 2-4 and 8 are
+    the tests'), and HUDdle's changelog blames the crash on quitting the game on textures that aren't laid out as the
+    game's are (its 0.5.1 and 0.5.3) — luka sees that crash on a quit from a mission."""
+    tex = (ROOT / 'src' / 'textures_generated.lua').read_text(encoding='utf-8')
+    game = set(re.findall(r"_game = \{ \{ \d+, \d+, '([0-9a-f]{16})'", tex))
     out = []
-    for tex in sorted((ROOT / 'build' / 'textures').glob('*.texture')):
-        out.append((int(tex.stem, 16), TEXTURE_TYPE, tex.read_bytes(), tex.with_suffix('.gpu').read_bytes()))
+    for path in sorted((ROOT / 'build' / 'textures').glob('*.texture')):
+        if path.stem in game:
+            out.append((int(path.stem, 16), TEXTURE_TYPE, path.read_bytes(), path.with_suffix('.gpu').read_bytes()))
     return out
 
 

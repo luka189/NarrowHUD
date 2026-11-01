@@ -93,7 +93,10 @@ local function br_type(t)
   return ti
 end
 local function br_read(s, goid, t, label, now)
-  local ti = br_type(t)
+  -- (2.1.1) t nil: an object of yours whose type NarrowHUD doesn't know (the shield and hover packs, luka's
+  -- 2026-11-01 log): read by its id alone, the values by index, no names — the field count and the kinds of the
+  -- values name the type against the network config offline
+  local ti = t and br_type(t) or {}
   if not ti then return end
   local fn = ENGINE_GS and ENGINE_GS.game_object_field_batched
   if type(fn) ~= 'function' then
@@ -104,9 +107,10 @@ local function br_read(s, goid, t, label, now)
   local ok, vals = pcall(fn, s, goid, {})
   if not ok or type(vals) ~= 'table' then
     local why = ok and ('it gave ' .. type(vals)) or tostring(vals)
-    if not BR.said[why] then BR.said[why] = true br_log('research: all fields: %s %s (object %s): %s', label, t.id, tostring(goid), why) end
+    if not BR.said[why] then BR.said[why] = true br_log('research: all fields: %s %s (object %s): %s', label, t and t.id or '?', tostring(goid), why) end
     return
   end
+  local tid = t and t.id or 'unknown'
   -- (a type of more than 63 fields, the Helldiver's 72: the game gives the first 63 as a list in place 64, then 65 on;
   -- field 64's own value isn't given (the 1.0.9 log, and Integrated HUD reads the vehicle from avatar[64][25] too))
   local packed = false
@@ -118,18 +122,19 @@ local function br_read(s, goid, t, label, now)
   end
   -- (an object of yours another field points at: read too, from the next round on; the Helldiver's 913af9a2 and
   -- 0c09236b hold two objects on you of types NarrowHUD doesn't know)
-  if t.avatar then
+  if t and t.avatar then
     BR.refs = {}
     for i = 1, #ti do
       local v = vals[i]
       local o = type(v) == 'number' and v ~= 32767 and objs[v]
       local rt = o and o.t and TYPES[o.t]
-      if rt and not rt.avatar and not rt.player and #BR.refs < 4 then BR.refs[#BR.refs + 1] = { v, rt, 'object in your Helldiver\'s ' .. ti[i].label } end
+      if rt and not rt.avatar and not rt.player and #BR.refs < 4 then BR.refs[#BR.refs + 1] = { v, rt, 'object in your Helldiver\'s ' .. ti[i].label }
+      elseif o and o.t == false and not o.host and #BR.refs < 4 then BR.refs[#BR.refs + 1] = { v, false, 'object of an unknown type in your Helldiver\'s ' .. ti[i].label .. ' (' .. tostring(v) .. ')' } end   -- (2.1.1)
     end
   end
   local ob = BR.objs[goid]
-  if ob == nil or ob.tid ~= t.id then
-    ob = { tid = t.id, vals = {}, changes = {}, reads = 0, noisy = {} }
+  if ob == nil or ob.tid ~= tid then
+    ob = { tid = tid, vals = {}, changes = {}, reads = 0, noisy = {} }
     BR.objs[goid] = ob
     local parts = {}
     local n = math.max(#ti, #vals)
@@ -138,12 +143,12 @@ local function br_read(s, goid, t, label, now)
       ob.vals[i] = sv
       parts[#parts + 1] = string.format('#%d %s=%s', i, ti[i] and ti[i].label or '?', sv)
       if #parts == 10 or i == n then
-        br_log('research: all fields: %s %s (object %s): %s', label, t.id, tostring(goid), table.concat(parts, ', '))
+        br_log('research: all fields: %s %s (object %s): %s', label, tid, tostring(goid), table.concat(parts, ', '))
         parts = {}
       end
     end
-    if packed then br_log('research: all fields: %s %s: the first 63 fields come as a list in place 64 (field 64 itself not given)', label, t.id)
-    elseif #vals ~= #ti then br_log('research: all fields: %s %s gives %d values, its type declares %d fields', label, t.id, #vals, #ti) end
+    if packed then br_log('research: all fields: %s %s: the first 63 fields come as a list in place 64 (field 64 itself not given)', label, tid)
+    elseif #vals ~= #ti then br_log('research: all fields: %s %s gives %d values, its type declares %d fields', label, tid, #vals, #ti) end
     return
   end
   ob.reads = ob.reads + 1
@@ -156,7 +161,7 @@ local function br_read(s, goid, t, label, now)
         if string.find(sv, '^Vector') or string.find(sv, '^Quaternion') or string.find(sv, '^Matrix')
            or (ob.reads >= 20 and ob.changes[i] >= ob.reads * 0.8) then
           ob.noisy[i] = true
-          br_log('research: all fields: %s %s: #%d %s changes all the time, left out (now %s)', label, t.id, i,
+          br_log('research: all fields: %s %s: #%d %s changes all the time, left out (now %s)', label, tid, i,
             ti[i] and ti[i].label or '?', string.sub(sv, 1, 120))
         else
           ch[#ch + 1] = string.format('#%d %s %s>%s', i, ti[i] and ti[i].label or '?', string.sub(ob.vals[i] or 'nil', 1, 120), string.sub(sv, 1, 120))
@@ -165,7 +170,7 @@ local function br_read(s, goid, t, label, now)
       end
     end
   end
-  if #ch > 0 then br_log('research: all fields: %s %s: %s', label, t.id, table.concat(ch, ', ')) end
+  if #ch > 0 then br_log('research: all fields: %s %s: %s', label, tid, table.concat(ch, ', ')) end
 end
 N.batched_research = function(s, now, shown_goid, grip)
   if BR.lines >= 6000 then return end
@@ -179,15 +184,19 @@ N.batched_research = function(s, now, shown_goid, grip)
     if me.player then BR.queue[#BR.queue + 1] = { me.player, TYPES[1], 'your player' } end
     -- (the weapon in hand, the weapons learned for a hand pose (as host a SEAF squad's guns are yours too: not those),
     -- and up to two backpacks on you)
-    local nw, np = 0, 0
+    local nw, carried = 0, {}
     local poses = N.learned.poses
     for goid, o in pairs(objs) do
       local t = o.t and TYPES[o.t]
-      if t and o.on and not o.notmine and not t.other and not t.player and not t.avatar then
+      -- (2.1.4: the other carried types too — `not t.other` here kept every one of them, the special packs
+      -- included, out of the watch, so the shield pack of type b0b9f710 "picked up" in luka's log was never read)
+      if t and o.on and not o.notmine and not t.player and not t.avatar then
         if goid == shown_goid then
           table.insert(BR.queue, 1, { goid, t, 'weapon in hand' })
         elseif t.pack or t.special or t.other then
-          if np < 3 then np = np + 1 BR.queue[#BR.queue + 1] = { goid, t, t.pack and 'backpack' or 'carried' } end
+          -- (2.1.7: the newest six, not the first four pairs() gives — luka's directional shield, picked up at
+          -- 322 s, lost its place to four of the map's things of 'other' types)
+          carried[#carried + 1] = { goid, t, t.pack and 'backpack' or 'carried' }
         elseif HANDHELD[t.id] and nw < 4 and (poses[t.id] or (grip and grip ~= 0 and N.learned.grip[t.id] == nil and not o.ub)) then
           -- (the weapons learned for a pose, and while one is in your hand, those not learned yet: what an Arc
           -- Thrower changes when fired)
@@ -196,11 +205,26 @@ N.batched_research = function(s, now, shown_goid, grip)
         end
       end
     end
+    table.sort(carried, function(a, b) return (tonumber(a[1]) or 0) > (tonumber(b[1]) or 0) end)
+    for i = 1, math.min(6, #carried) do BR.queue[#BR.queue + 1] = carried[i] end
     local queued = {}
     for _, e in ipairs(BR.queue) do queued[e[1]] = true end
     for _, r in ipairs(BR.refs or {}) do
       local o = objs[r[1]]
-      if o and o.t and TYPES[o.t] == r[2] and not queued[r[1]] then queued[r[1]] = true BR.queue[#BR.queue + 1] = r end
+      if o and not queued[r[1]] and ((r[2] and o.t and TYPES[o.t] == r[2]) or (r[2] == false and o.t == false)) then queued[r[1]] = true BR.queue[#BR.queue + 1] = r end
+    end
+    -- (2.1.1) your objects of types NarrowHUD doesn't know, nearest in id to the weapon in hand (a loadout's objects
+    -- are made together: the shield pack, the hover pack and their like), up to 12: read by id, the values by index.
+    -- (2.1.2: by distance in id, from the weapon in hand, within 40; luka's log: the window from the lowest weapon
+    -- of yours took eight map objects below it and no pack)
+    if type(shown_goid) == 'number' then
+      local near = {}
+      for goid, o in pairs(objs) do
+        if o.t == false and not o.host and type(goid) == 'number' and math.abs(goid - shown_goid) <= 40 and not queued[goid] then near[#near + 1] = goid end
+      end
+      table.sort(near, function(a, b) local da, db = math.abs(a - shown_goid), math.abs(b - shown_goid) return da < db or (da == db and a < b) end)
+      -- (2.1.3: 20, and the label carries the id; the shield pack sat 13th in luka's log)
+      for i = 1, math.min(20, #near) do queued[near[i]] = true BR.queue[#BR.queue + 1] = { near[i], nil, 'object of an unknown type near your weapons (' .. tostring(near[i]) .. ')' } end
     end
     return
   end
