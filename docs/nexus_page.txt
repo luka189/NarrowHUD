@@ -2,9 +2,9 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 2.3.0
+Version: 2.3.2
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v2.3.0.zip (archive the older main files and the R0 / R1 research builds)
+Main file: NarrowHUD-v2.3.2.zip (archive the older main files and the R0 / R1 research builds)
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.2.3 or newer"
 
 Summary (the short line under the title, at most 350 characters):
@@ -123,6 +123,11 @@ the game's own, drawn from its HUD sprites in play; none of the game's art is in
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
+
+Changelog for the Nexus "Changelogs" tab (2.3.2)
+------------------------------------------------
+- Fixes a crash to desktop after a death (2.3.0 and 2.3.1: the game closed a few seconds after you died, before the
+  reinforce).
 
 Changelog for the Nexus "Changelogs" tab (2.3.0)
 ------------------------------------------------

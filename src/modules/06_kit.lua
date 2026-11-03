@@ -1,7 +1,7 @@
 -- NarrowHUD, kit: a weapon's attachments, as the game lists them, and what NarrowHUD learns per kit.
 -- (tools/build.py puts src/narrowhud.lua and these modules together, each module in a function of its own; N holds
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
-local call, norm_id, cfg = N.call, N.norm_id, N.cfg
+local call, norm_id, cfg, alive = N.call, N.norm_id, N.cfg, N.alive
 
 -- A weapon's 98b4aaf0 field (the game's name hpinuxg; the Helldiver has one too) is a list of 64-bit ids, one per
 -- customization slot the weapon has. luka's 2026-11-01 missions, the Breaker and the Sweeper:
@@ -42,6 +42,7 @@ end
 -- the list as read: a table of id strings, or nil (no such field, or nothing came)
 local function kit_read(s, goid, t)
   if not (KIT_NAME and goid and t and kit_ok(t)) then return nil end
+  if not alive(s, goid, t) then return nil end   -- (2.3.2: the object asked about first, as every read; cached a frame)
   local v = call(t.id .. '.kit', 'GameSession.game_object_field', s, goid, KIT_NAME)
   if type(v) ~= 'table' then return nil end
   local ids = {}

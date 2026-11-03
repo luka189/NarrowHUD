@@ -200,9 +200,11 @@ chef = {
       if v == nil and b == ROLE.held then return FIRE == true end   -- (the player's own weapons: held as you fire, unless a test says)
       return v
     end
-    if name == 'Unit.has_animation_state_machine' or name == 'Unit.animation_has_variable' then return true end
+    -- (2.3.1: ASM false = the unit's state machine is gone, the ragdolled body at a reinforce; reading a variable then ends the game)
+    if name == 'Unit.has_animation_state_machine' then return ASM ~= false end
+    if name == 'Unit.animation_has_variable' then return true end
     if name == 'Unit.animation_find_variable' then return 3 end
-    if name == 'Unit.animation_get_variable' then return GRIP end
+    if name == 'Unit.animation_get_variable' then if ASM == false then error('a variable read on a unit without a state machine (ends the game)') end return GRIP end
     if name == 'Application.can_get' then if s == 'material' and MAT_OK ~= nil and type(a) == 'string' and a:sub(1, 3) == 'id:' then return MAT_OK end return GAME_FONT end
     if name == 'Network.object_info' and OBJINFO then return OBJINFO(s) end
     if name == 'Mouse.button_index' then return s == 'right' and 1 or 0 end
@@ -1074,6 +1076,31 @@ def main():
     k3 = ru.eval('texts()')
     ru.execute('CHANGE.hide_terminal(true) OBJ[2].fields.rvanyac = nil run(0.5)')
     check('hidden at a terminal [%s, %d rects], back after [%s], not with its row off [%s]' % (k1, kr, k2, k3), k1 == '' and kr == 0 and k2.startswith('45') and k3.startswith('45'))
+    # (2.3.1) the body let go at a reinforce: your Helldiver's unit, alive and listed still, loses its animation state
+    # machine; the hand pose must ask about it before every read (a variable read without one ends the game — luka's
+    # three 2.3.0 crashes, 8 s after each death), and read again once it's back
+    ru.execute('run(0.5)')
+    a0 = ru.eval('texts()')
+    try:
+        ru.execute('ASM = false run(1)')
+        a1, err = ru.eval('texts()'), None
+    except Exception as e:
+        a1, err = None, str(e)
+    ru.execute('ASM = nil run(0.5)')
+    a2 = ru.eval('texts()')
+    check('the state machine gone at a reinforce: no variable read (%s), the HUD off [%s] then back [%s]' % (err or 'none', a1, a2),
+          err is None and a0.startswith('45') and a1 == '' and a2.startswith('45'))
+    # (2.3.2) your Helldiver's object gone between two object scans (the game drops the dead body's object some
+    # seconds after a death, before the new one spawns): the position read every 0.15 s (2.2.3) must ask whether it
+    # still exists first — a field read of a gone object ends the game (luka's crashes at every reinforce, 2.3.0 and
+    # 2.3.1, the hand pose cleared)
+    ru.execute('MATES = { items = { { unit = \'U\', x = 0, y = 0, z = 0 }, { unit = \'V\', x = 5, y = 0, z = 0 } } } OBJ[2].fields.position = { 0, 0.1, 0 } run(0.5)')
+    try:
+        ru.execute('OBJ[2] = nil run(0.6)')
+        gerr = None
+    except Exception as e:
+        gerr = str(e)
+    check('your Helldiver\'s object gone before the next scan: no read of it (%s)' % (gerr or 'none'), gerr is None)
 
     # (2.2.9) side up / down: the horizontal layout's free parts are on the 'down' side, so F9's Spread moves the
     # whole stack down (bar, health, the pinned parts with them); the vertical pair's bar (right) still moves right

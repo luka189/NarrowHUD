@@ -35,7 +35,11 @@ local function my_unit(s)
   if not watch or not watch.items or #watch.items == 0 then return nil end
   if #watch.items == 1 then mine.unit = watch.items[1].unit return mine.unit end
   local now = chef.time()
-  if s and me.avatar and now - mine.at >= 0.15 then
+  -- (2.3.2) asked whether the object still exists first, as every other read of it is: the game drops your dead
+  -- Helldiver's object some seconds after a death, before the new one spawns and before the next object scan, and a
+  -- field read of a gone object ends the game. This read came in 2.2.3 without the check: luka's crash at every
+  -- reinforce on 2.3.0 and 2.3.1 (8 s after a death as a client, 4 s as the host), the only unguarded read.
+  if s and me.avatar and now - mine.at >= 0.15 and alive(s, me.avatar, TYPES[2]) then
     mine.at = now
     local p = call('avatar.position', 'GameSession.game_object_field', s, me.avatar, 'position')
     local x, y, z = N.xyz(p)
@@ -208,9 +212,14 @@ local function hand_pose(s)
   local u = my_unit(s)
   if u == nil then return pose_fail('no Helldiver unit') end
   if chef.unit_alive(u) ~= true then return pose_fail('the Helldiver unit is not alive') end
+  -- (2.3.1) the state machine asked about before every read, not once per unit: your Helldiver's unit loses it when
+  -- the body is let go some 8 s after a death (the reinforce), alive and listed still, and a variable read on a unit
+  -- without one ends the game. 2.3.0 kept your unit through the hellpod ride and read on; up to 2.2.9 the camera's
+  -- nearest unit took its place there, a fresh one checked afresh ("hand pose not read: the unit has no animation
+  -- state machine" in luka's 2.2.2 log, 6 s after a death). luka's three 2.3.0 crashes: each one at the reinforce.
+  if call('asm', 'Unit.has_animation_state_machine', u) ~= true then grip_index[u] = nil return pose_fail('the unit has no animation state machine') end
   local idx = grip_index[u]
   if idx == nil then
-    if call('asm', 'Unit.has_animation_state_machine', u) ~= true then return pose_fail('the unit has no animation state machine') end
     if call('hasvar', 'Unit.animation_has_variable', u, GRIP_VARIABLE) ~= true then return pose_fail('the unit has no hand pose variable') end
     idx = call('findvar', 'Unit.animation_find_variable', u, GRIP_VARIABLE)
     if type(idx) ~= 'number' then return pose_fail('the hand pose variable has no index') end

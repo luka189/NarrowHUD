@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.2
+
+- Fixes a crash to desktop after a death (2.3.0 and 2.3.1: the game closed a few seconds after you died, before the
+  reinforce).
+
 ## 2.3.0
 
 - The weapon in your hand is found by its model at your hand: shown the moment you draw it, before any shot, and two
