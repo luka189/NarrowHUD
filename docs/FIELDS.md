@@ -1,4 +1,4 @@
-# What the game sends about your own objects (build 26088801)
+# What the game sends about your own objects (build 26088801; 26251122 moved nothing)
 
 From the 1.0.9 and 1.0.10 research logs (2026-10-27, hosting, solo): `GameSession.game_object_field_batched` on your
 Helldiver, your player object, your weapons and two objects your Helldiver points at, with `Network.object_info` for
@@ -19,11 +19,11 @@ tolerance), 3 a Vector3, 4 a rotation (Vector4), 9 a 64-bit id (a peer id, a has
 |---|---|---|
 | 1 | 98b4aaf0 | a list of one 64-bit id (the same each life; HUDdle: "kit") |
 | 2 | cd889dbc | a state number: 80 in the drop pod, 82 standing, 74 / 88 / 90 moving, 86 with the map open, 72 in a vehicle seat (guess: a locomotion state id) |
-| 3 | 6ff0e58a | three 64-bit bit sets that change with everything you do (sprint, crouch, prone, throw, emote, vehicle, map): animation or action flags |
+| 3 | 6ff0e58a | three 64-bit bit sets of action flags, read as hex strings. Known bits (2.1.x): word 1 bit 48 first-person view, word 1 bit 23 hover-pack flight; word 2 bit 18 aiming down the sights (a toggled aim counts, a knock-out ends it), word 2 bit 22 the weapon settings wheel open. The rest change with sprint, crouch, prone, throw, emote, vehicle, map |
 | 4 | 5faee212 | 0 / 1 / 2 with the stance |
 | 5 | **stamina** | 1 full, falls about 0.045 a second while sprinting |
 | 6 | e3186939 | a rotation (changes all the time) |
-| 7, 8 | af97ede7, bdc1cb8a | positions near you (aim or camera points?) |
+| 7, 8 | af97ede7, bdc1cb8a | af97ede7 = **look_at_position** (its real name): where the view's ray meets the world, 998 m out on the sky, on the view at once; bdc1cb8a: the crosshair's hit point the rounds fly to, smoothed (~0.25 s behind the view). Both from Blast & Trajectory Markers 1.2.4's field study (docs/RESEARCH.md); NarrowHUD logs them beside the drop line since 2.2.4 (research) |
 | 9 | **map_marker_position** | your map pin (your own position while none is placed). Whether its z is the terrain's height or 0 is still open: NarrowHUD draws a pin at your own height when the field's z is 0, and the 1.3.0 log's 20.8 / 23.2 could be either |
 | 10 | **map_marker_type** | 0 none, 7 a placed pin (the 1.3.0 log: 7 the whole time a pin stood, back to 0 when removed; 1 not seen) |
 | 11 | **map_marker_goid** | the pin's object (32767 none) |
@@ -96,3 +96,15 @@ is_overheated, is_charging, reload_stage, underbarrel_goid, original_owner), plu
   by that from the last value sent, so falls come in steps of 15.7 and a shot of less than the band can hide inside
   it. The last value before an overheat is a lower bound of the overheat point (the Talon's 84.8 for 100). The
   Talon's rises read about 12 a shot (the wiki: 15) in a 1.2.7 log.
+
+## Backpacks with a model of their own (2.1.x; 02_settings `SPECIAL`)
+
+- **Hover pack efb4a22e**: one flag f8d23bd2, true in flight (it stays on about a second past touchdown). No fuel
+  field: the fuel is modelled — burnt for the whole time the flag is on (the bar's tank 8.1 s; a drop down a slope
+  lends a little that directional input spends, so a flag-on time of 10.9 s still lands at zero), refilled at
+  1.15 x the flag's time from touchdown. Fitted from luka's marked flights (two sessions).
+- **Shield backpack b0b9f710**: 1ad6d70f = charge (its real name), 150 full, sent only when moved by its tolerance
+  39; 6fee6b03 true while broken; 24cf7e78 true while regenerating; b19ad128 = active goes false when it breaks.
+- **Directional shield d3e4682e** (20 fields, max_health 400, a raised / lowered flag 7f7d11f7) and **ballistic
+  shield 2b651283** (26 fields, max_health 1000, state 0 > 2 stowed): no health field; their damage isn't networked.
+- Jump pack 3a9a3ab0 and warp pack c89adf0c: a recharge / heat field each (1.5.x).

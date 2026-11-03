@@ -615,3 +615,16 @@ local function seg_max() return math.floor(25 + (cfg.size - 0.8) / 0.7 * 25 + 0.
 N.txt_width, N.txt, N.CREAM, N.WARN, N.RED, N.col = txt_width, txt, CREAM, WARN, RED, col
 N.empty_rect, N.solid_bar, N.txt_modes, N.notice, N.MARK_COLORS, N.heat_tone = empty_rect, solid_bar, txt_modes, notice, MARK_COLORS, heat_tone
 N.pack_state, N.seg_max = pack_state, seg_max
+
+-- (2.2.6) a world segment's "across the view" direction: the unit cross product of the segment and the line from the
+-- camera to its middle, so a line drawn again beside itself stays as wide on the screen whichever way it runs (the
+-- camera's horizontal right, used before, squeezed the strands together where the line ran toward or away from the
+-- camera; Blast & Trajectory Markers' way, our own code). nil for a segment on the view's line
+function N.across(cam, x1, y1, z1, x2, y2, z2)
+  local sx, sy, sz = x2 - x1, y2 - y1, z2 - z1
+  local mx, my, mz = (x1 + x2) / 2 - cam.x, (y1 + y2) / 2 - cam.y, (z1 + z2) / 2 - cam.z
+  local ax, ay, az = sy * mz - sz * my, sz * mx - sx * mz, sx * my - sy * mx
+  local l = math.sqrt(ax * ax + ay * ay + az * az)
+  if l < 1e-6 then return nil end
+  return ax / l, ay / l, az / l
+end

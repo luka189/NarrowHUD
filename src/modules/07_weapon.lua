@@ -384,7 +384,10 @@ local function shown(s, goid, t, w, o)
         if o.mag_full then
           top = o.mag_max
           -- (2.1.12: the size this kit gives, for the next mission's first frame; not the Halt's per ammo type)
-          if kit and o == whole and top > 0 and learned.kitmag[kit] ~= top then
+          -- (2.2.6: the most seen with the kit, never less — a kit's magazine can't shrink, and a weapon with a
+          -- chambered round starts a mission with one fewer in the magazine (a tester's Crossbow: "holds 4" at
+          -- every start, "holds 5" at the first reload, every mission))
+          if kit and o == whole and top > (learned.kitmag[kit] or 0) then
             log('learned: type %s holds %d with this kit%s', t.id, top, kmag and (' (was ' .. kmag .. ')') or '')
             learn('kitmag', kit, top)
           end

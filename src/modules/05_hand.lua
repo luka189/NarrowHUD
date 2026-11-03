@@ -24,10 +24,56 @@ local function nearest_unit()
   end
   return best
 end
--- Your Helldiver: the Helldiver unit nearest the camera. (1.0.7 to 1.2.5 asked the session's unit synchronizer for
--- your avatar object's unit first: Helldivers 2 keeps none, it answered nil in every game, hosted or joined.)
-local function my_unit(s) return nearest_unit() end
+-- Your Helldiver: the Helldiver unit at your own avatar object's position (its position field, read every 0.15 s;
+-- the unit's live position against it); the one nearest the camera when the position isn't known. (1.0.7 to 1.2.5
+-- asked the session's unit synchronizer for your avatar object's unit first: Helldivers 2 keeps none, it answered
+-- nil in every game. Up to 2.2.2 the nearest to the camera alone: an ally passing behind you was nearer, and for a
+-- moment his hand pose, his weapons' models and his hand were yours — luka's 2026-11-03 log, a drop line drawn
+-- from an ally and "model at hand: 3b718900", a weapon he doesn't carry.)
+local mine = { at = -100, x = nil, y = nil, z = nil, unit = nil, said = 0 }
+local function my_unit(s)
+  if not watch or not watch.items or #watch.items == 0 then return nil end
+  if #watch.items == 1 then mine.unit = watch.items[1].unit return mine.unit end
+  local now = chef.time()
+  if s and me.avatar and now - mine.at >= 0.15 then
+    mine.at = now
+    local p = call('avatar.position', 'GameSession.game_object_field', s, me.avatar, 'position')
+    local x, y, z = N.xyz(p)
+    if x then mine.x, mine.y, mine.z = x, y, z else mine.x = nil end
+  end
+  local by_cam = nearest_unit()
+  if not mine.x or not chef.unit_position then mine.unit = by_cam return by_cam end
+  local best, bd = nil, nil
+  for _, it in ipairs(watch.items) do
+    local x, y, z = chef.unit_position(it.unit)
+    if x then
+      local d = (x - mine.x) ^ 2 + (y - mine.y) ^ 2 + (z - mine.z) ^ 2
+      if it.unit == mine.unit then d = d * 0.5 end   -- (the one chosen last keeps the place on a close call)
+      if bd == nil or d < bd then best, bd = it.unit, d end
+    end
+  end
+  -- (a unit more than 3 m from where the game says you are isn't you: the camera rule then, as before)
+  local far = best == nil or bd > 9
+  if far then
+    -- (2.3.0: none near your position — in the hellpod the position field reads 900 up — the unit chosen last
+    -- stays while it's listed, the camera's nearest only before any was; luka's 2.2.9 log flipped between two
+    -- units four times in the drop, an ally's hand pose read in between)
+    local kept = nil
+    for _, it in ipairs(watch.items) do if it.unit == mine.unit then kept = it.unit end end
+    best = kept or by_cam
+  end
+  if best ~= mine.unit then
+    if cfg.research and mine.said < 60 and mine.unit ~= nil then
+      mine.said = mine.said + 1
+      log('research: your Helldiver unit changed: %s (%s; the camera\'s nearest %s)', tostring(best),
+        far and 'none within 3 m of your position' or string.format('%.1f m from your position', math.sqrt(bd)), best == by_cam and 'the same' or 'another')
+    end
+    mine.unit = best
+  end
+  return best
+end
 N.my_unit = my_unit
+
 -- Your fire button (the left mouse button), read every frame: as host you own every soldier's objects too (SEAF
 -- troops' rifles ...), and their shots look like yours. A shot counts as yours only within 0.4 s of your fire button;
 -- an object that fires three times without it is someone else's for the rest of the session. (0.3.5 tried the
@@ -228,6 +274,12 @@ do
 end
 local av_refs = {}                                   -- the fields' values, read with the grenades and stims
 local av_said = {}                                   -- (research lines per field this world: at most 60)
+-- (2.2.3) at a terminal: your Helldiver's terminal_interact (eef04e89) holds the terminal's object while you work
+-- it, 32767 otherwise (luka's marks 2 and 3, 2026-11-03: 2551 for 5 and 3 s). An F9 row hides the HUD meanwhile
+function N.at_terminal()
+  local v = av_refs['eef04e89']
+  return type(v) == 'number' and v ~= NO_OBJECT
+end
 local function read_av_refs(s)
   for _, r in ipairs(AV_REFS) do
     local v = (not r.research or cfg.research) and call('avatar.' .. r.id, 'GameSession.game_object_field', s, me.avatar, r.name) or nil
@@ -419,12 +471,33 @@ local function pick(s, grip, now)
   if mounted then return mounted end
   if grip == 0 then return nil end
   local same, unknown, last = {}, {}, nil
+  local on_body = {}                        -- (2.2.2: every weapon on you, for the model at the hand)
   for goid, o in pairs(objs) do
     local t = o.t and TYPES[o.t]
     if t and HANDHELD[t.id] and not t.pack and not t.player and not t.avatar and not t.other and o.on and not o.ub
        and not o.notmine and not on_floor(s, goid, t) then
+      on_body[#on_body + 1] = goid
       if has_pose(t.id, grip) then same[#same + 1] = goid
       elseif learned.grip[t.id] == nil and learned.poses[t.id] == nil then unknown[#unknown + 1] = goid end
+    end
+  end
+  -- (2.2.2) the weapon model at the hand (05_model): of two of your weapons of different types on one pose, the one
+  -- whose model sits on the hand node is the one out (the Nova and the Breacher: 2.1's guess from the swap keys
+  -- stays as the fallback). Not between two objects of one type (yours and a SEAF soldier's: the model says the
+  -- type, not whose), and never over the one firing (the sticky rule below)
+  local at_hand = N.type_at_hand and N.type_at_hand(now)
+  if at_hand and #same > 1 then
+    local hits, other = {}, false
+    for _, goid in ipairs(same) do
+      if TYPES[objs[goid].t].id == at_hand then hits[#hits + 1] = goid else other = true end
+    end
+    if #hits == 1 and other then
+      local o = objs[hits[1]]
+      if hand.model_goid ~= hits[1] then
+        hand.model_goid = hits[1]
+        if cfg.research then log('research: model at hand picks %s (object %s) of %d on hand pose %d', at_hand, tostring(hits[1]), #same, grip) end
+      end
+      o.chosen_at = now
     end
   end
   -- the one fired or swapped to last; none yet (a mission's start): the lowest swap key, the primary first
@@ -581,6 +654,29 @@ local function pick(s, grip, now)
       end
     end
     return best
+  end
+  -- (2.2.2) not learned yet: shown from its first shot — or from its model at the hand, when one weapon on you is of
+  -- that type (a soldier's of the same kind is a body away; two of yours of one type stay unshown until a shot)
+  if at_hand then
+    local hit, n, mine, nm = nil, 0, nil, 0
+    for _, goid in ipairs(on_body) do
+      if TYPES[objs[goid].t].id == at_hand then
+        hit, n = goid, n + 1
+        if objs[goid].mine then mine, nm = goid, nm + 1 end
+      end
+    end
+    if n > 1 and nm == 1 then hit, n = mine, 1 end   -- (of two, the one proven yours)
+    if n > 1 and cfg.research and hand.model_many ~= at_hand then
+      hand.model_many = at_hand
+      log('research: model at hand: %d objects of %s on you, none proven yours: not shown until a shot', n, at_hand)
+    end
+    if n == 1 then
+      if hand.model_goid ~= hit then
+        hand.model_goid = hit
+        if cfg.research then log('research: model at hand shows %s (object %s) before a shot, hand pose %d', at_hand, tostring(hit), grip) end
+      end
+      return hit
+    end
   end
   return nil   -- not learned yet: shown from its first shot
 end

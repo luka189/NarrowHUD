@@ -105,6 +105,36 @@ local function drop_start(tid, len)
   return dstart.path
 end
 N.drop_lines = 0                                  -- (lines drawn this frame, for the timing line)
+-- (2.2.4, research) the game's own aim points, from Blast & Trajectory Markers 1.2.4's notes (docs/RESEARCH.md):
+-- your Helldiver's af97ede7 is look_at_position (its real name), where the view's ray meets the world (998 m out on
+-- the sky), and bdc1cb8a the crosshair's hit point the rounds fly to (smoothed, about 0.25 s behind the view). Both
+-- were "changes all the time, left out" in our all-fields log. Every half second while the line is drawn: the two
+-- points' distances, the look point's height against our ground model's at that spot, and the mark's distance from
+-- the look point — to see what a real raycast point would give the mark and the line
+local LOOK_NAME = string.match(DATA.fieldnames or '', 'af97ede7 (%S+)')
+local AIMPT_NAME = string.match(DATA.fieldnames or '', 'bdc1cb8a (%S+)')
+local aimlog = { at = -100, n = 0 }
+local function aim_points_research(cam, mx, my, mz)
+  local now = chef.time()
+  if not cfg.research or aimlog.n >= 400 or now - aimlog.at < 0.5 then return end
+  local s, av = N.session_now, N.me.avatar
+  if not (s and av and LOOK_NAME and AIMPT_NAME) then return end
+  aimlog.at, aimlog.n = now, aimlog.n + 1
+  if not N.alive(s, av, N.TYPES[2]) then return end
+  local lx, ly, lz = N.xyz(N.call('avatar.look', 'GameSession.game_object_field', s, av, LOOK_NAME))
+  local ax, ay, az = N.xyz(N.call('avatar.aimpt', 'GameSession.game_object_field', s, av, AIMPT_NAME))
+  if not lx then log('research: aim points: the look point not read') return end
+  local dl = math.sqrt((lx - cam.x) ^ 2 + (ly - cam.y) ^ 2 + (lz - cam.z) ^ 2)
+  local da = ax and math.sqrt((ax - cam.x) ^ 2 + (ay - cam.y) ^ 2 + (az - cam.z) ^ 2) or nil
+  local gh, gconf = nil, nil
+  if N.ground_height and dl < 900 then gh, gconf = N.ground_height(lx, ly) end
+  local mark = mx and string.format('; the mark %.1f m from the look point', math.sqrt((mx - lx) ^ 2 + (my - ly) ^ 2 + (mz - lz) ^ 2)) or '; no mark'
+  log('research: aim points: look %.1f m (%.1f, %.1f, %.1f)%s; crosshair point %s%s%s', dl, lx, ly, lz,
+    dl >= 900 and ' (the sky)' or '', da and string.format('%.1f m', da) or 'not read',
+    (da and ax) and string.format(' (%.1f m from the look point)', math.sqrt((ax - lx) ^ 2 + (ay - ly) ^ 2 + (az - lz) ^ 2)) or '',
+    (gh and string.format('; our ground there %.1f m %s the look point (%s)', math.abs(gh - lz), gh > lz and 'above' or 'under', tostring(gconf)) or (dl < 900 and '; our ground there: none' or '')) .. mark)
+end
+local aim_d = { d = nil, at = nil, at0 = nil }   -- (the aim's distance along the view, eased)
 -- the line, from the view camera along the crosshair
 local function draw_drop(tid)
   local mode = cfg.drop_line or 1
@@ -124,7 +154,25 @@ local function draw_drop(tid)
     if hand_of.node then
       local px, py, pz = chef.unit_position(u, hand_of.node)
       if px then
-        fx, fy, fz = cam.x + cam.fx * CONVERGE - px, cam.y + cam.fy * CONVERGE - py, cam.z + cam.fz * CONVERGE - pz
+        -- (2.2.5) the game aims a third-person shot at what the crosshair hits: the look point (12_ground reads it)
+        -- when it's on something, else the old CONVERGE metres along the camera's line
+        -- (2.2.7, luka: the point is read ten times a second and the line jumped with it, "like low fps": the
+        -- point sits on the view's ray, so only its distance is taken from it — eased over 0.1 s — and the aim
+        -- itself follows the camera every frame)
+        local look = N.look_point and N.look_point()
+        local now = chef.time()
+        local want = CONVERGE
+        if look then
+          local d = math.sqrt((look.x - cam.x) ^ 2 + (look.y - cam.y) ^ 2 + (look.z - cam.z) ^ 2)
+          if d > 2 then want = d end
+        end
+        local dt = math.min(0.1, now - (aim_d.at or now))
+        aim_d.at = now
+        if aim_d.d == nil or now - (aim_d.at0 or -100) > 0.5 then aim_d.d = want end
+        aim_d.d = aim_d.d + (want - aim_d.d) * math.min(1, dt / 0.1)
+        aim_d.at0 = now
+        local tx, ty, tz = cam.x + cam.fx * aim_d.d, cam.y + cam.fy * aim_d.d, cam.z + cam.fz * aim_d.d
+        fx, fy, fz = tx - px, ty - py, tz - pz
         local l = math.sqrt(fx * fx + fy * fy + fz * fz)
         if l > 1 then                             -- (the muzzle: a little on from the hand along the shot, a hand's
           -- width to the left as seen from the camera)
@@ -155,6 +203,7 @@ local function draw_drop(tid)
   local from = math.max(start_hand(BALLISTICS[tid]), drop_start(tid, len))
   local mark = cfg.landing_mark and N.ground_landing
   local marked, mst = false, {}
+  local mkx, mky, mkz = nil, nil, nil             -- (2.2.4 research: where the mark went)
   local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the shot hits one
   local sst = shit and {}
   for i = 1, #pts do
@@ -165,11 +214,11 @@ local function draw_drop(tid)
     -- whole line rather than a cut one); never within 20 m of you (7 m for the Ultimatum's lob)
     if shit and not marked and lx and lpath >= from then
       local hx, hy, hz = shit(lx, ly, lz, wx, wy, wz, sst, x0, y0)
-      if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, x0, y0) marked = true end
+      if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, x0, y0) marked = true mkx, mky, mkz = hx, hy, hz end
     end
     if mark and not marked and lx and lpath >= from then
       local gx, gy, gz, conf = mark(lx, ly, lz, wx, wy, wz, x0, y0, mst, from == 3 and 7 or 20)
-      if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, x0, y0) marked = true end
+      if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, x0, y0) marked = true mkx, mky, mkz = gx, gy, gz end
     end
     -- (2.1.2) the line begins at `from` exactly: the segment it falls in is cut there (the flight's points sit at
     -- different paths at different pitches, so a start at the next point wandered with the aim)
@@ -178,18 +227,22 @@ local function draw_drop(tid)
       lx, ly, lz, lpath = lx + (wx - lx) * t, ly + (wy - ly) * t, lz + (wz - lz) * t, from
     end
     if lx and lpath >= from then
+      -- (2.2.6: the strands across the view of this very segment, not the camera's horizontal: N.across)
+      local ax, ay, az = N.across(cam, lx, ly, lz, wx, wy, wz)
+      if not ax then ax, ay, az = crx, cry, 0 end
       for k = 1, lines do
         -- (each line a pixel or so beside the last, centred on the flight)
         local o = 0.0012 * (k - (lines + 1) / 2)
         local d1 = math.sqrt((lx - cx) ^ 2 + (ly - cy) ^ 2 + (lz - cz) ^ 2) * o
         local d2 = math.sqrt((wx - cx) ^ 2 + (wy - cy) ^ 2 + (wz - cz) ^ 2) * o
-        chef.line(lx + crx * d1, ly + cry * d1, lz, wx + crx * d2, wy + cry * d2, wz, c)
+        chef.line(lx + ax * d1, ly + ay * d1, lz + az * d1, wx + ax * d2, wy + ay * d2, wz + az * d2, c)
         n = n + 1
       end
     end
     lx, ly, lz, lpath = wx, wy, wz, p[3]
   end
   N.drop_lines = n
+  aim_points_research(cam, mkx, mky, mkz)
 end
 -- Chef's line object keeps showing the last lines dispatched until a frame draws some again, so a line that goes
 -- (the weapon swapped) stayed in the world (the 1.4.2 log): one line of nothing for a frame after takes it away

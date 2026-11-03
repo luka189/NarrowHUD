@@ -2,9 +2,9 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 2.2.0
+Version: 2.3.0
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v2.2.0.zip (archive the older main files and the R0 / R1 research builds)
+Main file: NarrowHUD-v2.3.0.zip (archive the older main files and the R0 / R1 research builds)
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.2.3 or newer"
 
 Summary (the short line under the title, at most 350 characters):
@@ -20,6 +20,15 @@ Description (paste into the BBCode editor):
 
 A small ammo and heat readout right by your crosshair, so you never have to look at the corner of the screen
 mid-fight.
+
+[size=4][b]NEW in 2.3[/b][/size]
+[list]
+[*][b]The weapon in your hand by its model:[/b] shown the moment you draw it, before any shot; two weapons on one hand pose (a pistol and a rifle on a controller) told apart without a key.
+[*][b]The landing mark on the game's own aim point:[/b] the ground wherever you have looked is known, the line aims where the crosshair really points, and ground you haven't looked at follows the slope.
+[*][b]Hide at a terminal[/b] (F9 > Visibility). The HUD hides at once, health and stamina with it in step.
+[*][b]Side Up / Down[/b] for a layout's parts: the horizontal layout moves down as a whole while you aim.
+[*]Your own Helldiver found by position (no more takeover by an ally behind you); lines keep their width; a kit's magazine size never shrinks; F9's on / off switch works at once on Chef 1.5.
+[/list]
 
 [size=4][b]NEW in 2.2[/b][/size]
 [list]
@@ -114,6 +123,25 @@ the game's own, drawn from its HUD sprites in play; none of the game's art is in
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
+
+Changelog for the Nexus "Changelogs" tab (2.3.0)
+------------------------------------------------
+- The weapon in your hand is found by its model at your hand: shown the moment you draw it, before any shot, and two
+  weapons on one hand pose (the Nova and the Breacher, a pistol and a rifle on a controller) are told apart without
+  a key press.
+- The drop line's landing mark uses the game's own aim point: the ground wherever you have looked is known, the
+  line aims where the crosshair really points, and a guess for ground you haven't looked at follows the slope.
+- Hide at a terminal (F9 > Visibility): the HUD, health and stamina step aside while you work one.
+- Layouts: a part's Side can be Up or Down, so the Spread and the Aim spread move it vertically — the horizontal
+  layout now moves down as a whole while you aim (its Spread moves it the same way; 0 for none).
+- The HUD hides at once (80 ms) for the stratagem key, an emote, the game's menu, the weapon wheel and a terminal,
+  and health and stamina go with it in step.
+- Your own Helldiver is found by position, not by the camera: an ally passing behind you no longer takes over your
+  hand pose or the drop line for a moment.
+- The Medium and Thick lines keep their width whichever way they run.
+- The magazine size remembered for a set of attachments never shrinks (a weapon with a chambered round starts a
+  mission with one fewer in the magazine).
+- Switching NarrowHUD off and on in Chef's F9 menu takes effect at once (Chef Shared Loader 1.5).
 
 Changelog for the Nexus "Changelogs" tab (2.2.0)
 ------------------------------------------------

@@ -44,7 +44,7 @@ local function cell_of(x, y, make)
   local c = gr.cells[k]
   if c == nil and make then
     if gr.n >= MAX_CELLS then gr.full = true return nil, k end
-    c = { fs = 0, fn = 0, us = nil, lo = nil }
+    c = { fs = 0, fn = 0, us = nil, lo = nil, lz = nil, ln = 0 }   -- (lz / ln: the lowest look point seen, 2.2.5)
     gr.cells[k] = c
     gr.n = gr.n + 1
   end
@@ -122,10 +122,14 @@ local function median(t)
   if n % 2 == 1 then return s[(n + 1) / 2] end
   return (s[n / 2] + s[n / 2 + 1]) / 2
 end
--- a cell's own height and how sure: 'feet', 'props', or nil
+-- a cell's own height and how sure: 'feet', 'look', 'props', or nil
+-- (2.2.5: 'look' — the lowest point the view has met in the cell (the game's own raycast, below), between feet and
+-- props: luka's crossbow run had our model a median 0.5 m under the look point, 90 % within 3–4 m, the look point on
+-- flat ground within 0.1 m of the feet)
 local function cell_height(c)
   if c == nil then return nil end
   if c.fn >= 2 then return c.fs / c.fn, 'feet' end
+  if c.ln >= 1 and c.lz then return c.lz, 'look' end
   if c.us and #c.us > 0 then return median(c.us), 'props' end
   return nil
 end
@@ -136,8 +140,10 @@ local function height_at(x, y)
   local h, conf = cell_height(c)
   if h then return h, conf end
   local cx, cy = math.floor(x / CELL), math.floor(y / CELL)
-  for _, reach in ipairs({ 1, 3 }) do
-    local wsum, zsum = 0, 0
+  -- the known cells round the point: the distance-weighted mean, and a least-squares plane through them
+  local function ring(reach)
+    local wsum, zsum, n = 0, 0, 0
+    local sx, sy, sz, sxx, syy, sxy, sxz, syz = 0, 0, 0, 0, 0, 0, 0, 0
     for i = -reach, reach do
       for j = -reach, reach do
         if i ~= 0 or j ~= 0 then
@@ -147,12 +153,57 @@ local function height_at(x, y)
             local mx, my = (cx + i + 0.5) * CELL, (cy + j + 0.5) * CELL
             local d = math.sqrt((mx - x) ^ 2 + (my - y) ^ 2)
             local w = 1 / (1 + d)
-            wsum, zsum = wsum + w, zsum + w * nh
+            wsum, zsum, n = wsum + w, zsum + w * nh, n + 1
+            local ux, uy = mx - x, my - y                  -- (the plane fit about the point itself)
+            sx, sy, sz = sx + ux, sy + uy, sz + nh
+            sxx, syy, sxy, sxz, syz = sxx + ux * ux, syy + uy * uy, sxy + ux * uy, sxz + ux * nh, syz + uy * nh
           end
         end
       end
     end
-    if wsum > 0 then return zsum / wsum, 'near' end
+    if n == 0 then return nil end
+    local plane = nil
+    if n >= 3 then
+      local mxx, myy, mxy = sxx - sx * sx / n, syy - sy * sy / n, sxy - sx * sy / n
+      local mxz, myz = sxz - sx * sz / n, syz - sy * sz / n
+      local det = mxx * myy - mxy * mxy
+      if det > 1e-6 then
+        local b, c = (mxz * myy - myz * mxy) / det, (myz * mxx - mxz * mxy) / det
+        plane = (sz - b * sx - c * sy) / n               -- (the plane's height at ux = uy = 0: the point)
+      elseif mxx + myy > 1e-6 then
+        -- (the cells in a line, as along a path walked: the slope along that line)
+        local ax, ay
+        if mxx >= myy then ax, ay = mxx, mxy else ax, ay = mxy, myy end
+        local al = math.sqrt(ax * ax + ay * ay)
+        ax, ay = ax / al, ay / al
+        local st = sx * ax + sy * ay
+        local stt = ax * ax * sxx + 2 * ax * ay * sxy + ay * ay * syy
+        local stz = ax * sxz + ay * syz
+        local vtt = stt - st * st / n
+        if vtt > 1e-6 then
+          local b = (stz - st * sz / n) / vtt
+          plane = (sz - b * st) / n
+        end
+      end
+    end
+    return zsum / wsum, n, plane
+  end
+  -- (2.2.8) the slope carried on, downhill only: the known cells round an unviewed one are where you walked and
+  -- looked — uphill of it on a slope falling away — so their mean sits too high and the mark floats (luka's 2.2.7
+  -- run: of the marks our model put over a metre above the look point, all but two were 'near' or 'props' guesses,
+  -- none a viewed cell). The plane through the known cells (the near ring when it has three, else the wide one),
+  -- evaluated at the point, is taken where it's lower than the mean, down to 20 m under it (uphill it overshoots,
+  -- HUDdle's finding too)
+  local h1, n1, p1 = ring(1)
+  local h, plane = h1, p1
+  if n1 == nil or n1 < 3 then
+    local h3, n3, p3 = ring(3)
+    if h == nil then h = h3 end
+    if plane == nil then plane = p3 end
+  end
+  if h then
+    if plane and plane < h then h = math.max(h - 20, plane) end
+    return h, 'near'
   end
   if c and c.lo then return c.lo, 'loose' end
   return nil
@@ -195,7 +246,7 @@ local function landing(x1, y1, z1, x2, y2, z2, px, py, st, from_m)
     if h1 and z1 - h1 > 0.3 then st.clear = true end
     if st.clear then
       local h2, conf = height_at(x2, y2)
-      if h2 and z2 < h2 and (conf == 'feet' or conf == 'props') then st.landed = true end
+      if h2 and z2 < h2 and (conf == 'feet' or conf == 'look' or conf == 'props') then st.landed = true end
     end
     return nil
   end
@@ -226,6 +277,50 @@ local function sample_feet(now)
   for u, l in pairs(gr.last) do if now - l.at > 5 then gr.last[u] = nil end end
 end
 
+-- (2.2.5) the look point: your Helldiver's af97ede7 (look_at_position: where the view's ray meets the world, ~1000 m
+-- out on the sky; Blast & Trajectory Markers' finding, docs/RESEARCH.md), ten times a second whenever you're in a
+-- mission, aiming or not. A cell keeps the lowest look point seen in it: the ground beside a rock rather than its
+-- top, the ground under a bug rather than its back; a point more than BUMP m over sure ground known round it
+-- (feet, look) isn't ground at all (a wall, a tree's side) and is left out. The sample is the last word for the cell
+-- unless feet have been there
+local LOOK_NAME = string.match(DATA.fieldnames or '', 'af97ede7 (%S+)')
+local BUMP = 2.5
+local lk = { at = -100, n = 0, out = 0, last = nil }
+N.look_stats = lk
+local function sample_look(now)
+  if not LOOK_NAME or now - lk.at < 0.1 then return end
+  local s, av = N.session_now, N.me.avatar
+  if not (s and av) then return end
+  lk.at = now
+  if not N.alive(s, av, N.TYPES[2]) then return end   -- (a read of a gone object can end the game)
+  local v = N.call('avatar.look', 'GameSession.game_object_field', s, av, LOOK_NAME)
+  local x, y, z = N.xyz(v)
+  if not (x and x == x and y == y and z == z) then lk.last = nil return end
+  local cam = chef.camera()
+  if cam and (x - cam.x) ^ 2 + (y - cam.y) ^ 2 + (z - cam.z) ^ 2 > 810000 then lk.last = nil return end   -- (the sky)
+  lk.last = { x = x, y = y, z = z, at = now }
+  local c = cell_of(x, y, true)
+  if not c then return end
+  -- (the bump rule: against the feet of this cell or the look points of the cells round it)
+  local ref = nil
+  if c.fn >= 2 then ref = c.fs / c.fn
+  elseif c.lz then ref = c.lz
+  else
+    local cx, cy = math.floor(x / CELL), math.floor(y / CELL)
+    for i = -1, 1 do for j = -1, 1 do
+      local nc = gr.cells[(cx + i + 50000) * 100000 + (cy + j + 50000)]
+      if nc and (nc.fn >= 2 or nc.lz) then
+        local h = nc.fn >= 2 and nc.fs / nc.fn or nc.lz
+        if ref == nil or h < ref then ref = h end
+      end
+    end end
+  end
+  if ref and z - ref > BUMP then lk.out = lk.out + 1 return end
+  if c.lz == nil or z < c.lz then c.lz = z end
+  c.ln = c.ln + 1
+  lk.n = lk.n + 1
+end
+N.look_point = function() local l = lk.last return (l and chef.time() - l.at < 0.5) and l or nil end
 ------------------------------------------------------------------------------------------ the walk
 local kind_cache = setmetatable({}, { __mode = 'k' })  -- unit handle -> kind id (false: unreadable)
 local wk = { units = nil, i = 0, counts = nil, started = nil, spent = 0, fails = 0, dead = false, at = -100,
@@ -342,6 +437,7 @@ end
 
 local function ground_update(now)
   sample_feet(now)
+  sample_look(now)
   if N.struct_update then N.struct_update(now) end
   -- (the walk in a fence: an error in it is logged once and ends the walk for the session, the feet grid and the
   -- HUD unharmed; Chef switches a mod off after 20 update errors)
@@ -351,13 +447,14 @@ local function ground_update(now)
   end
   if cfg.research and now - gr.said >= 60 then
     gr.said = now
-    log('research: ground grid: %d cells, %d feet samples, %d skipped%s', gr.n, gr.samples, gr.skipped, gr.full and ' (full)' or '')
+    log('research: ground grid: %d cells, %d feet samples, %d skipped, %d look points (%d left out as bumps)%s', gr.n, gr.samples, gr.skipped, lk.n, lk.out, gr.full and ' (full)' or '')
   end
 end
 N.ground_update = ground_update
 -- a new world: the grid starts over; the kinds' offsets stay (they're the map's assets, not the map)
 local function ground_reset()
   gr.cells, gr.n, gr.samples, gr.skipped, gr.last, gr.full, gr.walks, gr.counts = {}, 0, 0, 0, {}, false, 0, nil
+  lk.n, lk.out, lk.last = 0, 0, nil
   for _, st in pairs(gr.kinds) do st.seen = {} end
   wk.units, wk.counts, wk.stats, wk.at = nil, nil, nil, -100
   kind_cache = setmetatable({}, { __mode = 'k' })
@@ -372,7 +469,7 @@ N.ground_reset = ground_reset
 local ARROW_W, ARROW_H = 1.0, 1.6              -- the arrow over the mark: metres wide and tall
 local function draw_mark(x, y, z, conf, color, px, py)
   if not chef.line then return end
-  local a = (conf == 'feet' or conf == 'props') and 200 or 90
+  local a = (conf == 'feet' or conf == 'look' or conf == 'props') and 200 or 90
   local c = N.wcol(color or N.CREAM, a)            -- (2.0.17: the world's tone curve)
   local k = cfg.mark_size or 1                     -- (2.0.20) Mark size, m: the whole mark scaled; 1 = the 2.0.16 size
   local r = 0.6 * k

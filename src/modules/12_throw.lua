@@ -277,11 +277,13 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
       local gx, gy, gz, conf = mark(x, y, z, nx, ny, nz, ox, oy, mst, 7)
       if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, ox, oy) marked = true end
     end
+    local ax, ay, az = N.across(cam, x, y, z, nx, ny, nz)   -- (2.2.6: across the view of this segment)
+    if not ax then ax, ay, az = crx, cry, 0 end
     for k = 1, lines do
       local o = 0.0012 * (k - (lines + 1) / 2)
       local d1 = math.sqrt((x - cam.x) ^ 2 + (y - cam.y) ^ 2 + (z - cam.z) ^ 2) * o
       local d2 = math.sqrt((nx - cam.x) ^ 2 + (ny - cam.y) ^ 2 + (nz - cam.z) ^ 2) * o
-      chef.line(x + crx * d1, y + cry * d1, z, nx + crx * d2, ny + cry * d2, nz, c)
+      chef.line(x + ax * d1, y + ay * d1, z + az * d1, nx + ax * d2, ny + ay * d2, nz + az * d2, c)
       n = n + 1
     end
     x, y, z, t = nx, ny, nz, t + STEP

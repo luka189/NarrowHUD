@@ -43,7 +43,7 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
   pack's fuel and the shield backpack's strength (orange when low, red when broken).
 - **Health and stamina** bars: always (the default), or only while they aren't full.
 - A **stim timer**, **reload progress**, low-health **warnings**, and the HUD **out of the way** while you call in a
-  stratagem, emote or open the weapon settings wheel.
+  stratagem, emote, open the weapon settings wheel or work a terminal.
 - **Your map pin** and **where you last died** on the screen, where they are in the world, with their distance; an
   arrow at the screen's edge when one is out of view.
 - A **drop line** for grenade launchers, rockets and plasma: the shot's flight, bending down, hidden where it enters
@@ -51,8 +51,9 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
   has fallen a set distance below a straight aim (10 cm by default), so a flat-shooting gun's line begins far out.
 - A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
 - A **landing mark** where a drop or throw line lands: a ring and an arrow on the ground, from the map's own heights
-  (the rocks, trees and props, calibrated by where Helldivers walk, remembered per planet); faint where the ground
-  is a guess. It turns **red** where the shot would hit a bug hole, a fabricator, a warp ship or an Illuminate tower.
+  (the rocks, trees and props, calibrated by where Helldivers walk, and wherever you have looked, remembered per
+  planet); faint where the ground is a guess. It turns **red** where the shot would hit a bug hole, a fabricator, a
+  warp ship or an Illuminate tower.
 
 Four built-in layouts: the **horizontal** stack (the bars under the crosshair), the **arcs** (centred on the
 crosshair, the meters and the backpack inside), the **vertical pair** (the ammo bar standing right of the crosshair,
@@ -64,13 +65,14 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 - Layout: four built-in ones (the horizontal stack, the arcs, the vertical pair, the block) or Custom: every part
   placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
   size; one sideways and one up / down offset that moves any of them; Spread (the two sides of the crosshair closer
-  or farther apart) and how it changes while you aim; opacity; motion (parts sliding, bars easing and one-shot
+  or farther apart; the horizontal layout up or down as a whole) and how it changes while you aim; opacity; motion (parts sliding, bars easing and one-shot
   pulses: off, quick or normal).
 - Visibility: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon
   and fire modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina):
   off, always, while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming;
   a part held back hidden or dimmed; the opacity while aiming; dimming or hiding when nothing has changed for a
-  while; hiding while the weapon settings wheel is open; a stim timer, warning pulses, a reload line.
+  while; hiding while the weapon settings wheel is open or a terminal is worked; a stim timer, warning pulses, a
+  reload line.
 - Look: the empty magazine squares shown or hidden; bar edges (none, an outline or the game's brackets) and the
   shade behind the bars; the count's digits fixed (it never slides as it falls) or tight; the modes in their own
   colours; colours standard or colourblind (white, sky blue, yellow,

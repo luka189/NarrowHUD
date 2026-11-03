@@ -1,4 +1,4 @@
-# Ideas (2026-10-29)
+# Ideas (2026-10-29; status added 2026-11-02 — what's still open lives in docs/ROADMAP.md)
 
 Where NarrowHUD wants to sit: customizability, reliability and polish — a HUD you make your own and then forget
 about — not the race to be the next HUD Plus (external helpers, screen reading, every feature). What we have: the
@@ -20,7 +20,7 @@ restraint everywhere — ease, don't animate; a thing moves once, with a reason 
   - Needs the presets-vs-offsets rework first: a layout has to be a group of parts with relations, so a part can
     be moved between two places and keep what's pinned to it.
 
-## 2. The game's typography
+## 2. The game's typography — the brackets done 1.5.53, the game's icons in since 1.5.18; the ticks' shape and the backpack bar's ends not done (nobody asked)
 
 - **Square brackets around a gauge** — `[ ]` at the ends of a bar, the way the game draws its own health and
   stamina — as a third style next to the outline and the translucent background we have. Per gauge in the editor,
@@ -28,7 +28,7 @@ restraint everywhere — ease, don't animate; a thing moves once, with a reason 
 - The rest of that direction: magazine ticks shaped like the game's, the backpack bar's ends, the game's own
   icons wherever they exist (the mode sprites are in; the stim and grenade are our own, drawn to match).
 
-## Also from the same brainstorm (lower)
+## Also from the same brainstorm (lower) — the palette and per-part colours, the gallery / import, the health row, the first-run card and dim-when-calm are on the roadmap's open points and ideas; the rest as written
 
 - Presets as a gallery of thumbnails rendered from their own files; share a layout as a short string pasted in a
   comment, "Import" in the editor; community layouts in the gallery with credit.

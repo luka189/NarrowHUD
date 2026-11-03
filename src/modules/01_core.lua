@@ -128,6 +128,14 @@ do
 end
 
 
+-- the three numbers of an engine vector (Vector3.to_elements; from its text when that call isn't given)
+function N.xyz(v)
+  if v == nil then return nil end
+  local x, y, z = call('xyz', 'Vector3.to_elements', v)
+  if type(x) == 'number' and type(y) == 'number' and type(z) == 'number' then return x, y, z end
+  local a, b, c = string.match(tostring(v), '%(%s*([-%d%.e]+)%s*,%s*([-%d%.e]+)%s*,%s*([-%d%.e]+)')
+  return tonumber(a), tonumber(b), tonumber(c)
+end
 N.ROLE, N.TYPES, N.HANDHELD, N.AVATAR_RESOURCE, N.GRIP_VARIABLE, N.NO_OBJECT = ROLE, TYPES, HANDHELD, AVATAR_RESOURCE, GRIP_VARIABLE, NO_OBJECT
 N.NOHAND = NOHAND
 -- Chef 1.4.0 or newer (its players event is the mark): chef.bitmap no longer strobes beside other mods' bitmaps and

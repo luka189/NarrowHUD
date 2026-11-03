@@ -91,6 +91,7 @@ def source():
     ball = (ROOT / 'src' / 'ballistics_generated.lua').read_text(encoding='utf-8')
     tex = (ROOT / 'src' / 'textures_generated.lua').read_text(encoding='utf-8')
     unames = (ROOT / 'src' / 'unit_names_generated.lua').read_text(encoding='utf-8')
+    wunits = (ROOT / 'src' / 'weapon_units_generated.lua').read_text(encoding='utf-8')
     gseed = (ROOT / 'src' / 'ground_seed.lua').read_text(encoding='utf-8')
     # the modules (src/modules/NN_name.lua, in order), each in a function of its own (each gets Lua's 200 locals),
     # sharing through N; the head (src/narrowhud.lua) first, return M last
@@ -100,6 +101,7 @@ def source():
     return (f'{head}\nlocal DATA = (function()\n{data}\nend)()\nlocal SEED = (function()\n{seed}\nend)()\n'
             f'local BALLISTICS = (function()\n{ball}\nend)()\nlocal TEXTURES = (function()\n{tex}\nend)()\n'
             f'local UNIT_NAMES = (function()\n{unames}\nend)()\n'
+            f'local WEAPON_UNITS = (function()\n{wunits}\nend)()\n'
             f'SEED.ground = (function()\n{gseed}\nend)()\n'
             f'{rest}local N = {{}}\n{body}return M\n')
 

@@ -46,9 +46,10 @@ def setup(rt, game_font=True, chef11=False, seeded=False):
     g = rt.globals()
     g.ROLE = rt.table_from(R)
     g.DATA_ROLES = rt.table_from(dict(re.findall(r'(\w+) = \{ letter = "\w", id = "(\w+)", name = "[^"]+" \}', DATA)))
-    unk2 = [n for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
+    unk2_id, unk2 = [(t, n) for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
             if n != unknown_name and t not in ('8fcdd35c', '17783758', '30294946', 'a4eff4fa', '56e55184', 'f94a73b3', '17b02218')
             and 'r' in roles and 'm' in roles and 'k' not in roles and 'n' in roles and 'h' not in roles][0]
+    g.UNK2_ID = unk2_id
     ub2 = [(t, n) for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
            if n not in (unknown_name, unk2) and 'r' in roles and 'k' in roles and 'h' not in roles
            and t not in ('8fcdd35c', '17783758', '30294946', 'a4eff4fa', '56e55184', 'f94a73b3', '17b02218')][3]
@@ -155,6 +156,8 @@ chef = {
   load_table = function(n) if n == 'layout' then if LAYOUT_ERR then return nil, LAYOUT_ERR end if LAYOUT == nil then return nil, 'none saved' end return LAYOUT end return saved end,
   save_table = function(n, t) if n == 'layout' then LAYOUT = t else saved = t end end,
   watch = function(kinds)
+    -- (2.2.2) the weapon models' watch (05_model): MODELS = { { unit = 'W1', kind = '<unit kind>' }, ... }, their positions in WPOS
+    if kinds and kinds['1a437158e1b8d2a1'] then return setmetatable({}, { __index = function(t, k) if k == 'items' then return MODELS or {} end end }) end
     if kinds and kinds['16f397ca5f51f271'] then return setmetatable({}, { __index = function(t, k) if k == 'items' then local l = {} if BALL then l[#l + 1] = { unit = 'B' } end if GREN then l[#l + 1] = { unit = 'G' } end return l end end }) end
     return setmetatable({}, { __index = function(t, k) if k == 'items' then return (MATES and MATES.items) or { { unit = 'U', x = 0, y = 0, z = 0 } } end end })
   end,
@@ -970,6 +973,13 @@ def main():
     ka, kb = rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+a2a2a2a2a2a2a2a2")'), rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")')
     check('kit A holds 15, kit B 10, the type\'s most 15 (%s %s %s)' % (ka, kb, rk.eval('M.debug_learned("mag", "c7dfd9eb")')),
           ka == 15 and kb == 10 and rk.eval('M.debug_learned("mag", "c7dfd9eb")') == 15)
+    # (2.2.6) a kit's size never shrinks: kit B out again at a mission's start with 9 in the magazine (one chambered)
+    # keeps 10 (a tester's Crossbow flapped 4 / 5 every mission)
+    rk.execute('''OBJ[41] = nil run(1) WORLD = 8
+      OBJ[47] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[47].fields[ROLE.rounds] = 9
+      OBJ[47].fields[ROLE.magazines] = 6 OBJ[47].fields[ROLE.chamber] = false OBJ[47].fields[ROLE.carry] = 0 run(3) OBJ[47] = nil run(1)''')
+    check('kit B at a start with 9 + 1 chambered: still 10 (%s)' % rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")'),
+          rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")') == 10)
     # the next mission, 40 s in (no "full at the start"): kit B half fired shows over 10, an unknown kit over the type's 15
     rk.execute('''OBJ[41] = nil run(1) WORLD = 4 GRIP = 10 run(40)
       OBJ[42] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[42].fields[ROLE.rounds] = 6
@@ -997,6 +1007,92 @@ def main():
     th = rk.eval('M.debug_top()')[0]
     check('the Scythe\'s kit H back out after a 150 kit: its overheat point 60 from the start, the type\'s last 150 (%s, %s)' % (th, rk.eval('M.debug_learned("heat", "42a6b5ba")')),
           th == 60 and rk.eval('M.debug_learned("heat", "42a6b5ba")') == 150)
+
+    # (2.2.1) Chef 1.5's on_stop: the learned file saved when the loader stops the mod (a switch-off in F9)
+    rs = lua51.LuaRuntime()
+    setup(rs)
+    rs.execute('''OBJ[36] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1' } } } OBJ[36].fields[ROLE.rounds] = 10
+      OBJ[36].fields[ROLE.magazines] = 6 OBJ[36].fields[ROLE.chamber] = true OBJ[36].fields[ROLE.carry] = 0 GRIP = 36 run(2)
+      OBJ[36].fields[ROLE.rounds] = 9 run(1) saved = nil M.on_stop()''')
+    check('on_stop saves the learned file (%s)' % (rs.eval('saved ~= nil'),), rs.eval('type(M.on_stop)') == 'function' and rs.eval('saved ~= nil') is True)
+
+    # (2.2.2) the weapon model at the hand (05_model, src/weapon_units_generated.lua): a Verdict (magnum_pistol
+    # 1a437158e1b8d2a1) and a Stalwart (lmg_stalwart a6a735accb4a327f) on you, neither pose learned: the Verdict's model
+    # 0.1 m from the hand node for 0.2 s shows the Verdict before any shot; moved a metre off, nothing; two Verdict
+    # objects (yours and a soldier's): nothing (the model says the type, not whose)
+    rm = lua51.LuaRuntime()
+    setup(rm)
+    rm.execute('''OBJ[3] = nil WPOS = { U = { 10, 20, 1 } }
+      OBJ[70] = { name = NAMES.verdict, fields = {} } OBJ[70].fields[ROLE.rounds] = 10 OBJ[70].fields[ROLE.magazines] = 6 OBJ[70].fields[ROLE.chamber] = true OBJ[70].fields[ROLE.carry] = 0
+      OBJ[71] = { name = NAMES.stalwart, fields = {} } OBJ[71].fields[ROLE.rounds] = 250 OBJ[71].fields[ROLE.magazines] = 2 OBJ[71].fields[ROLE.carry] = 0
+      GRIP = 77 run(2)''')
+    t0 = rm.eval('texts()')
+    rm.execute('''MODELS = { { unit = 'W1', kind = '1a437158e1b8d2a1' } } WPOS.W1 = { 10.05, 20.05, 1.05 } run(1)''')
+    t1 = rm.eval('texts()')
+    rm.execute('''WPOS.W1 = { 11, 20, 1 } run(2.5)''')   # (a shown weapon stays 2 s after its pick goes)
+    t2 = rm.eval('texts()')
+    rm.execute('''WPOS.W1 = { 10.05, 20.05, 1.05 } OBJ[72] = { name = NAMES.verdict, fields = {} } OBJ[72].fields[ROLE.rounds] = 3 OBJ[72].fields[ROLE.magazines] = 1 OBJ[72].fields[ROLE.chamber] = true OBJ[72].fields[ROLE.carry] = 0 run(7)''')   # (the new object is sorted first, then the 2 s hold)
+    t3 = rm.eval('texts()')
+    check('model at hand: nothing on an unlearned pose (%s); the Verdict\'s model at the hand shows it before a shot (%s); a metre off: nothing (%s); two Verdicts: nothing (%s)' % (t0, t1, t2, t3),
+          not t0.startswith('10 |') and t1.startswith('10 | x6') and not t2.startswith('10 |') and not t3.startswith('10 |') and not t3.startswith('3 |'))
+    # two of your weapons of different types on one pose (the shield's 30: the Verdict and unk2, both seeded there):
+    # without a model the last fired; the model at the hand picks the other; the Verdict's model, the Verdict again
+    unk2_kind = re.search(r"\['%s'\] = '([0-9a-f]{16})'" % rm.eval('UNK2_ID'), (Path(__file__).resolve().parent.parent / 'src' / 'weapon_units_generated.lua').read_text()).group(1)
+    rm.execute('''OBJ[72] = nil OBJ[71] = nil MODELS = {} run(0.5)
+      OBJ[73] = { name = NAMES.unk2, fields = {} } OBJ[73].fields[ROLE.rounds] = 20 OBJ[73].fields[ROLE.magazines] = 2 OBJ[73].fields[ROLE.chamber] = true OBJ[73].fields[ROLE.carry] = 0
+      GRIP = 30 run(3) OBJ[70].fields[ROLE.rounds] = 9 run(1.2) OBJ[73].fields[ROLE.rounds] = 19 run(1)''')
+    ta = rm.eval('texts()')
+    rm.execute('''MODELS = { { unit = 'W1', kind = '1a437158e1b8d2a1' } } WPOS.W1 = { 10.05, 20.05, 1.05 } run(1)''')
+    tb = rm.eval('texts()')
+    rm.execute('''MODELS = { { unit = 'W2', kind = '%s' } } WPOS.W2 = { 10.05, 20.05, 1.05 } run(1)''' % unk2_kind)
+    tc = rm.eval('texts()')
+    check('two types on one pose: the last fired (%s); the Verdict\'s model at the hand: the Verdict (%s); the other\'s: the other (%s)' % (ta, tb, tc),
+          ta.startswith('19 |') and tb.startswith('9 |') and tc.startswith('19 |'))
+
+    # (2.2.3) your own Helldiver unit: the one at your avatar's position, not the camera's nearest (an ally passing
+    # behind you was taken for you: his hand pose, his weapons' models, a drop line from his hand). Two Helldiver units
+    # U (0,0,0) and V (5,0,0), the camera at (0,0,1): without a position the camera's nearest U; your position (5,0,0):
+    # V; a position far from both (20,0,0): the camera's U again
+    ru = lua51.LuaRuntime()
+    setup(ru)
+    ru.execute('''MATES = { items = { { unit = 'U', x = 0, y = 0, z = 0 }, { unit = 'V', x = 5, y = 0, z = 0 } } } WPOS = { U = { 0, 0, 0 }, V = { 5, 0, 0 } } run(1)''')
+    u0 = ru.eval('M.debug_my_unit()')
+    ru.execute('OBJ[2].fields.position = { 5, 0.2, 0 } run(0.5)')
+    u1 = ru.eval('M.debug_my_unit()')
+    ru.execute('OBJ[2].fields.position = { 20, 0, 0 } run(0.5)')
+    u2 = ru.eval('M.debug_my_unit()')
+    ul = [l for l in ru.eval('logs').values() if 'your Helldiver unit changed' in l]
+    check('your Helldiver unit: the camera\'s nearest without a position (%s), the one at your position (%s), kept when none is near it (2.3.0: the hellpod\'s 900 up) (%s); logged %s' % (u0, u1, u2, ul),
+          u0 == 'U' and u1 == 'V' and u2 == 'V' and len(ul) == 1)
+    # (2.2.3) a terminal worked: the avatar's terminal_interact (eef04e89 = rvanyac) holds its object; the HUD and the
+    # vitals hidden while it does, its own F9 row
+    ru.execute('''MATES = nil OBJ[2].fields.position = nil run(1) OBJ[2].fields.rvanyac = 2551 run(0.5)''')
+    k1, kr = ru.eval('texts()'), ru.eval('count("rect")')
+    ru.execute('OBJ[2].fields.rvanyac = 32767 run(0.5)')
+    k2 = ru.eval('texts()')
+    ru.execute('CHANGE.hide_terminal(false) OBJ[2].fields.rvanyac = 2551 run(0.5)')
+    k3 = ru.eval('texts()')
+    ru.execute('CHANGE.hide_terminal(true) OBJ[2].fields.rvanyac = nil run(0.5)')
+    check('hidden at a terminal [%s, %d rects], back after [%s], not with its row off [%s]' % (k1, kr, k2, k3), k1 == '' and kr == 0 and k2.startswith('45') and k3.startswith('45'))
+
+    # (2.2.9) side up / down: the horizontal layout's free parts are on the 'down' side, so F9's Spread moves the
+    # whole stack down (bar, health, the pinned parts with them); the vertical pair's bar (right) still moves right
+    rs2 = lua51.LuaRuntime()
+    setup(rs2)
+    rs2.execute('OPTS.health = 2 OPTS.stamina = 2 M = (function(...) ' + SRC + ''' end)(chef) CHANGE.layout(1) run(3)''')
+    def box(r, id):
+        b = r.eval('M.debug_boxes()')[id]
+        p, sz = b.split(' ')[0], b.split(' ')[1]
+        return tuple(int(v) for v in p.split(',')) + tuple(int(v) for v in sz.split('x'))
+    b0, h0, c0 = box(rs2, 'bar'), box(rs2, 'health'), box(rs2, 'count')
+    rs2.execute('CHANGE.spread(5) run(0.5)')
+    b1, h1, c1 = box(rs2, 'bar'), box(rs2, 'health'), box(rs2, 'count')
+    rs2.execute('CHANGE.spread(0) CHANGE.layout(3) run(0.5)')
+    v0 = box(rs2, 'bar')
+    rs2.execute('CHANGE.spread(5) run(0.5)')
+    v1 = box(rs2, 'bar')
+    check('horizontal layout, Spread 5 %%: the bar, the health bar and the pinned count all 72 px down (%s > %s, %s > %s, %s > %s); the vertical pair\'s bar 72 px right (%s > %s)' % (b0[:2], b1[:2], h0[:2], h1[:2], c0[:2], c1[:2], v0[:2], v1[:2]),
+          b1[1] == b0[1] - 72 and b1[0] == b0[0] and h1[1] == h0[1] - 72 and c1[1] == c0[1] - 72 and v1[0] == v0[0] + 72 and v1[1] == v0[1])
 
     # (2.1.13) the count's digits fixed: its box as wide as the number gets (the full magazine), the digits right-aligned
     # in it — 9 of 45 takes the same box as 45, drawn at its right; tight: the number's own width
@@ -1460,6 +1556,39 @@ def main():
     zs = [l[4] for l in ls if l[7] == 236 and l[10] == 170]
     check('GL-21 in hand: a drop line of %d segments, from z %.1f down to %.1f' % (len(zs), zs[0] if zs else 0, zs[-1] if zs else 0),
           len(zs) >= 15 and 0.3 < zs[0] < 0.7 and max(zs) < 1.5 and zs[-1] < -10 and all(zs[i] >= zs[i + 1] for i in range(5, len(zs) - 1)))
+    # (2.2.4 research) the game's aim points beside the line: the look point (af97ede7 = fjpn_od) and the crosshair's
+    # point (bdc1cb8a = npqf7xc) read from the avatar every half second, against our ground and the mark
+    r.execute('OBJ[2].fields.fjpn_od = { 40, 60, -2 } OBJ[2].fields.npqf7xc = { 41, 61, -2.5 } run(1.2)')
+    al = [l for l in r.eval('logs').values() if l.startswith('research: aim points:')]
+    check('aim points logged while the line is drawn: %s' % al[-1:], len(al) >= 2 and 'look 72.' in al[-1] and 'crosshair point 73.' in al[-1] and '(1.5 m from the look point)' in al[-1])
+    # (2.2.5) the line converges on the look point while there is one (2.2.7: its distance along the view, eased,
+    # the aim itself the camera's every frame): the view level from z 1, the look point 20 m out on it, the hand
+    # at z 1.7: the first part heads down to it more steeply than to the old 100 m point; the point gone (the sky,
+    # or not read), the old 100 m
+    r.execute('OBJ[2].fields.fjpn_od = { 0, 20, 1 } run(0.6)')
+    lk = [l[4] for l in r.eval('lines()').values() if l[7] == 236 and l[10] == 170]
+    r.execute('OBJ[2].fields.fjpn_od = nil OBJ[2].fields.npqf7xc = nil run(1)')
+    ls = list(r.eval('lines()').values())
+    zs2 = [l[4] for l in ls if l[7] == 236 and l[10] == 170]
+    check('the line aimed at the look point 20 m out at eye level, from a hand 0.6 m lower: climbs more steeply than toward the 100 m point (z at the 5th segment %.2f against %.2f without it)' % (lk[5], zs2[5]), lk[5] > zs2[5] + 0.1 and abs(zs2[5] - zs[5]) < 0.15)
+    # (2.2.5) the look point as ground: the cell keeps the lowest point seen; one 7 m over it is a wall, left out
+    r.execute('OBJ[2].fields.fjpn_od = { 40, 60, -2 } run(0.3)')
+    g1 = r.eval('(function() local n, s, k, h, c = M.debug_ground(40, 60) return tostring(h) .. " " .. tostring(c) end)()')
+    r.execute('OBJ[2].fields.fjpn_od = { 40.5, 60.5, 5 } run(0.3)')
+    g2 = r.eval('(function() local n, s, k, h, c = M.debug_ground(40, 60) return tostring(h) .. " " .. tostring(c) end)()')
+    r.execute('OBJ[2].fields.fjpn_od = { 40.5, 60.5, -3 } run(0.3) OBJ[2].fields.fjpn_od = nil run(0.2)')
+    g3 = r.eval('(function() local n, s, k, h, c = M.debug_ground(40, 60) return tostring(h) .. " " .. tostring(c) end)()')
+    check('the look point as ground: -2 look (%s); a point 7 m over it left out (%s); a lower one taken (%s)' % (g1, g2, g3), g1 == '-2 look' and g2 == '-2 look' and g3 == '-3 look')
+    # (2.2.8) an unviewed cell on a slope falling away: three viewed cells uphill of it (centres x 102.5, 107.5, 112.5
+    # at z 10, 8, 6, y 102) give the cell at x 117 the plane's 4.2, not their weighted mean ~7.2; the cell at x 97,
+    # uphill, keeps the mean 10 (the slope is carried downhill only)
+    r.execute('''for _, p in ipairs({ { 102, 102, 10 }, { 107, 102, 8 }, { 112, 102, 6 } }) do OBJ[2].fields.fjpn_od = p run(0.15) end
+      OBJ[2].fields.fjpn_od = nil run(0.2)''')
+    gd = r.eval('(function() local n, s, k, h, c = M.debug_ground(117, 102) return string.format("%.1f %s", h, tostring(c)) end)()')
+    gu = r.eval('(function() local n, s, k, h, c = M.debug_ground(97, 102) return string.format("%.1f %s", h, tostring(c)) end)()')
+    check('the slope carried downhill into an unviewed cell: %s (the mean would be about 7.2); uphill the mean stays: %s' % (gd, gu), gd == '4.2 near' and gu == '10.0 near')
+    r.execute('run(0.3)')
+    ls = list(r.eval('lines()').values())
     n1 = len(ls)
     r.execute('CHANGE.drop_thick(2) run(0.2)')
     n2 = len(r.eval('lines()'))
@@ -1502,12 +1631,17 @@ def main():
     # lines dispatched otherwise), then none
     r.execute('''OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
       f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51, ["521229d8"] = 10 } } M = (function(...) ''' + SRC + ''' end)(chef)
-      GRIP = 51 run(2) GRIP = 10 run(1 / 60) run(1 / 60)''')
-    ls = list(r.eval('lines()').values())
-    clear = [l for l in ls if l[10] == 0 and l[2] == l[5] and l[3] == l[6]]
+      GRIP = 51 run(2) GRIP = 10
+      CLEAR_SEEN = 0
+      for i = 1, 20 do
+        run(1 / 60)
+        for _, d in ipairs(draws) do if d[1] == 'line' and d[10] == 0 and d[2] == d[5] and d[3] == d[6] then CLEAR_SEEN = CLEAR_SEEN + 1 end end
+        if CLEAR_SEEN > 0 then break end
+      end''')
+    clear = [1] * r.eval('CLEAR_SEEN')   # (2.2.7: looked for over the frames after the swap, not in the second one alone)
     r.execute('run(0.6)')
     check('swapped to the Stalwart: a line of nothing takes the old one away (%d, alpha 0), none later (%d)' % (len(clear), len(r.eval('lines()'))),
-          len(ls) == 1 and len(clear) == 1 and len(r.eval('lines()')) == 0)
+          len(clear) == 1 and len(r.eval('lines()')) == 0)
     # the flight itself: without drag the drop is g t^2 / 2 (an Eruptor-like round at 180 m/s, gravity x0.3: 1.0 m at 150 m)
     pts = r.eval('M.debug_fly({ d = 15, m = 100, v = 180, drag = 0, g = 0.3 }, 0, 150)')
     last = pts[len(pts)]
@@ -2875,6 +3009,22 @@ def main():
           '45' not in rt15.eval('texts()') and len(rt15.eval('draws')) == 0)
     rt15.execute('CURSOR = false run(1)')
     check('the menu closed: back [%s]' % rt15.eval('texts()'), '45' in rt15.eval('texts()'))
+    # (2.2.9) the hide is quick (80 ms) and the vitals fade with the HUD, from the same frame: 2 frames after the menu
+    # is seen both are still drawn at a lower alpha; 0.2 s later both are gone (the cursor is polled every 0.25 s)
+    rt15.execute('''OPTS.health = 2 OPTS.stamina = 2 M = (function(...) ''' + SRC + ''' end)(chef) run(3) CURSOR = true
+      FADE = {}
+      for i = 1, 40 do
+        run(1 / 60)
+        local h, v = M.debug_hide()
+        if h < 1 or v < 1 then FADE[#FADE + 1] = { h, v, #draws } end
+        if h == 0 and v == 0 then break end
+      end''')
+    fade = [tuple(dict(f).values()) for f in dict(rt15.eval('FADE')).values()]
+    rt15.execute('run(0.2)')
+    gone = len(rt15.eval('draws'))
+    rt15.execute('CURSOR = false run(0.5)')
+    check('the menu seen: the HUD and the vitals fade together over about 5 frames, the same factor each frame (%s), both gone after (%d draws)' % (fade, gone),
+          3 <= len(fade) <= 8 and all(abs(h - v) < 1e-6 for h, v, _ in fade) and fade[0][2] > 0 and gone == 0)
     # (7.2.1, the build before: its engine string is still in BUILDS but its Steam build isn't the data's: the
     # version check runs, and with no field moved it keeps every type)
     rt15b = lua51.LuaRuntime()

@@ -403,6 +403,7 @@ function M.update(dt)
   local s = call('session', 'Network.game_session')
   local peer = call('peer', 'Network.peer_id')
   if s == nil or peer == nil then shown_now, items_now = nil, nil return end
+  N.session_now = s                                -- (2.2.4: the drawing modules' research reads)
   -- A new world (each mission, the ship) starts its object ids over: an id of ours can be one that was something else
   -- last mission, and its old type was kept (an id found to be nothing of ours was never looked at again: our weapons
   -- went unseen for whole missions). Everything about objects is forgotten on a new world.
@@ -708,13 +709,19 @@ function M.update(dt)
     vit.show_h = (cfg.health or 1) == 1 and 0 or (N.part_alpha.health or 1)
     vit.show_s = (cfg.stamina or 1) == 1 and 0 or (N.part_alpha.stamina or 1)
   end
-  -- (the stratagem input, an emote: hidden over a quarter second, back at once)
+  -- (the stratagem input, an emote: hidden over 80 ms (2.2.9; a quarter second before), back at once)
   local st8 = N.state8
   local hide = st8.strat or (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)
     or (cfg.hide_wheel and st8.wheel == 1)   -- (2.1.1: the weapon settings wheel)
-  hand.hidef = hide and math.max(0, (hand.hidef or 1) - (dt or 0.016) * 4) or 1
+    or (cfg.hide_terminal and N.at_terminal())   -- (2.2.3: a terminal worked)
+  -- (2.2.9, luka: the hide "instant or very quick", and the HUD and the vitals together — the HUD faded over a
+  -- quarter second while the vitals cut at once: 80 ms for both now, the same curve, from the same frame)
+  local HIDE_FADE = 0.08
+  hand.hidef = hide and math.max(0, (hand.hidef or 1) - (dt or 0.016) / HIDE_FADE) or 1
   local vhide = (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)   -- (1.5.72: the game's menu hides the vitals too)
     or (cfg.hide_wheel and st8.wheel == 1)   -- (2.1.2, luka: the wheel hides them too, unlike the stratagem key)
+    or (cfg.hide_terminal and N.at_terminal())
+  hand.vhidef = vhide and math.max(0, (hand.vhidef or 1) - (dt or 0.016) / HIDE_FADE) or 1
   N.alpha_k = cfg.opacity * hand.fade * hand.hidef * N.swap_k() * aim_alpha
   if RESEARCH_BUILD == 'R1' then N.drop_lines = 0 end   -- (reads everything, draws nothing)
   if RESEARCH_BUILD ~= 'R1' and (shown_now or (items_now and hand.grip and hand.grip ~= 0)) and hand.fade > 0.01 and hand.hidef > 0.01 then
@@ -732,8 +739,8 @@ function M.update(dt)
     draw(dd, items_now)
   end
   -- (health and stamina: dimmed or hidden with the rest when nothing changes, never while you're hurt or out of breath)
-  if RESEARCH_BUILD ~= 'R1' and vit and (vit.show_h > 0 or vit.show_s > 0 or vit.stim) and not vhide then
-    N.alpha_k = cfg.opacity * ((vit.busy or vit.stim) and 1 or (hand.fade or 1)) * aim_alpha
+  if RESEARCH_BUILD ~= 'R1' and vit and (vit.show_h > 0 or vit.show_s > 0 or vit.stim) and hand.vhidef > 0.01 then
+    N.alpha_k = cfg.opacity * ((vit.busy or vit.stim) and 1 or (hand.fade or 1)) * aim_alpha * hand.vhidef
     N.draw_vitals(vit)
   end
   -- (1.3.0) your map pin and your last death, on the screen where they are; hidden with the stratagem input
@@ -803,8 +810,18 @@ function M.debug_aim() return N.last_aim end   -- (tests: the last throw line dr
 function M.debug_ground(x, y) local g = N.ground local h, conf if N.ground_height then h, conf = N.ground_height(x, y) end return g and g.n, g and g.samples, g and g.skipped, h, conf end   -- (tests, 2.0.4 / 2.0.13)
 function M.debug_ground_kind(k) return N.ground_kind_offset and N.ground_kind_offset(k) end   -- (tests, 2.0.13: a kind's trusted offset)
 function M.debug_learned(kind, id) return learned[kind] and learned[kind][id] end   -- (tests: what's learned or seeded)
+function M.debug_my_unit() return N.my_unit and N.my_unit(call('session', 'Network.game_session')) end   -- (tests)
+function M.debug_hide() return hand.hidef, hand.vhidef end   -- (tests, 2.2.9)
 function M.debug_top() local d = N.shown_d return d and d.top, d and d.kind end   -- (tests, 2.1.12: the shown bar's top)
 function M.shutdown()
+  if N.dirty_at then save_learned() end
+end
+-- (2.2.1) Chef 1.5: a mod with an on_stop is stopped for real when it's switched off in F9 (or after errors, a hang,
+-- "Try again now") and started fresh when switched back on, in the same launch; without one it's only paused and
+-- resumed as the same copy. Nothing of the game is changed by NarrowHUD, so there's nothing to put back: the learned
+-- file is saved, and the GUIs made for the icons and the text are left to the world (an immediate GUI no one draws
+-- with shows nothing; a destroy on a world that may be gone is the one call that could end the game)
+function M.on_stop()
   if N.dirty_at then save_learned() end
 end
 

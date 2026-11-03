@@ -41,7 +41,10 @@ local function look_of(e)
   local shade = e.shade == 'auto' and cfg.shade ~= false or e.shade == 'on'
   return edge, shade
 end
-local SIDES = { auto = 1, none = 1, left = 1, right = 1 }
+-- (2.2.9) side: up / down too — the Spread and the Aim spread move the part along its side, so a horizontal stack
+-- (its parts on no side) can go down as a whole while you aim: luka's ask. "Apart from the crosshair": + is down
+-- for down, up for up. The horizontal preset's free parts are 'down'
+local SIDES = { auto = 1, none = 1, left = 1, right = 1, up = 1, down = 1 }
 local COMMON = { on = { 'boolean', true }, anchor = { 'choice', 'center', ANCHORS }, x = { 'number', 0, -100, 100 },
   y = { 'number', 0, -100, 100 }, align = { 'choice', 'bottom_left', ALIGNS }, size = { 'number', 1, 0.3, 4 },
   opacity = { 'number', 100, 0, 100 }, after = { 'choice', 'none', AFTER }, gap = { 'number', 8, -500, 500 },
@@ -165,13 +168,13 @@ local ARCS_LAYOUT = { _v = LAYOUT_VERSION, elements = {
 -- above it, free), the count and magazines right of the bar, the icons left of it, stims and grenades and the
 -- backpack under it.
 local HORIZONTAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
-  bar = { on = true, anchor = 'center', x = 0, y = -12.2, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', style = 'horizontal', fill = 'auto', length = 260, radius = 150, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
+  bar = { on = true, anchor = 'center', x = 0, y = -12.2, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'down', style = 'horizontal', fill = 'auto', length = 260, radius = 150, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
   charge = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'above', side = 'auto', style = 'horizontal', length = 260, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
   count = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'right', side = 'auto' },
   mags = { on = true, anchor = 'center', x = 0, y = 0.3, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'right', side = 'auto', style = 'number', empty = 'shown', divider = true },
   mode1 = { on = false, anchor = 'center', x = 0, y = 0, align = 'right', size = 1, opacity = 100, after = 'mode2', gap = 8, pin = 'left', side = 'auto' },
   mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'right', size = 1, opacity = 100, after = 'zoom', gap = 8, pin = 'left', side = 'auto' },
-  zoom = { on = false, anchor = 'center', x = -10.1, y = -10.62, align = 'right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto' },
+  zoom = { on = false, anchor = 'center', x = -10.1, y = -10.62, align = 'right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'down' },
   zoomicon = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = -2, pin = 'right', side = 'auto' },
   icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'left', side = 'auto', style = 'line' },
   icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 1, pin = 'left', side = 'auto', style = 'line' },
@@ -179,7 +182,7 @@ local HORIZONTAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   stims = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto' },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
   pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 126, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
-  health = { on = true, anchor = 'center', x = 0, y = -10, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', style = 'horizontal', length = 260, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
+  health = { on = true, anchor = 'center', x = 0, y = -10, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'down', style = 'horizontal', length = 260, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
   stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'above', side = 'auto', style = 'horizontal', length = 260, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
   stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'pack', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 126, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' } } }
 -- The block: a short standing bar right of the crosshair with the charge meter inside it, the text column right
@@ -812,8 +815,10 @@ local function resolve(els, w, h, sizes, last, offsets)
     local an = ANCHORS[e.anchor]
     local px = w * an[1] + h * e.x / 100 + ox
     local sd = side_of(e)
-    if sd == 'left' then px = px - spread elseif sd == 'right' then px = px + spread end
-    return px, h * an[2] + h * e.y / 100 + oy
+    local py = h * an[2] + h * e.y / 100 + oy
+    if sd == 'left' then px = px - spread elseif sd == 'right' then px = px + spread
+    elseif sd == 'down' then py = py - spread elseif sd == 'up' then py = py + spread end   -- (bottom-left origin)
+    return px, py
   end
   -- place(id): the part's box, cached. place(id, aw, ah): where the part would be if its size were aw x ah, not
   -- cached — how a part pinned to a hidden part takes its place (1.5.73): it's put where the hidden part would be

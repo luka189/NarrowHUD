@@ -348,7 +348,7 @@ const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys
   // (1.5.53) pin: how a part sits against the one it's after: none the old way (x from that part's right edge, y its
   // own), else its whole place from that part's box, on that side; side: left or right of the crosshair, for F9's Spread
   pin: ['choice', 'none', ['none', 'right', 'left', 'above', 'below']],
-  side: ['choice', 'auto', ['auto', 'none', 'left', 'right']],
+  side: ['choice', 'auto', ['auto', 'none', 'left', 'right', 'up', 'down']],   // (2.2.9: up / down — the Spread moves the part vertically)
   // (1.5.72) hold: a part with nothing to show for the moment keeps its place, so the parts pinned to it stay
   hold: ['boolean', false] };
 const BAR_LOOK = { edge: ['choice', 'auto', ['auto', 'none', 'outline', 'brackets']], shade: ['choice', 'auto', ['auto', 'on', 'off']] };
@@ -403,13 +403,13 @@ const UNDER = { _v: 1, elements: {
 const PRESETS = [
   // (2.0: the mod's four built-in layouts, as F9's Layout row has them; tools/sync_presets.py keeps them the mod's)
   { name: 'Horizontal', note: 'As F9\'s Layout: Horizontal: the bars stacked under the crosshair', t: { _v: 1, elements: {
-  bar: { on: true, anchor: 'center', x: 0, y: -12.2, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', style: 'horizontal', fill: 'auto', length: 260, radius: 150, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
+  bar: { on: true, anchor: 'center', x: 0, y: -12.2, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'down', style: 'horizontal', fill: 'auto', length: 260, radius: 150, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
   charge: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'above', side: 'auto', style: 'horizontal', length: 260, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
   count: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'right', side: 'auto' },
   mags: { on: true, anchor: 'center', x: 0, y: 0.3, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'right', side: 'auto', style: 'number', empty: 'shown', divider: true },
   mode1: { on: false, anchor: 'center', x: 0, y: 0, align: 'right', size: 1, opacity: 100, after: 'mode2', gap: 8, pin: 'left', side: 'auto' },
   mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'right', size: 1, opacity: 100, after: 'zoom', gap: 8, pin: 'left', side: 'auto' },
-  zoom: { on: false, anchor: 'center', x: -10.1, y: -10.62, align: 'right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto' },
+  zoom: { on: false, anchor: 'center', x: -10.1, y: -10.62, align: 'right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'down' },
   zoomicon: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: -2, pin: 'right', side: 'auto' },
   icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'left', side: 'auto', style: 'line' },
   icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 1, pin: 'left', side: 'auto', style: 'line' },
@@ -417,7 +417,7 @@ const PRESETS = [
   stims: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto' },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
   pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 126, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
-  health: { on: true, anchor: 'center', x: 0, y: -10, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', style: 'horizontal', length: 260, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
+  health: { on: true, anchor: 'center', x: 0, y: -10, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'down', style: 'horizontal', length: 260, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
   stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'above', side: 'auto', style: 'horizontal', length: 260, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
   stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'pack', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 126, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' } } } },
   { name: 'Arcs', note: 'As F9\'s Layout: Arcs: arcs centred on the crosshair, the meters and the backpack inside', t: { _v: 1, elements: {
@@ -1247,8 +1247,10 @@ function resolve(sizes) {
     const an = ANCHORS[e.anchor];
     let px = W * an[0] + H * e.x / 100 + ox;
     const sd = sideOf(e);
+    let py = H * an[1] + H * e.y / 100 + oy;
     if (sd === 'left') px -= spread; else if (sd === 'right') px += spread;
-    return [px, H * an[1] + H * e.y / 100 + oy];
+    else if (sd === 'down') py -= spread; else if (sd === 'up') py += spread;
+    return [px, py];
   };
   // place(id): the part's box, cached; place(id, aw, ah): where it would be at that size, not cached — a part pinned
   // to a hidden part takes its place with its own size (1.5.73; the mod does the same)
@@ -1402,7 +1404,7 @@ const FIELD_NAMES = { style: 'Style', fill: 'Fill', length: 'Length', thickness:
   divider: 'Divider', size: 'Size', opacity: 'Opacity', x: 'X', y: 'Y', after: 'Pinned to', pin: 'Where', gap: 'Gap', side: 'Side', edge: 'Edge', shade: 'Shade', hold: 'Holds its place' };
 // (a choice's labels when they aren't the style names: per field)
 const CHOICE_NAMES = { pin: { none: 'Old way (x after it)', right: 'On its right', left: 'On its left', above: 'Above it', below: 'Below it' },
-  side: { auto: 'Auto', none: 'Neither', left: 'Left', right: 'Right' }, edge: { auto: 'F9\'s', none: 'None', outline: 'Outline', brackets: 'Brackets' },
+  side: { auto: 'Auto', none: 'Neither', left: 'Left', right: 'Right', up: 'Up', down: 'Down' }, edge: { auto: 'F9\'s', none: 'None', outline: 'Outline', brackets: 'Brackets' },
   shade: { auto: 'F9\'s', on: 'On', off: 'Off' } };
 const FIELD_HELP = {
   fill: 'Auto: a tick a round up to the number below, solid above it.',
@@ -1418,7 +1420,7 @@ const FIELD_HELP = {
   after: 'Placed from another part\'s box: it moves along as that one grows ("100%") or is scaled, and takes its place when that one is hidden (off, or nothing to show). Dragging a part next to another pins it too.',
   pin: 'Which side of that part. The old way: only its x follows (from that part\'s right edge), its y stays its own.',
   gap: 'Pixels between the two (at 1440p, Medium). Dragging the part away from or toward the other sets it.',
-  side: 'Left or right of the crosshair, for F9\'s Spread slider, which moves the two sides apart. Auto: by the part\'s x from the centre anchor. A pinned part goes with the part it\'s pinned to.',
+  side: 'Which way F9\'s Spread and Aim spread move the part: left or right (the two sides of the crosshair apart), or up or down (a horizontal stack as a whole, while you aim). Auto: left or right by the part\'s x from the centre anchor. A pinned part goes with the part it\'s pinned to.',
   hold: 'While it has nothing to show for the moment (the weapon put away, a stratagem ball in hand), it keeps the place it had, so the parts pinned to it stay. Off: they take its place, as they do for a part that\'s Off or one this loadout never has. On by default for the bar, the count, health and stamina.',
   edge: 'None, an outline, or square brackets at the ends as the game draws its own bars. F9\'s: as the Look setting there.',
   shade: 'The empty part faint behind the fill, or nothing there. F9\'s: as the Look setting there.',

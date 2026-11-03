@@ -9,7 +9,7 @@ local cfg = { size = 1, off_x = 0, off_y = 0, custom = true, builtin = 'horizont
               show_stims = true, show_grenades = true, pack = true, font = true,
               research = false, any_build = false, opacity = 1, idle = 1, idle_secs = 4, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1, wheel = 1, health = 2, stamina = 2, stim_timer = false, stim_secs = 1, warn = false,
-              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 2, throw_line = true, landing_mark = true, mark_size = 0.7, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
+              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, hide_terminal = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 2, throw_line = true, landing_mark = true, mark_size = 0.7, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
 N.apply_palette = nil                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
 if chef.has and chef.has('menu') then
@@ -84,7 +84,7 @@ if chef.has and chef.has('menu') then
   -- right of it move right (a layout's sides, by each part's x from the centre or its own side field); nothing
   -- else changes. (1.5.55) While you aim, the Spread changes by the aim Spread, eased.
   slider('spread', 'Spread, % (+ apart)', -30, 30, 0.5, 0, function(v) cfg.spread = v end,
-    'The parts left of the crosshair move left and the parts right of it move right (or closer in); nothing else changes.')
+    'The parts left of the crosshair move left and the parts right of it move right (or closer in); a part on the up or down side (the horizontal layout as a whole) moves that way; nothing else changes.')
   slider('aim_spread', '   Aim spread, %', -30, 30, 0.5, 0, function(v) cfg.aim_spread = v end,
     'While you aim, the Spread changes by this (eased). 0: no change.')
   slider('opacity', 'Opacity, %', 20, 100, 5, 100, function(v) cfg.opacity = v / 100 end)
@@ -220,6 +220,7 @@ if chef.has and chef.has('menu') then
     toggle('hide_strat', 'Hide on stratagem', true, 'The HUD out of the way while the stratagem key is held (health and stamina stay).')
     toggle('hide_emote', 'Hide on emote', true, 'The HUD out of the way while you emote.')
     toggle('hide_wheel', 'Hide on weapon settings', true, 'The HUD out of the way while the weapon settings wheel is open.')
+    toggle('hide_terminal', 'Hide at a terminal', true, 'The HUD, health and stamina out of the way while you work a terminal (its screen takes the middle).')
   end
   function N.settings_testing()
     group('Testing', 'Testing: ')

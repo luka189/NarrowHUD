@@ -1,3 +1,5 @@
+Historical (2026-11-02): the 1.5.29 pinned text for the disconnect reports. The cause was found and fixed in 1.5.38 (the host's objects never read); docs/RESEARCH.md "The disconnects".
+
 For the Nexus pinned post / replies to the disconnect reports (1.5.29)
 
 If you get dropped from a host's mission while the others stay in, this is what would help most, in this order:

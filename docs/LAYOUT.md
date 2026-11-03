@@ -47,7 +47,7 @@ An element left out, or a field left out, takes Under's look's value — so a fi
 | `pin` | which side of that part (with `after`): `right`, `left`, `above` or `below`, `gap` pixels between them; `align` says which edges line up (right / left: `bottom_*` bottoms level, `top_*` tops, `left` / `right` / `center` middles; above / below: `*_left` left edges, `*_right` right edges, `bottom` / `top` / `center` middles); `x` and `y` then nudge it from there (scaled with Size and the part's size, as the gap is, so the group keeps its shape at every Size). `none`: the old way (files from before 1.5.53): only `x` follows, from that part's right edge, `y` stays the part's own | `none` |
 | `gap` | pixels between the two (at 1440p, Medium), with `after`; can be negative; -500 to 500 | 8 |
 | `hold` | `true`: while the part has nothing to show for the moment (the weapon put away, a stratagem ball in hand, no gun seated), it keeps the place it had, so the parts pinned to it stay where they are. `false`: they take its place, as they do for a part that's Off or one this loadout never has (no backpack, no charge meter). Under's look has it on for the ammo bar, the count, health and stamina — the parts that only vanish for a moment (1.5.72, 1.5.75) | false |
-| `side` | which side of the crosshair the part is on, for F9's **Spread** slider (1.5.53), which moves the left side left and the right side right, nothing else changing: `left`, `right`, `none`, or `auto` (by the part's `x` from the `center` anchor; a part on another anchor is `none`). A pinned part goes with the part it's pinned to | `auto` |
+| `side` | which way F9's **Spread** and **Aim spread** sliders move the part (1.5.53): `left` or `right` (the two sides of the crosshair apart), `up` or `down` (2.2.9: the part vertically — the horizontal layout's free parts are `down`, so the whole stack moves down while you aim), `none`, or `auto` (left or right by the part's `x` from the `center` anchor; a part on another anchor is `none`). A pinned part goes with the part it's pinned to | `auto` |
 
 Sizes are in pixels at 1440p for Medium; they scale with the screen's height and Size.
 
@@ -57,7 +57,7 @@ Sizes are in pixels at 1440p for Medium; they scale with the screen's height and
 |---|---|---|
 | `bar` | the ammo / heat bar, with its heat marks | `style` (see below); `fill` `auto` / `ticks` / `solid` (auto: a tick a round up to `ticks_max` rounds); `length` (260); `thickness` (14); `ticks_max` (30); `radius` (150); `edge`, `shade` (see below) |
 | `charge` | the charge and lock-on meter (Railgun, Epoch, Spear ...; the Arc Thrower's charge) | `style` (see below); `length` (260); `thickness` (4); `radius` (150); `edge`, `shade` |
-| `count` | rounds, or heat % | — |
+| `count` | rounds, or heat % | `digits` `auto` (F9 › Look › Count digits) / `fixed` (the number right-aligned in a box as wide as the full magazine, so it never slides as it falls) / `tight` (the number's own width) (2.2.0) |
 | `mags` | spare magazines | `style` `number` (x7) / `squares`; `empty` `shown` / `hidden` (squares); `divider` `true` / `false` (a line before the number) |
 | `mode1` | (1.5.54) the weapon mode alone: HEAT, UB, APHET ...; off unless a file turns it on, so the two can be pinned apart | — |
 | `mode2` | the fire mode: AUTO, SEMI ... | — |
@@ -73,8 +73,9 @@ Sizes are in pixels at 1440p for Medium; they scale with the screen's height and
 | `stamina` | your stamina (1.1.0; shown when F9 › Stamina bar is on): blue, orange when nearly out | `style` (see below); `length` (260); `thickness` (3); `radius` (150); `edge`, `shade` |
 | `stim` | the stim timer (1.2.0; shown when F9 › Stim timer is on): green, shrinking over a stim's effect | `style` (see below); `length` (260); `thickness` (3); `radius` (150); `edge`, `shade` |
 
-The elements are listed in the order they're drawn. A part placed on its own doesn't move when another grows: the
-count's width changes with its digits and its % sign, so the magazines follow it (`after = 'count'`) in Under's look.
+The elements are listed in the order they're drawn. A part placed on its own doesn't move when another grows: with
+`digits` tight the count's width changes with its digits and its % sign, so the magazines follow it (`after = 'count'`)
+in the horizontal look; with digits fixed (the default) the count's box is the full magazine's width and stays put.
 
 ### Bar styles (`bar`, `charge`, `pack`, `health`, `stamina`, `stim`)
 

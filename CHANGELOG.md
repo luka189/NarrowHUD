@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.0
+
+- The weapon in your hand is found by its model at your hand: shown the moment you draw it, before any shot, and two
+  weapons on one hand pose (the Nova and the Breacher, a pistol and a rifle on a controller) are told apart without
+  a key press.
+- The drop line's landing mark uses the game's own aim point: the ground wherever you have looked is known, the
+  line aims where the crosshair really points, and a guess for ground you haven't looked at follows the slope.
+- Hide at a terminal (F9 > Visibility): the HUD, health and stamina step aside while you work one.
+- Layouts: a part's Side can be Up or Down, so the Spread and the Aim spread move it vertically — the horizontal
+  layout now moves down as a whole while you aim (its Spread moves it the same way; 0 for none).
+- The HUD hides at once (80 ms) for the stratagem key, an emote, the game's menu, the weapon wheel and a terminal,
+  and health and stamina go with it in step.
+- Your own Helldiver is found by position, not by the camera: an ally passing behind you no longer takes over your
+  hand pose or the drop line for a moment.
+- The Medium and Thick lines keep their width whichever way they run.
+- The magazine size remembered for a set of attachments never shrinks (a weapon with a chambered round starts a
+  mission with one fewer in the magazine).
+- Switching NarrowHUD off and on in Chef's F9 menu takes effect at once (Chef Shared Loader 1.5).
+
 ## 2.2.0
 
 - Drop line start (F9 > World > Line from a drop of, cm): the line begins where the shot has fallen that far below a

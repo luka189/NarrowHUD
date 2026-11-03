@@ -4,14 +4,7 @@
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local TYPES, call, alive, cfg, me = N.TYPES, N.call, N.alive, N.cfg, N.me
 
--- the three numbers of an engine vector (Vector3.to_elements; from its text when that call isn't given)
-local function xyz(v)
-  if v == nil then return nil end
-  local x, y, z = call('xyz', 'Vector3.to_elements', v)
-  if type(x) == 'number' and type(y) == 'number' and type(z) == 'number' then return x, y, z end
-  local a, b, c = string.match(tostring(v), '%(%s*([-%d%.e]+)%s*,%s*([-%d%.e]+)%s*,%s*([-%d%.e]+)')
-  return tonumber(a), tonumber(b), tonumber(c)
-end
+local xyz = N.xyz   -- (2.2.3: in 01_core, shared with 05_hand)
 
 -- Your Helldiver's fields, every 0.1 s: position; map_marker_type (0 none, 7 one being placed, 1 placed), with
 -- map_marker_position (its z is 0 on the map: the pin is drawn at your own height then); health, for the moment it
