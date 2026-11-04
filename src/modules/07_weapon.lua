@@ -190,6 +190,15 @@ local OPTION_NAMES = {
 -- Weapons with two loaded ammo types, chosen by the selected field (slot0 / slot1): the Halt's flechette and stun rounds
 -- (a player's log, 2026-10-26: selected 0 on flechette, 1 on stun)
 local SELECTED_NAMES = { ['9c06f074'] = { [0] = 'FLECHETTE', [1] = 'STUN' } }
+-- (2.3.3) Two tubes of one ammo, fed one after the other: the selected field is the tube in use and moves by itself
+-- (to the other tube when one runs dry, to each tube in turn while reloading), so what the gun holds is both tubes
+-- and the chamber. pump_shotgun_dragon (a player's 2026-11-04 report and log: 8 shown of 16, the bar 9; after 8
+-- shots the other tube's 8; a reload counting 0 to 8 into the empty tube while the full one waited). Its log: tube 1
+-- filled first, then the selected field to 0 and tube 0 filled, the chambered shell going back into its tube on the
+-- switch (slot1 6 > 8 for one shell); full is 7 + 8 + one chambered (16, the game's own number), and once 7 + 9 + one
+-- (17) after the first reload of a mission. The value is the size it's shown against: a 17 counts as 17 on a full bar,
+-- as a magazine weapon's round in the chamber does, and isn't learned as a bigger gun.
+local TWO_TUBES = { bd5f17dd = 16 }
 -- (the game's HUD names for a weapon's two fires; luka, 2026-10-28)
 local UB_NAMES = {
   cd0e4b4a = { main = '12MM', ub = 'FLAME' },          -- the Stoker
@@ -331,6 +340,11 @@ local function shown(s, goid, t, w, o)
     d.mag = n                                                     -- the magazine alone (its size is learned from it)
     if t.has.chamber and w.chamber == false then n = n + 1 end   -- a round in the chamber
     d.value = n
+  elseif t.has.slot0 and TWO_TUBES[t.id] then
+    d.kind = 'ammo'
+    local n = (tonumber(w.slot0) or 0) + (tonumber(w.slot1) or 0)
+    if t.has.chamber and w.chamber == false then n = n + 1 end   -- (both tubes and the chamber: all it holds)
+    d.value, d.mag = n, math.min(n, TWO_TUBES[t.id])
   elseif t.has.slot0 then
     d.kind = 'ammo'
     local sel = tonumber(w.selected) or 0

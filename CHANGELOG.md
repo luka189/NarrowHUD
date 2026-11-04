@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.4.0
+
+- Shell flash (F9 > Layout, under Motion; on by default): each round fired flicks out of the ammo bar in the bar's
+  colour, square to it and away from the crosshair, and is gone. Shell flash length sets how far it gets.
+- Hit trail (F9 > Visibility): what each hit took stays red a moment, then drains away, each hit on its own (or as
+  one piece, or off). On a red (low) health bar only your health shows. Hit trail held sets how long it stays
+  (0.4 s).
+- Warning pulses (F9 > Visibility) has a third choice, Flash once: the health bar flashes as it turns red, then
+  simply stays red.
+- Shade behind bars (F9 > Look) has a third choice, Hatched: diagonal stripes on a dark ground behind a bar's empty
+  part, as the game's own health bar has, on straight and curved bars alike (a layout can set it per bar).
+- The reload line runs until the gun is ready: on a reload from empty it waits for the round to be chambered, and it
+  works for weapons whose rounds show a moment after the reload (the AMW-20 Apex, the AMR and others).
+- The SG-451 Cookout shows all it holds: both tubes and the chambered shell, on a bar of 16 (it showed one tube at a
+  time).
+- Firing or holding the trigger while Chef's F9 menu is open no longer hides your weapon for the rest of the
+  mission.
+- The landing mark knows more of the map's ground kinds (230).
+
 ## 2.3.2
 
 - Fixes a crash to desktop after a death (2.3.0 and 2.3.1: the game closed a few seconds after you died, before the

@@ -182,8 +182,10 @@ local function watch_fire(s, grip)
         learn('zoom', t.id, true)
       end
       local switching = (o.mode_t and now - o.mode_t < 1.5) or ((tonumber(w.reload_stage) or 0) ~= 0)
+      -- (2.3.6: not while Chef's menu is open, or just closed: no fire input can be read then — luka's Stalwart, swapped
+      -- to and fired with F9 open, "holds its trigger without your fire button" and was gone for the mission)
       if w.held == true and input.ok == true and input.ever and not input.blind and not proven and not switching
-         and now - (input.any_last or -100) > 0.6 then
+         and not N.menu_blind(now) and now - (input.any_last or -100) > 0.6 then
         o.held_since = o.held_since or now
         o.held_alone = (o.held_alone or 0) + 1
         if o.held_alone >= 3 and now - o.held_since >= 0.8 then not_yours(goid, o, t, 'holds its trigger without your fire button') end
@@ -344,7 +346,9 @@ local function watch_fire(s, grip)
         local st = so and so.t and TYPES[so.t]
         local so_busy = so and ((so.fired_at and now - so.fired_at <= 0.4) or (so.held_t and now - so.held_t <= 0.4)
           or (so.charging_t and now - so.charging_t <= 0.6) or (st and st.has.heat and so.prev and so.prev.charging == true))
-        if pressed_recently(now) then
+        -- (2.3.5: with Chef's menu open the fire button can't be read: such a shot counts neither way)
+        if N.menu_blind(now) then
+        elseif pressed_recently(now) then
           if not so_busy then o.pressed = (o.pressed or 0) + 1 end
         else o.unpressed = (o.unpressed or 0) + 1 end
         local p, u = o.pressed or 0, o.unpressed or 0

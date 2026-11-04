@@ -138,6 +138,10 @@ local function pad_list(now)
 end
 local input = { ok = nil, last = -100, pad_said = false }
 local function read_fire_button(now)
+  -- (2.3.5) while Chef's options menu is open its key, mouse and pad reads answer nothing (Chef 1.5.2): the fire
+  -- button is blind then, and for half a second after it closes. luka fired the Evictor three times with F9 open,
+  -- tuning the shell flash: "fires without your fire button: not yours", and it was gone for the session
+  if chef.menu_open and chef.menu_open() == true then input.menu_at = now return end
   if input.ok == false then return end
   local v = nil
   if cfg.fire == 6 then
@@ -194,7 +198,9 @@ end
 N.read_aim_button = read_aim_button
 -- (blind: your weapon in hand keeps firing and no fire input of any kind has been seen for a while: a controller
 -- NarrowHUD can't read. Shots aren't checked from then on, as when nothing can be read)
-local function pressed_recently(now) return input.ok ~= true or input.blind or now - input.last <= 0.4 end
+local function menu_blind(now) return input.menu_at ~= nil and now - input.menu_at <= 0.5 end
+local function pressed_recently(now) return input.ok ~= true or input.blind or menu_blind(now) or now - input.last <= 0.4 end
+N.menu_blind = menu_blind
 -- (1.5.16 research: why the hand pose can't be read, once per world and step: a player with a transmog mod had no
 -- hand pose in any mission with it on and every one without it; this says which step fails, and how many Helldiver
 -- units the watch lists)

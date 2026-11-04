@@ -351,7 +351,7 @@ const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys
   side: ['choice', 'auto', ['auto', 'none', 'left', 'right', 'up', 'down']],   // (2.2.9: up / down — the Spread moves the part vertically)
   // (1.5.72) hold: a part with nothing to show for the moment keeps its place, so the parts pinned to it stay
   hold: ['boolean', false] };
-const BAR_LOOK = { edge: ['choice', 'auto', ['auto', 'none', 'outline', 'brackets']], shade: ['choice', 'auto', ['auto', 'on', 'off']] };
+const BAR_LOOK = { edge: ['choice', 'auto', ['auto', 'none', 'outline', 'brackets']], shade: ['choice', 'auto', ['auto', 'on', 'off', 'hatch']] };
 const ELEMENTS = [
   { id: 'bar', name: 'Ammo / heat bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], fill: ['choice', 'auto', ['auto', 'ticks', 'solid']],
       length: ['number', 260, 10, 2000], radius: ['number', 150, 10, 2000], thickness: ['number', 14, 1, 200], ticks_max: ['number', 30, 1, 200], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },

@@ -302,9 +302,61 @@ N.draw_swatches = draw_swatches
 local EDGE_NONE, EDGE_OUTLINE, EDGE_BRACKETS = 1, 2, 3
 local function bar_style(edge, shade)
   if edge == nil then edge = cfg.edge or EDGE_NONE end
-  if shade == nil then shade = cfg.shade ~= false end
+  if shade == nil then shade = cfg.shade ~= false and (cfg.hatch and 'hatch' or true) end
   return edge, shade
 end
+-- (2.3.9) the hatched shade, as the game's own health bar (luka's screenshots): the empty part a dark ground with
+-- diagonal stripes in the bar's colour ("////", one stripe every 10 px at 1440p, half of it drawn), the pattern
+-- fixed to the part so ticks side by side read as one. Each stripe is clipped to the box and drawn as
+-- triangles; where Chef draws triangles as rows of rects (or has none), the plain faint fill instead
+local hatch_ok = chef.triangle ~= nil
+local function clip(poly, axis, v, keep_ge)
+  local out = {}
+  local n = #poly
+  for i = 1, n do
+    local a, b = poly[i], poly[i % n + 1]
+    local ina = keep_ge and a[axis] >= v or (not keep_ge and a[axis] <= v)
+    local inb = keep_ge and b[axis] >= v or (not keep_ge and b[axis] <= v)
+    if ina then out[#out + 1] = a end
+    if ina ~= inb then
+      local t = (v - a[axis]) / (b[axis] - a[axis])
+      out[#out + 1] = { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t }
+    end
+  end
+  return out
+end
+local function hatch(x, y, w, h, faint, L, tint, ox, oy)
+  if w <= 0 or h <= 0 then return end
+  if not hatch_ok then chef.rect(x, y, w, h, col(CREAM, faint), L) return end
+  chef.rect(x, y, w, h, col({ 0, 0, 0 }, 70), L)                -- (the dark ground)
+  -- (2.3.11) one spacing for every bar, the HUD's size its only measure (10 px at 1440p: the health bar's in 2.3.10;
+  -- it was 1.4 of each bar's own thickness, too wide on the ammo bar and too narrow on stamina: luka); and the pattern
+  -- fixed to the part, not to the screen, so it moves with a part that slides (the Aim spread showed the stripes
+  -- standing still under a moving bar)
+  local P = math.max(6, math.floor(10 * (N.hatch_k or 1) + 0.5))
+  local S = P / 2
+  local c = col(tint or N.hatch_tint or CREAM, 95)
+  -- (2.3.12: the corner the pattern hangs from: the one given (a solid bar's own, for its empty part that grows and
+  -- shrinks — the reload line scrolled its stripes as it filled: luka), else the part's, else this box's)
+  local base = (ox or N.hatch_ox or x) - (oy or N.hatch_oy or y)
+  -- stripes: the points with ((px - ox) - (py - oy)) mod P in [0, S); k counts them from the part's corner
+  for k = math.floor((x - (y + h) - base) / P) - 1, math.ceil((x + w - y - base) / P) + 1 do
+    local u0 = base + k * P
+    local poly = { { u0 + y, y }, { u0 + S + y, y }, { u0 + S + y + h, y + h }, { u0 + y + h, y + h } }
+    poly = clip(poly, 1, x, true)
+    if #poly > 0 then poly = clip(poly, 1, x + w, false) end
+    if #poly > 0 then poly = clip(poly, 2, y, true) end
+    if #poly > 0 then poly = clip(poly, 2, y + h, false) end
+    for i = 2, #poly - 1 do
+      if chef.triangle(poly[1][1], poly[1][2], poly[i][1], poly[i][2], poly[i + 1][1], poly[i + 1][2], c, L) == false then
+        hatch_ok = false
+        log('hatched shade: Chef draws triangles as rows of rects here: the plain shade instead')
+        return
+      end
+    end
+  end
+end
+N.hatch, N.hatch_clip = hatch, clip
 N.bar_style, N.EDGE_NONE, N.EDGE_OUTLINE, N.EDGE_BRACKETS = bar_style, EDGE_NONE, EDGE_OUTLINE, EDGE_BRACKETS
 -- an empty part (of the ammo bar, a magazine square, the backpack bar): a faint fill (the shade), its outline (the
 -- edge), both, or nothing; lw thick; one too thin for a hole stays a faint fill
@@ -313,7 +365,8 @@ local function empty_rect(x, y, w, h, faint, L, lw, edge, shade)
   lw = math.max(1, lw or 1)
   edge, shade = bar_style(edge, shade)
   if edge ~= EDGE_OUTLINE or w <= 2 * lw or h <= 2 * lw then
-    if shade or edge == EDGE_OUTLINE then chef.rect(x, y, w, h, col(CREAM, faint), L) end
+    if shade == 'hatch' then hatch(x, y, w, h, faint, L)
+    elseif shade or edge == EDGE_OUTLINE then chef.rect(x, y, w, h, col(CREAM, faint), L) end
     return
   end
   local c = col(CREAM, 190)
@@ -321,7 +374,8 @@ local function empty_rect(x, y, w, h, faint, L, lw, edge, shade)
   chef.rect(x, y + h - lw, w, lw, c, L)
   chef.rect(x, y + lw, lw, h - 2 * lw, c, L)
   chef.rect(x + w - lw, y + lw, lw, h - 2 * lw, c, L)
-  if shade then chef.rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(CREAM, faint), L) end
+  if shade == 'hatch' then hatch(x + lw, y + lw, w - 2 * lw, h - 2 * lw, faint, L)
+  elseif shade then chef.rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(CREAM, faint), L) end
 end
 -- square brackets at a bar's two ends, just outside it: a stroke lw thick the bar's height plus a little, with short
 -- feet pointing in along the bar's edges; a vertical bar gets them at its bottom and top
@@ -359,7 +413,11 @@ local function solid_bar(x, y, w, h, f, c, L, lw, vertical, edge, shade)
   edge, shade = bar_style(edge, shade)
   if edge ~= EDGE_OUTLINE or w <= 2 * lw + 1 or h <= 2 * lw + 1 then
     if edge == EDGE_BRACKETS then brackets(x, y, w, h, lw, vertical, L) end
-    if shade then chef.rect(x, y, w, h, col(CREAM, 45), L) end
+    if shade == 'hatch' then
+      -- (only the empty part: the stripes don't show through the fill)
+      if vertical then local a = math.floor(h * f + 0.5) hatch(x, y + a, w, h - a, 45, L, nil, x, y)
+      else local a = math.floor(w * f + 0.5) hatch(x + a, y, w - a, h, 45, L, nil, x, y) end
+    elseif shade then chef.rect(x, y, w, h, col(CREAM, 45), L) end
     if vertical then chef.rect(x, y, w, math.floor(h * f + 0.5), c, L + 1)
     else chef.rect(x, y, math.floor(w * f + 0.5), h, c, L + 1) end
     return

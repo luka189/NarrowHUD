@@ -43,9 +43,12 @@ if chef.has and chef.has('menu') then
   N.menu_spec = spec_of   -- (03_learned's rows)
   N.menu_label = function(label) return HEAD and label or (grp.prefix .. label) end   -- (a key row's label: chef.bind takes no spec)
   local function choice(id, label, choices, default, set, hint)
-    local v = chef.option(id, spec_of(label, hint, { type = 'choice', choices = choices, default = default })) or default
+    -- (2.3.9: nil, not false, is "nothing saved": a row that was a toggle (Warning pulses, Shade behind bars) has its
+    -- saved false read by its setter as Off, not as the default)
+    local v = chef.option(id, spec_of(label, hint, { type = 'choice', choices = choices, default = default }))
+    if v == nil then v = default end
     set(v)
-    chef.on_change(id, function(nv) set(nv or default) end)
+    chef.on_change(id, function(nv) if nv == nil then nv = default end set(nv) end)
   end
   local function slider(id, label, min, max, step, default, set, hint)
     local v = chef.option(id, spec_of(label, hint, { type = 'slider', min = min, max = max, step = step, default = default })) or default
@@ -91,6 +94,10 @@ if chef.has and chef.has('menu') then
   -- (1.5.55) motion: the few things that move (08_motion) — off, quick (the times as set), or normal (1.6 times)
   choice('motion', 'Motion', { 'Off', 'Quick', 'Normal' }, 2, function(v) cfg.motion = v end,
     'Parts sliding to a new place, bars easing, a reload sweeping the ticks in, short flashes on an event. Off: everything snaps.')
+  toggle('shell_flash', 'Shell flash', true,
+    'Each round fired jumps out of the ammo bar, square to it and away from the crosshair, and fades, like a shell thrown out. Needs Motion on.')
+  slider('shell_len', '   Shell flash length, %', 10, 100, 5, 30, function(v) cfg.shell_len = v end,
+    'How much of the shell\'s flight shows before it\'s gone: 30 a flick off the bar, 100 a short throw.')
 
   ---------------------------------------------------------------------------------- Visibility: each part's rule
   -- (1.5.60) every part's row a rule (08_show): Off, Always, While not full, On a change, While aiming, or one of
@@ -150,7 +157,17 @@ if chef.has and chef.has('menu') then
   toggle('stim_timer', 'Stim timer', false, 'A line shrinking while a stim works.')
   choice('stim_secs', '   Stim lasts', { 'Auto (armour)', '4 s', '6 s' }, 1, function(v) cfg.stim_secs = v end,
     'Auto: 6 s with the Med-Kit or Adreno-Defibrillator armour passives, learned per armour set, else 4 s.')
-  toggle('warn', 'Warning pulses', false, 'The health bar pulses under 25 %; the stims pulse when you have none left while hurt.')
+  -- (2.3.9: three ways; a saved on / off from the toggle it was reads as Pulsing / Off)
+  choice('warn', 'Warning pulses', { 'Off', 'Pulsing', 'Flash once' }, 1, function(v)
+    if v == true then v = 2 elseif v == false then v = 1 end
+    cfg.warn = (v ~= 1) and v or false
+  end, 'Under 25 % health, and with no stims while hurt: off, pulsing twice a second, or one flash as it happens (then just red).')
+  -- (2.3.8) what a hit took, on the health bar: in chunks, each hit's own piece held and drained on its own (luka's
+  -- wish); as one piece that a new hit holds back (2.3.7); or none. On a red bar none either way
+  choice('trail', 'Hit trail', { 'Off', 'One piece', 'In chunks' }, 3, function(v) cfg.trail = v end,
+    'What a hit took, in red on the health bar: each hit its own chunk, held then drained; or one piece a new hit holds back. None on a red bar.')
+  slider('trail_hold', '   Hit trail held, s', 0, 1, 0.05, 0.4, function(v) cfg.trail_hold = v end,
+    'How long a hit\'s red stays before it drains away (in 0.2 s).')
   toggle('reload_line', 'Reload line', false, 'A line filling over a reload, from a weapon\'s second reload on (the first teaches it the time).')
 
   ---------------------------------------------------------------------------------- the look
@@ -161,7 +178,13 @@ if chef.has and chef.has('menu') then
   -- (1.5.53) the bars' edge and shade apart (one toggle chose outlines or the faint fill before)
   choice('edge', 'Bar edges', { 'None', 'Outline', 'Brackets' }, 1, function(v) cfg.edge = v end,
     'The bars\' edges: none, an outline, or square brackets at the ends as the game\'s own bars have. A layout can set its own per bar.')
-  toggle('shade', 'Shade behind bars', true, 'The faint fill behind a bar\'s empty part. A layout can set its own per bar.')
+  -- (2.3.9) the shade: off, a faint fill, or hatched as the game's own bars (diagonal stripes on a dark ground,
+  -- luka's screenshots of the game's health bar); a saved on / off from the toggle it was reads as Solid / Off
+  choice('shade', 'Shade behind bars', { 'Off', 'Solid', 'Hatched' }, 2, function(v)
+    if v == true then v = 2 elseif v == false then v = 1 end
+    cfg.shade = v ~= 1
+    cfg.hatch = v == 3
+  end, 'Behind a bar\'s empty part: nothing, a faint fill, or diagonal stripes as the game\'s own bars have. A layout can set its own per bar.')
   -- (2.2.0) the count's digits: fixed, the number right-aligned in a box as wide as it gets, so it never slides as
   -- it falls (a Nexus comment, 2026-11-01); a layout's count part can set its own
   choice('count_digits', 'Count digits', { 'Fixed', 'Tight' }, 1, function(v) cfg.count_tight = v == 2 end,

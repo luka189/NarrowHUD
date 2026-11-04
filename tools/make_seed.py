@@ -46,6 +46,8 @@ EXTRA = { 'zoom': { '30294946': True, 'a4eff4fa': True },   # a scope with zeroi
     # single learns in testers' logs (tools/coverage.py, 2026-10-28): each learned at a shot with the fire button
     'ab38cade': 10, '4e64c4dc': 10, '61e573c5': 52,   # (86709cb9 dropped 1.5.39: a guard dog's gun, never in a hand)
     '9c06f074': 80,       # SG-20 Halt (three testers' logs: learned at 80 each time)
+}, 'mag': {
+    'bd5f17dd': 16,       # pump_shotgun_dragon: both tubes (2.3.3; luka's own file learned one tube's 8)
 } }
 
 
@@ -59,7 +61,8 @@ def main():
             if k in drop:
                 del table[k]
     for kind, extra in EXTRA.items():
-        data.setdefault(kind, {}).update({k: v for k, v in extra.items() if k not in data.get('poses', {})})
+        # (a hand pose learned in play wins over a grip from a log; the other kinds are corrections and always win)
+        data.setdefault(kind, {}).update({k: v for k, v in extra.items() if kind != 'grip' or k not in data.get('poses', {})})
     (ROOT / 'src' / 'learned_seed.lua').write_text(HEADER + 'return ' + ser(data) + '\n', encoding='utf-8')
     n = len(set(data.get('grip', {})) | set(data.get('poses', {})))
     print('src/learned_seed.lua: %d weapons with a hand pose' % n)

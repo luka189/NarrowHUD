@@ -6,7 +6,15 @@ while" rows), a research-log part for what it's unsure of, and an in-game test b
 done, and how, is in docs/DEVLOG.md (every build) and docs/HISTORY.md; the per-version plans that used to be here
 (1.2.0–1.6.0, 2.0) are all done or closed and were cut.
 
-## Where it stands (2.3.0, public 2026-11-03)
+## Where it stands (2.4.0, public 2026-11-04)
+
+Done since 2.3.2 (2.4.0): the shell flash (luka's "flash per bullet", built as a shell thrown from the bar), the
+hit trail in chunks, Warning pulses' Flash once, the Hatched shade (straight and curved), the reload line to the
+gun's readiness (the chamber from empty; the Apex's late rounds), the SG-451 Cookout's two tubes, shots with F9 open
+not counted against a weapon, the ground seed at 230 kinds.
+
+2.3.2 (the same evening): the death crash of 2.3.0 fixed — the one read of your Helldiver's object without the
+exists check (2.2.3's position read); every single-field read audited.
 
 Done since 2.2.0 (2.3.0): the weapon model at the hand, the game's look point for the ground and the line's aim,
 the slope carried downhill, hide at a terminal, side up / down, the hide in step, the own-Helldiver-by-position
@@ -37,9 +45,9 @@ fixed digits; the disconnects fixed (the host's objects never read); the game-pa
 - **More bar shapes: a horizontal curve and a donut** (effort 2). The arc code (`arc_geom`, curved_left / right)
   takes a start and end angle already; a curve bulging up or down is the same arc rotated, a donut a 360° arc with
   the fill running round. The ticks mode on a ring and where the count goes are the design questions. Feasible.
-- **A flash per bullet fired** (effort 1), like the health bar's hit chunk: the tick that just emptied stays lit a
+- ~~**A flash per bullet fired**~~ — done in 2.4.0 as the shell flash. (Was: effort 1, like the health bar's hit chunk: the tick that just emptied stays lit a
   moment and fades, or a short bright run at the fill's edge. Cheap in 08_motion (the bar knows the value's drop);
-  off by default, a motion option. May read as noise on fast weapons — try it on a dev build and look.
+  off by default, a motion option. May read as noise on fast weapons — try it on a dev build and look.)
 
 ## Open points
 

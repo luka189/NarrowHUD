@@ -33,12 +33,13 @@ local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, rpm = 1, sti
 local PINS = { none = 1, right = 1, left = 1, above = 1, below = 1 }
 -- (1.5.53) a bar's edge and shade: F9's ('auto'), or its own
 local EDGES = { auto = 1, none = 1, outline = 1, brackets = 1 }
-local SHADES = { auto = 1, on = 1, off = 1 }
+local SHADES = { auto = 1, on = 1, off = 1, hatch = 1 }   -- (2.3.9: hatch, the game's diagonal stripes)
 local BAR_LOOK = { edge = { 'choice', 'auto', EDGES }, shade = { 'choice', 'auto', SHADES } }
 local EDGE_OF = { none = 1, outline = 2, brackets = 3 }
 local function look_of(e)
   local edge = e.edge == 'auto' and (cfg.edge or 1) or EDGE_OF[e.edge]
-  local shade = e.shade == 'auto' and cfg.shade ~= false or e.shade == 'on'
+  local shade = e.shade == 'auto' and cfg.shade ~= false or e.shade == 'on' or e.shade == 'hatch'
+  if shade and (e.shade == 'hatch' or (e.shade == 'auto' and cfg.hatch)) then shade = 'hatch' end
   return edge, shade
 end
 -- (2.2.9) side: up / down too — the Spread and the Aim spread move the part along its side, so a horizontal stack
@@ -355,11 +356,41 @@ local function arc_piece(g, x, y, f0, f1, r0, r1, c, layer)
     ix, iy, ox, oy = jx, jy, px, py
   end
 end
+-- (2.3.10) the hatched shade on an arc, between f0 and f1 and radii r0, r1: the dark ground, then stripes slanted
+-- across it ("////" along the arc, one every 1.4 thicknesses at the middle radius, half of it drawn, fixed to the arc
+-- so ticks read as one pattern). Each stripe is a slanted piece in (along, across) space, clipped there and mapped onto
+-- the arc corner by corner (a stripe is narrow: straight edges between the corners follow the curve closely enough)
+local function arc_hatch(g, x, y, f0, f1, r0, r1, faint)
+  if f1 <= f0 or r1 <= r0 or not arcs_ok then return end
+  if not chef.triangle then arc_piece(g, x, y, f0, f1, r0, r1, col(CREAM, faint), L_CUSTOM) return end
+  arc_piece(g, x, y, f0, f1, r0, r1, col({ 0, 0, 0 }, 70), L_CUSTOM)
+  local len = math.max(1, g.len)
+  local P = math.max(6, math.floor(10 * (N.hatch_k or 1) + 0.5)) / len   -- (2.3.11: the straight bars' spacing; in fractions of the arc)
+  local S, d = P / 2, (r1 - r0) / len                          -- (the slant: 45 degrees at the middle radius)
+  local c = col(N.hatch_tint or CREAM, 95)
+  local cx, cy = x + g.cx, y + g.cy
+  local clip = N.hatch_clip
+  for kk = math.floor((f0 - d) / P) - 1, math.ceil(f1 / P) + 1 do
+    local u = kk * P
+    local poly = { { u, r0 }, { u + S, r0 }, { u + S + d, r1 }, { u + d, r1 } }
+    poly = clip(poly, 1, f0, true)
+    if #poly > 0 then poly = clip(poly, 1, f1, false) end
+    for i = 1, #poly do
+      local a = math.rad(g.bot + g.dir * g.span * poly[i][1])
+      local r = poly[i][2]
+      poly[i] = { cx + r * math.sin(a), cy + r * math.cos(a) }
+    end
+    for i = 2, #poly - 1 do
+      chef.triangle(poly[1][1], poly[1][2], poly[i][1], poly[i][2], poly[i + 1][1], poly[i + 1][2], c, L_CUSTOM)
+    end
+  end
+end
 -- what's empty from f0 to f1: its shade (faint), its outline (the edge), both, or nothing
 local function arc_empty(g, x, y, f0, f1, faint, lw, edge, shade)
   -- (an outline on a piece only a few pixels long, a narrow tick, would look filled anyway: faint instead)
   if edge ~= 2 or g.th <= 2 * lw + 1 or (f1 - f0) * g.len <= 4 * lw then
-    if shade or edge == 2 then arc_piece(g, x, y, f0, f1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
+    if shade == 'hatch' then arc_hatch(g, x, y, f0, f1, g.r_in, g.r_out, faint)
+    elseif shade or edge == 2 then arc_piece(g, x, y, f0, f1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
     return
   end
   local c, cap = col(CREAM, 190), lw / math.max(1, g.len)
@@ -367,7 +398,8 @@ local function arc_empty(g, x, y, f0, f1, faint, lw, edge, shade)
   arc_piece(g, x, y, f0, f1, g.r_out - lw, g.r_out, c, L_CUSTOM)
   arc_piece(g, x, y, f0, math.min(f1, f0 + cap), g.r_in, g.r_out, c, L_CUSTOM)
   arc_piece(g, x, y, math.max(f0, f1 - cap), f1, g.r_in, g.r_out, c, L_CUSTOM)
-  if shade then arc_piece(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, col(CREAM, faint), L_CUSTOM) end
+  if shade == 'hatch' then arc_hatch(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, faint)
+  elseif shade then arc_piece(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, col(CREAM, faint), L_CUSTOM) end
 end
 -- (1.5.53) square brackets at an arc's two ends: a radial stroke just past each end, a little beyond both edges,
 -- with short feet in along the inner and outer edges
@@ -395,7 +427,8 @@ local function arc_solid(g, x, y, f, c, lw, faint, edge, shade)
   else
     if edge == 3 then arc_brackets(g, x, y, lw) end
     arc_piece(g, x, y, 0, f, g.r_in, g.r_out, c, L_CUSTOM + 1)   -- (the faint part only where it's empty)
-    if shade then arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
+    if shade == 'hatch' then arc_hatch(g, x, y, f, 1, g.r_in, g.r_out, faint)
+    elseif shade then arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
   end
 end
 -- (1.5.58) a pulse's wash over the whole arc
@@ -408,6 +441,54 @@ local function arc_mark(g, x, y, f, mw, c)
   local hw = mw / 2 / math.max(1, g.len)
   arc_piece(g, x, y, f - hw, f + hw, g.r_in - 2, g.r_out + 2, c, L_CUSTOM + 2)
 end
+-- (2.3.4, a test) the shells in the air (08_motion): each the piece of the bar its round had — the tick, or on a solid
+-- bar a round's share of it (at least a few pixels) — thrown square to the bar, away from the crosshair (a vertical
+-- bar right of it to the right; a horizontal one below it down; an arc outwards), eased out, falling a little,
+-- shrinking and fading. span(i, top) gives the piece's start and end along the bar in pixels (an arc: in fractions)
+-- (2.3.6: the shell is the bar's own colour — orange when ammo is low, as the ticks are; luka)
+local function shell_alpha(p) return math.floor(240 * (1 - p * p) + 0.5) end   -- (p through the part shown: gone at its end)
+local function bar_shells(k, x, y, w, h, vert, th, span, tone)
+  local list = N.shells_live and N.shells_live()
+  if not list or #list == 0 then return end
+  local sw, sh = chef.screen()
+  local dir
+  if vert then dir = (x + w / 2 >= (sw or 0) / 2) and 1 or -1 else dir = (y + h / 2 >= (sh or 0) / 2) and 1 or -1 end
+  local far = math.max(4 * th, 26 * k)
+  for _, s in ipairs(list) do
+    local a, z = span(s.i, s.top)
+    if a then
+      local p, u = s.p, s.u or s.p                                -- (u: through the whole flight, for the path)
+      local off = far * (1 - (1 - u) ^ 3)
+      local along, across = (z - a) * (1 - 0.4 * u), th * (1 - 0.3 * u)
+      local mid = (a + z) / 2
+      local fall = vert and 12 * k * u * u or 0                   -- (a vertical bar's shell drops as it flies)
+      local c = col(tone, shell_alpha(p))
+      if vert then
+        local px = dir > 0 and (x + w + off - th + (th - across) / 2) or (x - off + (th - across) / 2)
+        chef.rect(math.floor(px + 0.5), math.floor(y + mid - along / 2 - fall + 0.5), math.max(1, math.floor(across + 0.5)), math.max(1, math.floor(along + 0.5)), c, L_CUSTOM + 3)
+      else
+        local py = dir > 0 and (y + off + (th - across) / 2) or (y - off + (th - across) / 2)
+        chef.rect(math.floor(x + mid - along / 2 + 0.5), math.floor(py + 0.5), math.max(1, math.floor(along + 0.5)), math.max(1, math.floor(across + 0.5)), c, L_CUSTOM + 3)
+      end
+    end
+  end
+end
+local function arc_shells(g, x, y, span, tone)
+  local list = N.shells_live and N.shells_live()
+  if not list or #list == 0 then return end
+  local far = math.max(4 * g.th, 26)
+  for _, s in ipairs(list) do
+    local f0, f1 = span(s.i, s.top)
+    if f0 then
+      local p, u = s.p, s.u or s.p
+      local off = far * (1 - (1 - u) ^ 3)
+      local mid, half = (f0 + f1) / 2, (f1 - f0) / 2 * (1 - 0.4 * u)
+      local th = g.th * (1 - 0.3 * u)
+      local r0 = g.r_in + (g.th - th) / 2 + off
+      arc_piece(g, x, y, mid - half, mid + half, r0, r0 + th, col(tone, shell_alpha(p)), L_CUSTOM + 3)
+    end
+  end
+end
 local EL_DRAW = {}                                  -- (each element's draw function, by its id)
 function EL_DRAW.bar(e, k, d, x, y, dry)
   if not d or d.kind == 'none' or not cfg.show_bar then return nil end
@@ -415,6 +496,7 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
     local g, w, h = arc_geom(e, k)
     if dry then return w, h, g.cx, g.cy end
     local frac, tone, alpha = weapon_tone(d)
+    N.hatch_tint = tone                                -- (2.3.10: an arc's stripes in its colour too)
     local lw = math.max(1, math.floor(k * 0.8 + 0.5))
     local edge, shade = look_of(e)
     local ticks = d.kind == 'ammo' and d.top and d.top >= 1 and
@@ -431,9 +513,18 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
       end
       if edge == 3 then arc_brackets(g, x, y, lw) end
       arc_glow(g, x, y, 'bar')
+      arc_shells(g, x, y, function(i) if i >= n then return nil end local f0 = i * (segf + gapf) return f0, f0 + segf end, tone)
     else
       arc_solid(g, x, y, N.bar_eased(frac, d), col(N.pulsed('bar', tone), alpha), lw, 45, edge, shade)
       arc_glow(g, x, y, 'bar')
+      if d.kind == 'ammo' then
+        arc_shells(g, x, y, function(i, top)
+          if not top or top < 1 or i >= top then return nil end
+          local seg = math.max(1 / top, 4 * lw / math.max(1, g.len))
+          local f = (i + 0.5) / top
+          return math.max(0, f - seg / 2), math.min(1, f + seg / 2)
+        end, tone)
+      end
       if d.kind == 'heat' and not learned.charge2[d.tid] then
         for _, m in ipairs(d.heat_marks or { { 0.75, 3 } }) do
           arc_mark(g, x, y, m[1], math.max(2, math.floor(2 * k)), col(MARK_COLORS[m[2]], 220))
@@ -447,6 +538,8 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
   local w, h = vert and th or len, vert and len or th
   if dry then return w, h end
   local frac, tone, alpha = weapon_tone(d)
+  N.hatch_tint = tone                                -- (2.3.9: the hatched shade's stripes in the bar's colour)
+  N.hatch_ox, N.hatch_oy = x, y                      -- (2.3.11: the pattern fixed to the bar)
   local lw = math.max(1, math.floor(k * 0.8 + 0.5))
   local edge, shade = look_of(e)
   local ticks = d.kind == 'ammo' and d.top and d.top >= 1 and
@@ -464,9 +557,21 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
     end
     if edge == 3 then N.brackets(x, y, w, h, lw, vert, L_CUSTOM) end
     N.glow('bar', x, y, w, h, L_CUSTOM)
+    bar_shells(k, x, y, w, h, vert, th, function(i)
+      if i >= n then return nil end
+      return math.floor(i * step + 0.5), math.floor(i * step + step - gap + 0.5)
+    end, tone)
   else
     solid_bar(x, y, w, h, N.bar_eased(frac, d), col(N.pulsed('bar', tone), alpha), L_CUSTOM, lw, vert, edge, shade)
     N.glow('bar', x, y, w, h, L_CUSTOM)
+    if d.kind == 'ammo' then
+      bar_shells(k, x, y, w, h, vert, th, function(i, top)
+        if not top or top < 1 or i >= top then return nil end
+        local seg = math.max(len / top, 4 * lw)
+        local m = (i + 0.5) * len / top
+        return math.max(0, m - seg / 2), math.min(len, m + seg / 2)
+      end, tone)
+    end
     if d.kind == 'heat' and not learned.charge2[d.tid] then
       for _, m in ipairs(d.heat_marks or { { 0.75, 3 } }) do
         local mw = math.max(2, math.floor(2 * k))
@@ -726,15 +831,23 @@ end
 -- in red, shrinking to it ("trail"). Health cream, orange from half, red from a quarter; stamina blue, orange when
 -- nearly out. Faint where it's empty, as the other bars.
 local STAMINA_C = { 130, 190, 235 }
-local function vital_bar(e, k, f, c, trail, x, y, dry, key)
+local function vital_bar(e, k, f, c, trail, x, y, dry, key, tint)
   f = math.max(0, math.min(1, f))
+  local tc = col(RED, 170)
   if key and not dry then f = N.ease(key, f, 120) end
   local edge, shade = look_of(e)
   if curved(e) then
     local g, w, h = arc_geom(e, k)
     if dry then return w, h, g.cx, g.cy end
+    N.hatch_tint = tint
     arc_solid(g, x, y, f, c, math.max(1, math.floor(k * 0.8 + 0.5)), 45, edge, shade)
-    if trail and trail > f then arc_piece(g, x, y, f, math.min(1, trail), g.r_in, g.r_out, col(RED, 170), L_CUSTOM + 1) end
+    -- (2.3.8: trail a number, one piece from the fill up; or a list of { lo, hi } pieces, the chunks)
+    if type(trail) == 'table' then
+      for _, c in ipairs(trail) do
+        local lo, hi = math.max(f, c[1]), math.min(1, c[2])
+        if hi > lo then arc_piece(g, x, y, lo, hi, g.r_in, g.r_out, tc, L_CUSTOM + 1) end
+      end
+    elseif trail and trail > f then arc_piece(g, x, y, f, math.min(1, trail), g.r_in, g.r_out, tc, L_CUSTOM + 1) end
     if key then arc_glow(g, x, y, key) end
     return w, h
   end
@@ -742,12 +855,14 @@ local function vital_bar(e, k, f, c, trail, x, y, dry, key)
   local len, th = math.floor(e.length * k + 0.5), math.max(1, math.floor(e.thickness * k + 0.5))
   local w, h = vert and th or len, vert and len or th
   if dry then return w, h end
+  N.hatch_tint, N.hatch_ox, N.hatch_oy = tint, x, y
   solid_bar(x, y, w, h, f, c, L_CUSTOM, math.max(1, math.floor(k * 0.8 + 0.5)), vert, edge, shade)
-  if trail and trail > f then
-    local a, b = math.floor(len * f + 0.5), math.floor(len * math.min(1, trail) + 0.5)
+  local pieces = type(trail) == 'table' and trail or ((trail and trail > f) and { { f, trail } } or nil)
+  for _, c in ipairs(pieces or {}) do
+    local a, b = math.floor(len * math.max(f, c[1]) + 0.5), math.floor(len * math.min(1, c[2]) + 0.5)
     if b > a then
-      if vert then chef.rect(x, y + a, w, b - a, col(RED, 170), L_CUSTOM + 1)
-      else chef.rect(x + a, y, b - a, h, col(RED, 170), L_CUSTOM + 1) end
+      if vert then chef.rect(x, y + a, w, b - a, tc, L_CUSTOM + 1)
+      else chef.rect(x + a, y, b - a, h, tc, L_CUSTOM + 1) end
     end
   end
   if key then N.glow(key, x, y, w, h, L_CUSTOM) end
@@ -762,7 +877,14 @@ function EL_DRAW.health(e, k, d, x, y, dry, items, vit)
   if vit.show_h <= 0.01 then return vital_bar(e, k, f, col(c, 230), nil, x, y, true) end
   local a = N.alpha_k
   if not dry then N.alpha_k = a * vit.show_h * (vit.pulse_h or 1) end
-  local w, h, acx, acy = vital_bar(e, k, f, col(c, 230), vit.trail and vit.trail / math.max(1, vit.max), x, y, dry, 'health')
+  -- (2.3.7) no trail on a red bar: red on red read as one bar, a pale one as healing (luka); there it's the health alone
+  local trail, mode, mx = nil, cfg.trail or 3, math.max(1, vit.max)
+  if c ~= RED and mode == 2 and vit.trail then trail = vit.trail / mx
+  elseif c ~= RED and mode == 3 and vit.chunks and #vit.chunks > 0 then
+    trail = {}
+    for i, ch in ipairs(vit.chunks) do trail[i] = { ch.lo / mx, (ch.top or ch.hi) / mx } end
+  end
+  local w, h, acx, acy = vital_bar(e, k, f, col(c, 230), trail, x, y, dry, 'health', c)
   N.alpha_k = a
   return w, h, acx, acy   -- (1.5.76: the arc's centre too — dropped here, health and stamina lost their 'arc' align)
 end
@@ -771,7 +893,8 @@ function EL_DRAW.stamina(e, k, d, x, y, dry, items, vit)
   if vit.show_s <= 0.01 then return vital_bar(e, k, vit.st, col(STAMINA_C, 220), nil, x, y, true) end
   local a = N.alpha_k
   if not dry then N.alpha_k = a * vit.show_s end
-  local w, h, acx, acy = vital_bar(e, k, vit.st, col(N.pulsed('stamina', vit.st <= 0.2 and WARN or STAMINA_C), 220), nil, x, y, dry, 'stamina')
+  local w, h, acx, acy = vital_bar(e, k, vit.st, col(N.pulsed('stamina', vit.st <= 0.2 and WARN or STAMINA_C), 220), nil, x, y, dry, 'stamina',
+    vit.st <= 0.2 and WARN or STAMINA_C)
   N.alpha_k = a
   return w, h, acx, acy
 end
@@ -956,6 +1079,9 @@ local function draw_custom(d, items, vitals)
       -- (1.5.60: the part's Show rule, eased: held back, it keeps its place and isn't drawn (or is dimmed))
       local rule = N.el_alpha(el.id)
       N.alpha_k = base * e.opacity / 100 * fade * rule
+      -- (2.3.9: each part sets its own colour, or the stripes are cream; 2.3.11: its size, and its corner to fix the
+      -- pattern to, or the box's own)
+      N.hatch_tint, N.hatch_ox, N.hatch_oy, N.hatch_k = nil, nil, nil, k
       if rule > 0.01 then EL_DRAW[el.id](e, k, d, sx, sy, false, items, vitals) end
       drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h }
       if c0 then clocks[el.id] = (clocks[el.id] or 0) + el_clock() - c0 end

@@ -6,8 +6,8 @@ local TYPES, call, alive, cfg, learned, learn, me = N.TYPES, N.call, N.alive, N.
 
 -- (1.1.0) Health and stamina: your Helldiver's health, max_health and stamina fields (their real names; health 125
 -- full and 0 dead, stamina 0 to 1, from the 1.0.10 research log), read every frame while a bar is on (two reads,
--- max_health once a second). A hit leaves what it took as a red "trail" that shrinks to the health after half a
--- second. Each bar's own fade: F9 says always, or while not full (and 2 s after); none while dead.
+-- max_health once a second). A hit leaves what it took as a red "trail" that drains to the health after half a
+-- second (2.3.7: over 0.2 s; none drawn on a red bar). Each bar's own fade: F9 says always, or while not full (and 2 s after); none while dead.
 local vs = { goid = nil, max = 125, max_at = -100, trail = nil, prev_hp = nil, hit_at = nil, full_h = nil, full_s = nil,
   show_h = 0, show_s = 0, t = nil }
 local function read_vitals(s, now)
@@ -15,6 +15,7 @@ local function read_vitals(s, now)
   if not av or not alive(s, av, TYPES[2]) then vs.goid = nil N.dead = nil return nil end
   if vs.goid ~= av then
     vs.goid, vs.trail, vs.prev_hp, vs.hit_at, vs.max_at, vs.show_h, vs.show_s = av, nil, nil, nil, -100, 0, 0
+    vs.chunks = {}
     vs.full_h, vs.full_s = -100, -100                    -- (full from the start: not shown)
   end
   if now - vs.max_at >= 1 then
@@ -30,11 +31,37 @@ local function read_vitals(s, now)
   if hp and hp <= 0 then vs.show_h, vs.show_s = 0, 0 return nil end           -- (dead)
   local dt = math.min(0.1, now - (vs.t or now))
   vs.t = now
+  -- (2.3.7) the trail, "One piece": held after the last hit (F9 "Hit trail held", 0.3 s; 0.5 in 2.3.7), then
+  -- drained to the health over 0.2 s (eased; × the Motion scale, at once with Motion Off). A hit while it drains
+  -- holds it where it is and starts the wait again
+  local hold = cfg.trail_hold or 0.4
+  local dsecs = 0.2 * (N.motion_scale and N.motion_scale() or 1)
   if hp then
-    if vs.trail == nil or hp >= vs.trail then vs.trail, vs.hit_at = hp, nil
+    -- (2.3.8) "In chunks": each hit its own piece (from the health before it to the health after), held and drained
+    -- on its own timer, so a new hit doesn't stop the older ones draining (luka). A heal clips them from below
+    vs.chunks = vs.chunks or {}
+    if vs.prev_hp and hp < vs.prev_hp then vs.chunks[#vs.chunks + 1] = { lo = hp, hi = vs.prev_hp, t = now } end
+    local keep = 0
+    for i = 1, #vs.chunks do
+      local c = vs.chunks[i]
+      local age = now - c.t - hold
+      local p = age <= 0 and 0 or (dsecs > 0 and math.min(1, age / dsecs) or 1)
+      local q = 1 - (1 - p) * (1 - p)
+      c.top = c.hi - (c.hi - c.lo) * q
+      if c.lo < hp then c.lo = hp end
+      if p < 1 and c.top > c.lo then keep = keep + 1 vs.chunks[keep] = c end
+    end
+    for i = keep + 1, #vs.chunks do vs.chunks[i] = nil end
+    if vs.trail == nil or hp >= vs.trail then vs.trail, vs.hit_at, vs.drain = hp, nil, nil
     else
-      if vs.prev_hp and hp < vs.prev_hp then vs.hit_at = now end
-      if not vs.hit_at or now - vs.hit_at > 0.5 then vs.trail = math.max(hp, vs.trail - vs.max * 0.8 * dt) end
+      if vs.prev_hp and hp < vs.prev_hp then vs.hit_at, vs.drain = now, nil end
+      if not vs.hit_at or now - vs.hit_at > hold then
+        if not vs.drain then vs.drain = { from = vs.trail, t0 = now } end
+        local p = dsecs > 0 and math.min(1, (now - vs.drain.t0) / dsecs) or 1
+        local q = 1 - (1 - p) * (1 - p)
+        vs.trail = math.max(hp, vs.drain.from + (hp - vs.drain.from) * q)
+        if p >= 1 then vs.trail, vs.drain = hp, nil end
+      end
     end
     vs.prev_hp = hp
   end
@@ -48,7 +75,7 @@ local function read_vitals(s, now)
   local hm, sm = cfg.health or 1, cfg.stamina or 1
   vs.show_h = fade(vs.show_h, hp ~= nil and (hm == 2 or (hm == 3 and (hurt or (vs.full_h ~= nil and now - vs.full_h < 2)))))
   vs.show_s = fade(vs.show_s, st ~= nil and (sm == 2 or (sm == 3 and (tired or (vs.full_s ~= nil and now - vs.full_s < 2)))))
-  return { hp = hp, max = vs.max, st = st, trail = vs.trail, show_h = vs.show_h, show_s = vs.show_s, busy = hurt or tired }
+  return { hp = hp, max = vs.max, st = st, trail = vs.trail, chunks = vs.chunks, show_h = vs.show_h, show_s = vs.show_s, busy = hurt or tired }
 end
 N.vitals_state = vs
 
@@ -157,10 +184,13 @@ local function reload_track(d, now)
   local t = d and (d.t or d.t0)
   local tid, goid = t and t.id, d and (d.goid or d.goid0)
   if d and d.kind == 'ammo' and d.reloading and tid then
-    if not rl or rl.goid ~= goid then
+    if not rl or rl.goid ~= goid or rl.done_at then
       -- (from empty or not: the magazine before the reload began; the game empties it as the reload starts, 7 > 0 on
       -- the Sightliner's first read of a reload with 7 left)
       local before = last_mag.goid == goid and last_mag.mag or d.mag or d.value
+      if before == 0 and last_mag.goid == goid and (last_mag.prev or 0) > 1 and last_mag.at and now - last_mag.at < 0.4 then
+        before = last_mag.prev                               -- (2.3.9: emptied by the reload itself, not by shots)
+      end
       rl = { goid = goid, tid = tid, t0 = now, v0 = d.value, kind = before == 0 and 'reload_e' or 'reload_t', seq = {} }
     end
     -- (research: the stages a reload goes through, logged once per weapon type and kind)
@@ -171,25 +201,52 @@ local function reload_track(d, now)
       d.charge_frac, d.charge_mark, d.charge_safe, d.locked, d.reload_line = math.min(1, (now - rl.t0) / secs), nil, true, false, true
     end
   elseif rl == nil and d and d.kind == 'ammo' then
-    last_mag.goid, last_mag.mag = goid, d.mag or d.value
-  elseif rl then
-    if d and goid == rl.goid and d.value > rl.v0 then
-      local took = now - rl.t0
+    -- (2.3.9: the one before the last too, and when it changed: the game empties the magazine as a reload starts, and
+    -- a read can see the 0 a moment before the reload's stage — luka's AMR, 3 left, taken for a reload from empty)
+    local m = d.mag or d.value
+    if last_mag.goid ~= goid then last_mag.prev, last_mag.at = nil, nil
+    elseif m ~= last_mag.mag then last_mag.prev, last_mag.at = last_mag.mag, now end
+    last_mag.goid, last_mag.mag = goid, m
+  elseif rl and d and goid == rl.goid then
+    -- (2.3.7) not reloading any more: the rounds waited for. The Apex's stage ends 0.1-0.2 s before its rounds show
+    -- (luka's log, 172.3 / 172.5 s): up to 2 s. (2.3.8) Timed to the rounds, the line drawn on through the wait.
+    -- (2.3.9) From empty, a rifle chambers a round as well: the AMR's rounds rose with the chamber still empty and it
+    -- filled 1.2 s later (luka's log, 290.5 / 291.8 s; it learned 0.8 s), so from empty the chamber is waited for too
+    -- (up to 2.5 s after the rounds; a gun that never shows it chambered is timed to its rounds)
+    rl.done_at = rl.done_at or now
+    local risen = d.value > rl.v0
+    if risen and not rl.rise_at then rl.rise_at = now end
+    local needs = rl.kind == 'reload_e' and t and t.has.rounds and t.has.chamber
+    local chambered = not needs or d.value > (d.mag or d.value)
+    local waiting = (not risen and now - rl.done_at <= 2) or (risen and not chambered and now - rl.rise_at <= 2.5)
+    if waiting then
+      local secs = learned[rl.kind][rl.tid]
+      if secs and cfg.reload_line and (not d.charge_frac or d.reload_line) then
+        d.charge_frac, d.charge_mark, d.charge_safe, d.locked, d.reload_line = math.min(1, (now - rl.t0) / secs), nil, true, false, true
+      end
+      return
+    end
+    if risen then
+      local took = (chambered and now or rl.rise_at) - rl.t0
+      local stage, rounds = rl.done_at - rl.t0, rl.rise_at - rl.t0
       if took > 0.4 and took < 12 then
         local old = learned[rl.kind][rl.tid]
         local v = math.floor((old and (old * 0.6 + took * 0.4) or took) * 10 + 0.5) / 10
         if cfg.research then
           local key = rl.tid .. rl.kind
-          if not seq_said[key] then
-            seq_said[key] = true
-            log('research: reload %s (%s) took %.1f s, stages %s', tostring(rl.tid), rl.kind == 'reload_e' and 'from empty' or 'with rounds left', took, table.concat(rl.seq, ' '))
-          else
-            log('research: reload %s (%s) took %.1f s', tostring(rl.tid), rl.kind == 'reload_e' and 'from empty' or 'with rounds left', took)
-          end
+          local first = not seq_said[key]
+          seq_said[key] = true
+          log('research: reload %s (%s) took %.1f s (its stage %.1f s, the rounds %.1f s%s)%s', tostring(rl.tid),
+            rl.kind == 'reload_e' and 'from empty' or 'with rounds left', took, stage, rounds,
+            needs and (chambered and ', chambered' or ', never seen chambered') or '',
+            first and (', stages ' .. table.concat(rl.seq, ' ')) or '')
         end
         learn(rl.kind, rl.tid, v)
       end
     end
+    if d.reload_line then d.charge_frac, d.reload_line, d.charge_safe = nil, nil, nil end
+    rl = nil
+  elseif rl then
     if d and d.reload_line then d.charge_frac, d.reload_line, d.charge_safe = nil, nil, nil end
     rl = nil
   end
@@ -212,10 +269,17 @@ N.vitals_step = function(s, now, items_now)
   if (cfg.stamina or 1) == 1 then vit.show_s = 0 end
   local left = stim.at and (stim.secs - (now - stim.at)) or nil
   if cfg.stim_timer and left and left > 0 then vit.stim, vit.stim_secs = left / stim.secs, left end
-  if cfg.warn and vit.hp then
+  -- (2.3.9) F9 "Warning pulses": Off, Pulsing (the bar under 25 % and the stims while hurt with none, twice a
+  -- second), or Flash once (luka: the health bar flashes once as it turns red, then simply shows red; the stims the
+  -- same as they run out while you're hurt)
+  if cfg.warn == 2 and vit.hp then
     local f = vit.hp / math.max(1, vit.max)
     if f <= 0.25 then vit.pulse_h = pulse(now) end
     N.warn_stims = f < 0.5 and items_now and items_now.s == 0 and pulse(now) or nil
+  elseif cfg.warn == 3 and vit.hp then
+    local f = vit.hp / math.max(1, vit.max)
+    N.edge_pulse('low_hp', f <= 0.25, 'health', 'warn')
+    N.edge_pulse('no_stims', f < 0.5 and items_now ~= nil and items_now.s == 0, 'stims', 'warn')
   end
   return vit
 end

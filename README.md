@@ -66,15 +66,16 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
   size; one sideways and one up / down offset that moves any of them; Spread (the two sides of the crosshair closer
   or farther apart; the horizontal layout up or down as a whole) and how it changes while you aim; opacity; motion (parts sliding, bars easing and one-shot
-  pulses: off, quick or normal).
+  pulses: off, quick or normal); a shell flash per round fired, and how far it flies.
 - Visibility: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon
   and fire modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina):
   off, always, while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming;
   a part held back hidden or dimmed; the opacity while aiming; dimming or hiding when nothing has changed for a
-  while; hiding while the weapon settings wheel is open or a terminal is worked; a stim timer, warning pulses, a
-  reload line.
+  while; hiding while the weapon settings wheel is open or a terminal is worked; a stim timer, warning pulses
+  (pulsing or one flash), a reload line; the hit trail (what each hit took, in chunks or as one piece) and how long it
+  stays.
 - Look: the empty magazine squares shown or hidden; bar edges (none, an outline or the game's brackets) and the
-  shade behind the bars; the count's digits fixed (it never slides as it falls) or tight; the modes in their own
+  shade behind the bars (none, solid, or the game's hatching); the count's digits fixed (it never slides as it falls) or tight; the modes in their own
   colours; colours standard or colourblind (white, sky blue, yellow,
   magenta: told apart by brightness too). The HUD is drawn in the game's UI layer, so the colours are exact on
   every planet.

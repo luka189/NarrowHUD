@@ -111,20 +111,66 @@ local function swap_k()
   return 0.3 + 0.7 * out3(p)
 end
 
+-- (2.3.4, a test) a shell flash per round fired (F9 "Shell flash", off by default): the tick that just emptied jumps
+-- out of the bar, square to it and away from the crosshair, and fades, like a shell thrown from the port (luka's
+-- idea; the draw is the bar's, 10_custom). A round counts only when the count drops by 1 to 3 while your weapon
+-- fired in the last 0.35 s (06_learning's fired_at) or your fire button was down in the last 0.4 s (2.3.5: the
+-- Cookout's shot that empties a tube moves its selected field too, which reads as a switch, not a shot: every eighth
+-- shell went missing), so a reload, a switch or a mode change throws nothing; at most 10 in the air.
+-- (2.3.5) The flight is cut short: only the first "Shell flash length" % of the whole (default 30: luka, "it should
+-- barely leave the bar and already disappear"), fading out over that part.
+local shells = {}
+local SHELL_S = 0.32                                   -- (the whole flight; the part shown is cfg.shell_len %)
+local function shell_eject(i, top)
+  if scale() <= 0 or not cfg.shell_flash then return end
+  if #shells >= 10 then table.remove(shells, 1) end
+  shells[#shells + 1] = { t0 = now_s(), i = i, top = top }
+end
+-- the shells in the air now, each with p (0 thrown, 1 gone)
+local live = {}
+local function shells_live()
+  local t, n, keep = now_s(), 0, 0
+  -- (2.3.6: 100 % is half the old flight — luka: the most it should ever be — and the default 30 % is the old 15 %)
+  local cut = math.max(0.025, math.min(0.5, (cfg.shell_len or 30) / 200))
+  local dur = SHELL_S * cut * math.max(scale(), 0.01)
+  for j = 1, #shells do
+    local sh = shells[j]
+    local p = (t - sh.t0) / dur
+    if p < 1 then
+      keep = keep + 1 shells[keep] = sh
+      n = n + 1 live[n] = sh sh.p = math.max(0, p) sh.u = sh.p * cut   -- (p: through the part shown; u: through the whole flight)
+    end
+  end
+  for j = keep + 1, #shells do shells[j] = nil end
+  for j = n + 1, #live do live[j] = nil end
+  return live
+end
+N.shells_live = shells_live
+
 -- the events, once a frame from 13_main: what changed since the last frame
 local prev = {}
 local function events(d, items, vit, goid)
   if goid ~= prev.goid then
     if prev.goid ~= nil and goid ~= nil then swap_start() end
     ease_reset('bar') ease_reset('charge') refill = nil
+    for j = #shells, 1, -1 do shells[j] = nil end
     prev.goid, prev.value, prev.reserve, prev.hot = goid, nil, nil, nil
   end
   if d and d.kind == 'ammo' and type(d.value) == 'number' then
     if prev.value ~= nil then
       if d.value == 0 and prev.value > 0 then pulse('bar') end
       if d.value > prev.value + 1 and d.top and d.top > 1 then refill_start(prev.value, d.value) end
+      local drop = prev.value - d.value
+      if drop >= 1 and drop <= 3 and cfg.shell_flash and prev.tid == d.tid and (prev.mode == d.mode or prev.mode == nil) then
+        local o = goid and N.objs and N.objs[goid]
+        local t = chef.time()
+        local inp = N.input
+        if (o and o.fired_at and t - o.fired_at < 0.35) or (inp and inp.ok == true and t - (inp.last or -100) <= 0.4) then
+          for i = d.value, prev.value - 1 do shell_eject(i, d.top or prev.value) end
+        end
+      end
     end
-    prev.value = d.value
+    prev.value, prev.tid, prev.mode = d.value, d.tid, d.mode
     if type(d.reserve) == 'number' then
       if prev.reserve ~= nil and d.reserve == 0 and prev.reserve > 0 then pulse('mags') end
       prev.reserve = d.reserve

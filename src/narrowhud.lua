@@ -15,7 +15,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '2.3.2' }
+local M = { version = '2.4.0' }
 -- Two logs of its own (1.5.41): narrowhud.log for what anyone reads (a few hundred lines a session), and
 -- narrowhud_research.log for the research rows' field dumps (a megabyte an hour). The loader starts a fresh file
 -- for a log once it passes 1 MB at the next launch, so one log for both lost two sessions' plain lines to the

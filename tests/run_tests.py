@@ -1207,6 +1207,64 @@ def main():
     rt6.execute('OBJ[41].fields[ROLE.floor] = 32767 run(1)')
     check('picked up: shown again [%s]' % rt6.eval('texts()'), rt6.eval('texts()').startswith('150 |'))
 
+    # (2.3.4) the shell flash (2.3.6: on by default): a round fired throws the emptied tick out of the bar, square to it
+    # and away from the crosshair, in the bar's colour; nothing with the row off, nothing at a reload. Shells are the
+    # rects on the bar's layer + 3 (905 + 3; a pulse's wash is there too, but no pulse runs here)
+    SHELLS_LUA = """function shells() local l = {} for _, d in ipairs(draws) do if d[1] == 'rect' and d.l and d.l % 1000 == 908 then l[#l + 1] = d end end return l end
+      function shell_frames(n) local c, first, last = 0, nil, nil for i = 1, n do run(1 / 60) local l = shells() if #l > 0 then c = c + 1 first = first or (l[1][2] .. ',' .. l[1][3]) last = l[1][2] .. ',' .. l[1][3] .. ' rgb' .. l[1][6] .. ',' .. l[1][7] .. ',' .. l[1][8] end end return c, first, last end"""
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute(SHELLS_LUA + """
+      FIRE = true GRIP = 70 CHANGE.shell_flash(false) run(3) OBJ[4].fields[ROLE.rounds] = 11 run(0.5) OBJ[4].fields[ROLE.rounds] = 10
+      OFF_N = shell_frames(20)
+      CHANGE.shell_flash(true) CHANGE.shell_len(100) OBJ[4].fields[ROLE.rounds] = 9
+      ON_N, ON_A, ON_B = shell_frames(30)
+      FIRE = false run(0.5) OBJ[4].fields[ROLE.rounds] = 30
+      RL_N = shell_frames(20)""")
+    off_n, on_n, on_a, on_b, rl_n = r.eval('OFF_N'), r.eval('ON_N'), r.eval('ON_A'), r.eval('ON_B'), r.eval('RL_N')
+    check('shell flash: none with the row off (%d frames), at 100 %% in the air %d frames (0.16 s: half the old flight), from %s to %s, none at a reload (%d)' % (off_n, on_n, on_a, on_b, rl_n),
+          off_n == 0 and 8 <= on_n <= 11 and on_a and on_b and on_a != on_b.split(' ')[0] and rl_n == 0)
+    # (2.3.6) the default length, 30 %: the old 15 % (3 frames); the bar's colour: cream with ammo, orange when low
+    r.execute("""CHANGE.shell_len(30) FIRE = true run(0.5) OBJ[4].fields[ROLE.rounds] = 29
+      S30 = shell_frames(30)
+      OBJ[4].fields[ROLE.rounds] = 3 run(0.5) OBJ[4].fields[ROLE.rounds] = 2
+      LOW_N, LOW_A, LOW_B = shell_frames(20)""")
+    s30, low_b = r.eval('S30'), r.eval('LOW_B')
+    check('shell flash at 30 %%: in the air %d frames (0.05 s); low ammo, in the bar\'s orange (%s)' % (s30, low_b),
+          2 <= s30 <= 4 and low_b and low_b.endswith('rgb240,170,90'))
+    # (2.3.5) Chef's options menu open: the fire button reads nothing there (Chef 1.5.2), so shots then are counted
+    # neither way — luka's Evictor, fired three times with F9 open, was "not yours" for the session
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''chef.menu_open = function() return MENU == true end
+      FIRE = true GRIP = 70 run(3) OBJ[4].fields[ROLE.rounds] = 11 run(0.5) OBJ[4].fields[ROLE.rounds] = 10 run(0.5)
+      MENU = true FIRE = false run(0.5)
+      for i = 1, 4 do OBJ[4].fields[ROLE.rounds] = 10 - i run(0.6) end
+      MENU = false run(1)''')
+    mt, ml = r.eval('texts()'), [l for l in r.eval('logs').values() if 'not yours' in l]
+    check('shots with Chef\'s menu open: not "not yours" %s, still shown [%s]' % (ml, mt), not ml and mt.startswith('6 |'))
+    r.execute('for i = 1, 4 do OBJ[4].fields[ROLE.rounds] = 6 - i run(0.6) end')
+    ml2 = [l for l in r.eval('logs').values() if 'not yours' in l]
+    check('the same shots with the menu closed: "not yours" as before %s' % ml2, len(ml2) == 1)
+    # (2.3.6) the trigger-held rule with the menu open too: luka's Stalwart, swapped to and fired with F9 open, "holds
+    # its trigger without your fire button" — held for a second and more with no fire input readable
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute("""chef.menu_open = function() return MENU == true end
+      FIRE = true GRIP = 70 run(3) OBJ[4].fields[ROLE.rounds] = 11 run(0.5) OBJ[4].fields[ROLE.rounds] = 10 run(0.5)
+      MENU = true FIRE = false OBJ[4].fields[ROLE.held] = true run(2) OBJ[4].fields[ROLE.held] = false MENU = false run(1)""")
+    hl, ht = [l for l in r.eval('logs').values() if 'not yours' in l], r.eval('texts()')
+    check('the trigger held with Chef\'s menu open: not "not yours" %s, still shown [%s]' % (hl, ht), not hl and ht.startswith('10 |'))
+    # (2.3.5) the Cookout's shot that empties a tube moves the selected field too (read as a switch): a shell all the same
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute(SHELLS_LUA + '''
+      OBJ[3] = nil OBJ[95] = { name = '%s', fields = {} } local f = OBJ[95].fields
+      f[ROLE.slot0] = 2 f[ROLE.slot1] = 8 f[ROLE.selected] = 0 f[ROLE.spare] = 40 f[ROLE.chamber] = false f[ROLE.carry] = 0
+      FIRE = true GRIP = 80 run(3) CHANGE.shell_flash(true) CHANGE.shell_len(100) f[ROLE.slot0] = 1 run(0.6)
+      f[ROLE.slot0] = 0 f[ROLE.selected] = 1 CK = shell_frames(20)''' % type_name('bd5f17dd'))
+    ck = r.eval('CK')
+    check('the Cookout: the shot emptying a tube throws a shell (%d frames) [%s]' % (ck, r.eval('texts()')), ck >= 8)
     # a controller: its right trigger is the fire button (the mouse untouched)
     rt7 = lua51.LuaRuntime()
     setup(rt7)
@@ -1377,7 +1435,7 @@ def main():
     st0 = len(r.eval('rects_at(622)'))
     r.execute('OBJ[2].fields.stamina = 0.5 run(0.5)')
     sw = r.eval('fill_at(622, {130, 190, 235})')
-    r.execute('OBJ[2].fields.health = 50 run(0.4)')   # (0.4 s: the fill has eased down by then, 1.5.55)
+    r.execute('CHANGE.trail(2) CHANGE.trail_hold(0.5) OBJ[2].fields.health = 50 run(0.4)')   # (0.4 s: the fill has eased down by then, 1.5.55; 2.3.8: One piece, 2.3.7's 0.5 s)
     hw2, trail = r.eval('fill_at(614, {240, 170, 90})'), r.eval('fill_at(614, {210, 80, 72})')
     r.execute('run(2)')
     trail2 = r.eval('fill_at(614, {210, 80, 72})')
@@ -1388,6 +1446,46 @@ def main():
     check('health and stamina under the bar: full health %s, no stamina while full (%d rects), half stamina %s, 50 of 125 orange %s with a trail %s, gone %s, with no weapon %s, dead nothing (%d)'
           % (hw, st0, sw, hw2, trail, trail2, nw, dead),
           hw == 260 and st0 == 0 and sw == 130 and hw2 == 104 and trail and trail > 100 and trail2 is None and nw == 104 and dead == 0)
+    # (2.3.7) the trail, One piece (2.3.8's F9 row; 2.3.7's 0.5 s hold set): held 0.5 s after a hit, then drained to
+    # the health over 0.2 s; none at all on a red bar (luka: red on red read as one bar, a pale one as healing)
+    def trail_px():
+        return r.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d[3] == 614 and d[6] == 210 and d[7] == 80 and d[9] == 170 then n = n + d[4] end end return n end)()")
+    r.execute("""CHANGE.trail(2) CHANGE.trail_hold(0.5) GRIP = 70 OBJ[2].fields.health = 125 run(3) OBJ[2].fields.health = 90 run(0.4)""")
+    t04 = trail_px()
+    r.execute("run(0.18)")
+    t058 = trail_px()
+    r.execute("run(0.2)")
+    t078 = trail_px()
+    r.execute("""OBJ[2].fields.health = 60 run(2.5) OBJ[2].fields.health = 15 run(0.3)""")
+    red_fill, red_tr, pale = r.eval('fill_at(614, {210, 80, 72})'), trail_px(), r.eval('fill_at(614, {250, 236, 214})')
+    check('the trail: whole at 0.4 s (%d px), draining at 0.58 s (%d px), gone at 0.78 s (%d px); on a red bar none (%d px red, %s pale) over the fill (%s px)' % (t04, t058, t078, red_tr, pale, red_fill),
+          t04 > 60 and 0 < t058 < t04 and t078 == 0 and red_tr == 0 and pale is None and red_fill)
+    # (2.3.8) In chunks (the default): two hits 0.2 s apart, held 0.5 s here so the steps stand apart — the first
+    # piece drains at 0.5–0.7 s while the second holds (a new hit no longer stops the older one), the second at
+    # 0.7–0.9 s; both gone by 1 s
+    r.execute("""CHANGE.trail(3) CHANGE.trail_hold(0.5) OBJ[2].fields.health = 125 run(3) OBJ[2].fields.health = 100 run(0.2) OBJ[2].fields.health = 75 run(0.2)""")
+    c_both = trail_px()
+    r.execute("run(0.32)")
+    c_first = trail_px()
+    r.execute("run(0.08)")
+    c_second = trail_px()
+    r.execute("run(0.3)")
+    c_gone = trail_px()
+    piece = round(25 / 125 * 260)
+    check('the trail in chunks: both pieces at 0.4 s (%d px), the first drained while the second holds at 0.72 s (%d px, one piece %d), the second draining at 0.8 s (%d px), gone (%d px)' % (c_both, c_first, piece, c_second, c_gone),
+          abs(c_both - 2 * piece) <= 3 and abs(c_first - piece) <= 3 and 0 < c_second < piece and c_gone == 0)
+    # (2.3.9) Warning pulses "Flash once": the health bar flashes once as it turns red (the glow's wash over it), then
+    # stays plain red; Pulsing still pulses
+    def glows():
+        return r.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d[3] == 614 and d[6] == 235 and d[7] == 120 then n = n + 1 end end return n end)()")
+    r.execute("""CHANGE.warn(3) CHANGE.trail(1) OBJ[2].fields.health = 125 run(2) OBJ[2].fields.health = 20 run(0.1)""")
+    g1 = glows()
+    r.execute("run(1)")
+    g2 = glows()
+    r.execute("OBJ[2].fields.health = 15 run(0.1)")
+    g3 = glows()
+    check('Flash once: the wash as health turns red (%d), none a second on (%d), none on the next hit while red (%d)' % (g1, g2, g3), g1 == 1 and g2 == 0 and g3 == 0)
+    r.execute("CHANGE.warn(1) CHANGE.trail(3) OBJ[2].fields.health = 125 run(2)")
     # (1.5.58) stamina running out, and full again: a wash of cream over the whole bar for a moment (the glow)
     r.execute('OBJ[2].fields.health = 125 GRIP = 10 run(2.5) OBJ[2].fields.stamina = 0.5 run(1) OBJ[2].fields.stamina = 0 run(0.05)')
     def glow(): return [(d[6], d[9]) for d in r.eval('draws').values() if d[1] == 'rect' and d[3] == 622 and d[4] == 260 and d[6] in (235, 236) and 50 <= d[9] <= 120]
@@ -1467,6 +1565,76 @@ def main():
     rl = r.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[3] == 608 and d[6] == 236 and d[9] == 230 then return d[4] end end end)()")
     lr = [l for l in r.eval('logs').values() if 'research: reload' in l]
     check('reload progress: timed %s, half way on the second (%s px)' % (lr, rl), lr and 'took 2.' in lr[0] and rl and 110 <= rl <= 150)
+    # (2.3.7) the Apex: its reload stage back to 0 a moment before its rounds rise (luka's log: 172.3 s, then the 5
+    # rounds at 172.5 s): timed to the stage's end all the same, and the line on the next one; a cancelled reload
+    # (no rounds within a second) learns nothing
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.reload_line = true M = (function(...) ''' + SRC + ''' end)(chef) run(3)
+      local f = OBJ[3].fields f[ROLE.rounds] = 30 run(0.3) f[ROLE.reload_stage] = 1 run(2) f[ROLE.reload_stage] = 0 run(0.25) f[ROLE.rounds] = 45 run(1)
+      f[ROLE.rounds] = 30 run(0.3) f[ROLE.reload_stage] = 1 run(1)''')
+    rl = r.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[3] == 608 and d[6] == 236 and d[9] == 230 then return d[4] end end end)()")
+    lr = [l for l in r.eval('logs').values() if 'research: reload' in l]
+    r.execute('''local f = OBJ[3].fields f[ROLE.reload_stage] = 0 run(1.5) f[ROLE.reload_stage] = 1 run(1) f[ROLE.reload_stage] = 0 run(2)''')
+    lr2 = [l for l in r.eval('logs').values() if 'research: reload' in l]
+    check('reload progress, the rounds a moment after the stage: timed %s, half way on the second (%s px); a cancelled one learns nothing (%d lines)' % (lr, rl, len(lr2)),
+          lr and 'took 2.' in lr[0] and rl and 110 <= rl <= 150 and len(lr2) == len(lr))
+    # (2.3.8) timed to the rounds, not the stage (2.2 s here: the stage's 2 s and the 0.25 s wait), and the line drawn
+    # on through the wait, nearly full there (the Apex's line ended early on a reload from empty: luka)
+    r.execute('''local f = OBJ[3].fields f[ROLE.rounds] = 30 run(0.5) f[ROLE.reload_stage] = 1 run(2) f[ROLE.reload_stage] = 0 run(0.15)''')
+    rw = r.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[3] == 608 and d[6] == 236 and d[9] == 230 then return d[4] end end end)()")
+    r.execute('OBJ[3].fields[ROLE.rounds] = 45 run(0.5)')
+    check('the reload timed to its rounds: %s; the line on through the wait (%s px of about 260)' % (lr[0] if lr else None, rw),
+          lr and '(its stage 2.0 s' in lr[0] and ('took 2.2' in lr[0] or 'took 2.3' in lr[0]) and rw and rw >= 200)
+    # (2.3.9) from empty, the chamber too (luka's AMR: rounds up with the chamber still empty, chambered 1.2 s later; it
+    # learned 0.8 s): timed to the chamber. And a magazine emptied by the reload itself, a read before its stage (3 left,
+    # luka's 334 s), is a reload with rounds left
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.reload_line = true M = (function(...) ''' + SRC + ''' end)(chef) run(3)
+      local f = OBJ[3].fields f[ROLE.rounds] = 0 f[ROLE.chamber] = true run(0.5)
+      f[ROLE.reload_stage] = 1 run(0.8) f[ROLE.reload_stage] = 0 f[ROLE.rounds] = 45 run(1.2) f[ROLE.chamber] = false run(0.5)
+      f[ROLE.rounds] = 3 run(0.5) f[ROLE.rounds] = 0 run(0.1) f[ROLE.reload_stage] = 1 run(2) f[ROLE.reload_stage] = 0 f[ROLE.rounds] = 45 run(0.5)''')
+    lc = [l for l in r.eval('logs').values() if 'research: reload' in l]
+    check('from empty, timed to the chamber: %s; emptied by the reload, with rounds left: %s' % (lc[:1], lc[1:2]),
+          len(lc) == 2 and 'from empty' in lc[0] and ('took 2.0' in lc[0] or 'took 2.1' in lc[0]) and 'chambered' in lc[0]
+          and 'with rounds left' in lc[1])
+    # (2.3.12) the hatch holds still while a bar fills: the reload line (the charge part) scrolled its stripes up as it
+    # filled (luka) — the empty part's stripes were laid from its own moving corner. The stripes' phase along the
+    # diagonal ((x - y) mod the spacing, its most common value) is the same half way and nearly full; and the same
+    # for the health bar draining and the ammo bar's solid fill easing
+    def phase_mode(rr, ylo, yhi):
+        from collections import Counter
+        c = Counter()
+        for d in rr.eval('draws').values():
+            if d[1] == 'tri' and ylo - 1 <= d[3] <= yhi + 1:
+                for vx, vy in ((d[2], d[3]), (d[4], d[5]), (d.x3, d.y3)):
+                    c[round((vx - vy) % 5, 1)] += 1   # (a stripe's two edges are half a spacing apart)
+        return c.most_common(1)[0] if c else None
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.reload_line = true M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(1) CHANGE.shade(3) run(3)
+      local f = OBJ[3].fields f[ROLE.rounds] = 30 run(0.3) f[ROLE.reload_stage] = 1 run(2) f[ROLE.rounds] = 45 f[ROLE.reload_stage] = 0 run(1)
+      f[ROLE.rounds] = 30 run(0.3) f[ROLE.reload_stage] = 1 run(0.5)''')
+    line = [(d[3], d[5]) for d in r.eval('draws').values() if d[1] == 'rect' and d[6] == 236 and d[9] == 230 and d[5] <= 8]
+    m0 = phase_mode(r, line[0][0], line[0][0] + line[0][1]) if line else None
+    r.execute('run(1.2)')
+    m1 = phase_mode(r, line[0][0], line[0][0] + line[0][1]) if line else None
+    check('hatch on the reload line holds still as it fills: the stripes\' phase %s at a quarter, %s at nearly full (the line at y %s)' % (m0, m1, line[:1]),
+          line and m0 and m1 and m0[0] == m1[0])
+    # (2.3.12) and on the health bar as it drains, straight and curved: the stripes left in the empty part are the same
+    # ones (an arc's are laid along the arc, a straight bar's from the bar's corner)
+    for lay, name in ((1, 'straight'), (2, 'curved')):
+        rv = lua51.LuaRuntime()
+        rv.execute('OPTS_X = true')
+        setup(rv)
+        rv.execute('''OPTS.health, OPTS.stamina = 2, 1 M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(%d) CHANGE.shade(3) CHANGE.trail(1)
+          local f = OBJ[2].fields f.health, f.max_health, f.stamina = 100, 125, 1 run(2.5)''' % lay)
+        ta = set((round(d[2], 2), round(d[3], 2), round(d[4], 2), round(d[5], 2)) for d in rv.eval('draws').values() if d[1] == 'tri' and d[9] == 95)
+        rv.execute('OBJ[2].fields.health = 60 run(1)')
+        tb = set((round(d[2], 2), round(d[3], 2), round(d[4], 2), round(d[5], 2)) for d in rv.eval('draws').values() if d[1] == 'tri' and d[9] == 95)
+        check('hatch on a %s health bar holds still as it drains: %d of its %d stripe triangles at 100 / 125 the same at 60 / 125 (%d then)' % (name, len(ta & tb), len(ta), len(tb)),
+              len(ta) >= 4 and len(ta & tb) >= len(ta) - 4 and len(tb) > len(ta))
     # 1.2.1: a layout pasted into the learned file (a player's report): moved to the layout file, said on screen, and
     # the learned file written back as learned knowledge
     r = lua51.LuaRuntime()
@@ -2607,6 +2775,41 @@ def main():
     r.execute('CHANGE.shade(false) run(0.3)')
     rc = rects()
     check('shade off: the fill alone (%s)' % rc, len(rc) == 1 and rc[0][4] == 235)
+    # (2.3.9) Hatched: the empty part a dark ground and diagonal stripes (triangles) inside it, none over the fill
+    r.execute('CHANGE.shade(3) for _, o in pairs(OBJ) do if o.fields[ROLE.rounds] then o.fields[ROLE.rounds] = math.floor(o.fields[ROLE.rounds] / 2) end end run(0.5)')
+    tris = [(d[2], d[3], d[4], d[5], d.x3, d.y3) for d in r.eval('draws').values() if d[1] == 'tri']
+    dark = [q for q in rects() if q[4] == 70]
+    xs = [v for t in tris for v in (t[0], t[2], t[4])]
+    check('shade hatched: a dark ground (%s) and %d stripe triangles, all within the empty part (x %s to %s)' % (dark, len(tris), min(xs) if xs else None, max(xs) if xs else None),
+          len(dark) == 1 and len(tris) >= 10 and xs and min(xs) >= dark[0][0] - 0.01 and max(xs) <= dark[0][0] + dark[0][2] + 0.01)
+    # (2.3.11) the pattern fixed to the bar: moved (the layout's left / right here), the stripes keep their place on it
+    # (they stood still under a bar sliding with the Aim spread: luka)
+    rh = lua51.LuaRuntime()
+    setup(rh)
+    rh.execute('CHANGE.layout(1) CHANGE.shade(3) GRIP = 70 FIRE = true run(3) for i = 11, 5, -1 do OBJ[4].fields[ROLE.rounds] = i run(0.3) end FIRE = false run(0.5)')
+    def stripe_off():
+        ds = list(rh.eval('draws').values())
+        dk = sorted([(d[2], d[3]) for d in ds if d[1] == 'rect' and d[6] == 0 and d[7] == 0 and d[8] == 0])
+        xs = sorted(v for d in ds if d[1] == 'tri' for v in (d[2], d[4], d.x3))
+        if not dk or not xs: return None, None
+        inner = [v for v in xs if v > dk[0][0] + 0.5]
+        return (round(inner[0] - dk[0][0], 2) if inner else None), dk[0][0]
+    o0, g0 = stripe_off()
+    rh.execute('CHANGE.off_x(3) run(1)')
+    o1, g1 = stripe_off()
+    check('hatched stripes move with the bar: a stripe %s px into the first empty tick before, %s after it moved %s px' % (o0, o1, (g1 or 0) - (g0 or 0)),
+          o0 is not None and o0 == o1 and g0 != g1)
+    r.execute('CHANGE.shade(2) run(0.3)')
+    # (2.3.10) Hatched on an arc: the Arcs layout's health bar, part empty — its stripes (alpha 95 triangles) drawn
+    ra = lua51.LuaRuntime()
+    ra.execute('OPTS_X = true')
+    setup(ra)
+    ra.execute('''OPTS.health, OPTS.stamina = 2, 2 M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(2) CHANGE.trail(1)
+      local f = OBJ[2].fields f.health, f.max_health, f.stamina = 70, 125, 1 run(2.5)''')
+    a0 = ra.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'tri' and d[9] == 95 then n = n + 1 end end return n end)()")
+    ra.execute('CHANGE.shade(3) run(0.5)')
+    a1 = ra.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'tri' and d[9] == 95 then n = n + 1 end end return n end)()")
+    check('shade hatched on an arc: stripes on the health arc (%d triangles; %d with Solid)' % (a1, a0), a0 == 0 and a1 >= 6)
     r.execute('CHANGE.edge(3) run(0.3)')
     rc = rects()
     strokes = [q for q in rc if q[4] == 210]
@@ -2859,6 +3062,26 @@ def main():
     logs = list(r.eval('logs').values())
     check('the Halt: a shot, then three mode switches (the slots swapped): still shown [%s] %s' % (t, [l for l in logs if 'not yours' in l]),
           'STUN' in t and not any('not yours' in l for l in logs))
+    # (2.3.3) the two-tube pump shotgun (pump_shotgun_dragon): what it holds is both tubes and the chamber, whichever
+    # tube the selected field names — a player's report: 8 of 16 shown, the bar 9, a reload counting 0 to 8 into the
+    # empty tube. From his log: full 7 + 8 + chambered; tube 0 dry, the selected to 1; a reload into tube 0 from 8
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OBJ[3] = nil OBJ[95] = { name = '%s', fields = {} } local f = OBJ[95].fields
+      f[ROLE.slot0] = 7 f[ROLE.slot1] = 8 f[ROLE.selected] = 0 f[ROLE.spare] = 40 f[ROLE.chamber] = false f[ROLE.carry] = 0
+      GRIP = 80 run(3) FIRE = true run(0.1) f[ROLE.chamber] = true run(0.3) FIRE = false run(0.5)''' % type_name('bd5f17dd'))
+    d0 = r.eval('texts()')
+    r.execute('''local f = OBJ[95].fields f[ROLE.slot0] = 0 f[ROLE.chamber] = true f[ROLE.selected] = 1 run(0.5)''')
+    d1 = r.eval('texts()')
+    r.execute('''local f = OBJ[95].fields f[ROLE.selected] = 0 f[ROLE.slot0] = 3 run(0.5)''')
+    d2 = r.eval('texts()')
+    r.execute('''local f = OBJ[95].fields f[ROLE.slot0] = 7 f[ROLE.chamber] = false run(0.5)''')
+    d3 = r.eval('texts()')
+    r.execute('''local f = OBJ[95].fields f[ROLE.slot1] = 9 run(0.5)''')
+    d4 = r.eval('texts()')
+    d3, tm = d3, r.eval('M.debug_learned("mag", "bd5f17dd")')
+    check('two tubes: 15 after a shot [%s], 8 with tube 0 dry and the other selected [%s], 11 mid-reload [%s], 16 full [%s], 17 once (7 + 9 + 1) [%s]; the size learned 16 (%s)' % (d0, d1, d2, d3, d4, tm),
+          d0.startswith('15 |') and d1.startswith('8 |') and d2.startswith('11 |') and d3.startswith('16 |') and d4.startswith('17 |') and tm == 16)
     # a controller that isn't the first one the engine has (Pad3)
     rt7b = lua51.LuaRuntime()
     setup(rt7b)
