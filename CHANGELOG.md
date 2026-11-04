@@ -2,6 +2,9 @@
 
 ## 2.4.0
 
+- NEW, worth a look: Hatched shade (F9 > Look > Shade behind bars > Hatched; not the default). Diagonal stripes on a
+  dark ground behind a bar's empty part, as the game's own health bar has, on straight and curved bars alike (a
+  layout can set it per bar).
 - Shell flash (F9 > Layout, under Motion; on by default): each round fired flicks out of the ammo bar in the bar's
   colour, square to it and away from the crosshair, and is gone. Shell flash length sets how far it gets.
 - Hit trail (F9 > Visibility): what each hit took stays red a moment, then drains away, each hit on its own (or as
@@ -9,8 +12,6 @@
   (0.4 s).
 - Warning pulses (F9 > Visibility) has a third choice, Flash once: the health bar flashes as it turns red, then
   simply stays red.
-- Shade behind bars (F9 > Look) has a third choice, Hatched: diagonal stripes on a dark ground behind a bar's empty
-  part, as the game's own health bar has, on straight and curved bars alike (a layout can set it per bar).
 - The reload line runs until the gun is ready: on a reload from empty it waits for the round to be chambered, and it
   works for weapons whose rounds show a moment after the reload (the AMW-20 Apex, the AMR and others).
 - The SG-451 Cookout shows all it holds: both tubes and the chambered shell, on a bar of 16 (it showed one tube at a

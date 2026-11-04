@@ -22,10 +22,10 @@ A small ammo and heat readout right by your crosshair, so you never have to look
 mid-fight.
 
 [size=4][b]NEW in 2.4[/b][/size]
+[b][color=#e8d9a8]NEW: the game's own hatched look for your bars.[/color][/b] Diagonal stripes behind each bar's empty part, as the game's health bar has, straight and curved. It isn't the default, so pick it: [b]F9 > Look > Shade behind bars > Hatched[/b].
 [list]
 [*][b]Shell flash:[/b] each round fired flicks out of the ammo bar in its colour, like a shell thrown out (F9 > Layout, with its length).
 [*][b]Hit trail:[/b] what each hit took stays red a moment, then drains away, hit by hit; none on a red health bar (F9 > Visibility, how long it stays).
-[*][b]Hatched shade:[/b] the game's own diagonal stripes behind a bar's empty part, straight or curved (F9 > Look > Shade behind bars).
 [*][b]Flash once:[/b] the low-health warning as one flash, then simply red (F9 > Visibility > Warning pulses).
 [*]The reload line runs until the gun is ready (a round chambered from empty; the Apex, the AMR); the SG-451 Cookout shows both tubes; firing with F9 open no longer hides your weapon.
 [/list]
@@ -135,13 +135,13 @@ Not affiliated with Arrowhead Game Studios.
 
 Changelog for the Nexus "Changelogs" tab (2.4.0)
 ------------------------------------------------
+- NEW, worth a look: Hatched shade (F9 > Look > Shade behind bars > Hatched; not the default) — the game's own
+  diagonal stripes behind a bar's empty part, on straight and curved bars.
 - Shell flash (F9 > Layout, on by default): each round fired flicks out of the ammo bar in the bar's colour and is
   gone; Shell flash length sets how far it gets.
 - Hit trail (F9 > Visibility): what each hit took stays red a moment, then drains away, hit by hit (or as one piece, or
   off); on a red health bar only your health shows. Hit trail held sets how long (0.4 s).
 - Warning pulses: a third choice, Flash once (one flash as health turns red, then simply red).
-- Shade behind bars: a third choice, Hatched (the game's diagonal stripes behind a bar's empty part, straight and
-  curved).
 - The reload line runs until the gun is ready (from empty it waits for the chambered round; the AMW-20 Apex and the
   AMR among the weapons it now works for).
 - The SG-451 Cookout shows both tubes and the chambered shell, on a bar of 16.
