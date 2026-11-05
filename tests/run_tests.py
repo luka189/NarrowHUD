@@ -175,7 +175,7 @@ chef = {
     if fy <= 0.5 then return nil end
     return 1720 + fx / fy * 1000, 720 + (z - 1) / fy * 1000
   end,
-  unit_alive = function() return true end,
+  unit_alive = function(u) for _, e in ipairs(UNITS or {}) do if e[1] == u then return e.dead ~= true end end return true end,   -- (2.4.1: UNITS' dead)
   unit_position = function(u, node) if WPOS and WPOS[u] == false then return nil end if WPOS and WPOS[u] then local hz = (HAND_UP and node == 42) and 1.3 or 0 return WPOS[u][1], WPOS[u][2], WPOS[u][3] + hz end return 100, 200, 10 end,
   unit_kind = function(u) return u == 'U' and 'a57ae2a703c02899' or (u == 'B' and '16f397ca5f51f271' or (u == 'G' and (GKIND or 'ee4c107b941ab7f4') or 'wkind')) end,
   unit_node = function(u, name) if u == 'U' and name == 'attach_hand_r' then return 42 end return nil end,
@@ -258,7 +258,7 @@ chef = {
     if name == 'Unit.debug_name' then for _, u in ipairs(UNITS or {}) do if u[1] == s then return '#ID[' .. u[2] .. ']' end end return nil end
     if name == 'Unit.world_position' then if a ~= 1 then error('Unit.world_position without the node index (2.0.11)') end for _, u in ipairs(UNITS or {}) do if u[1] == s and u[3] then return { u[3], u[4], u[5] } end end return nil end
     if name == 'Unit.alive' and UNITS then for _, u in ipairs(UNITS) do if u[1] == s then return u.dead ~= true end end return false end
-    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s and u.box then return 'POSE', { u.box[1], u.box[2], u.box[3] } end end return nil end
+    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s then if u.dead then error('Unit.box of a destroyed unit (ends the game)') end if u.box then return 'POSE', { u.box[1], u.box[2], u.box[3] } end end end return nil end
     if name == 'Vector3.to_elements' and type(s) == 'table' and #s == 3 then return s[1], s[2], s[3] end
     error('unexpected call ' .. name)
   end,
@@ -2512,6 +2512,25 @@ def main():
     boxes = [l for l in r.eval('logs').values() if l.startswith('research: structure box:')]
     check('a bug hole in the shot\'s path: the mark red at the hit (%d red lines at y %.1f), no landing ring (%d); the hole listed, its marker kind not (%s); its box asked once (%s); %s rays a frame' % (len(red), red[0][3] if red else 0, len(level), listed[:1], boxes, rays),
           len(red) == 21 and red and 27 < red[0][3] < 30 and not level and len(listed) == 1 and 'bug_spawner_small_01 x1' in listed[0] and '_marker' not in listed[0] and len(boxes) == 1 and 'half 1.5 x 1.5 x 1.5' in boxes[0] and 1 <= rays <= 3)
+    # (2.4.1) a shrieker (fac_bugs/cha_shrieker/cha_shrieker, 64090088502435dd) is no structure: never listed, so its
+    # box is never asked; and a structure destroyed since the walk listed it (dead) isn't asked either — Unit.box on a
+    # destroyed unit ends the game (two players' crashes with the stratagem list open, 2026-11-05)
+    rs = lua51.LuaRuntime()
+    setup(rs)
+    rs.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'S', '64090088502435dd', 0.4, 30, 0.4, box = { 5.1, 1.7, 1.2 } }, { 'H', '2e454bd4d24eb04a', 0.4, 30, 0.4, box = { 1.5, 1.5, 1.5 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 0 run(2)''')
+    listed = [l for l in rs.eval('logs').values() if l.startswith('research: structures:')]
+    try:
+        rs.execute('UNITS[3].dead = true WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(1)')
+        err = None
+    except Exception as e:
+        err = str(e)
+    boxes = [l for l in rs.eval('logs').values() if l.startswith('research: structure box:')]
+    check('a shrieker is no structure (%s); a bug hole destroyed after the listing: its box not asked (%s), no error (%s)' % (listed[:1], boxes, err or 'none'),
+          len(listed) == 1 and 'shrieker' not in listed[0] and 'bug_spawner_small_01 x1' in listed[0] and err is None and not boxes)
     r.execute('CHANGE.struct_mark(false) run(0.5)')
     red = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
     level, drop = ring_and_line()

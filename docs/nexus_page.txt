@@ -2,9 +2,9 @@ NarrowHUD: Nexus Mods page text
 ================================
 
 Name: NarrowHUD
-Version: 2.4.0
+Version: 2.4.1
 Category: User Interface (or Gameplay > HUD, whichever the site lists)
-Main file: NarrowHUD-v2.4.0.zip (archive the older main files and the R0 / R1 research builds)
+Main file: NarrowHUD-v2.4.1.zip (archive the older main files and the R0 / R1 research builds)
 Requirements (the "Requirements" box): Chef Shared Loader (nexusmods page of Th3chef's loader), "1.2.3 or newer"
 
 Summary (the short line under the title, at most 350 characters):
@@ -132,6 +132,11 @@ the game's own, drawn from its HUD sprites in play; none of the game's art is in
 [*]Runs on Chef Shared Loader by Th3chef.
 [/list]
 Not affiliated with Arrowhead Game Studios.
+
+Changelog for the Nexus "Changelogs" tab (2.4.1)
+------------------------------------------------
+- Fixes a crash to desktop with the drop or throw line on near a shrieker nest (most often as the stratagem list
+  opened): the shriekers themselves were taken for structures the line could hit.
 
 Changelog for the Nexus "Changelogs" tab (2.4.0)
 ------------------------------------------------

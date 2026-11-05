@@ -11,11 +11,18 @@
 local cfg, call = N.cfg, N.call
 -- against the kind's name (content/ cut); the markers and decorations left out. luka: only what a drop line's
 -- weapon can destroy — no bunkers, turret bases, detector towers, jammers or gunship factories (hellbomb jobs)
+-- (2.4.1) 'shrieker' was the pattern: it took the shrieker nest (bug_spawner_shrieker is a spawner anyway, and the
+-- objective nest is named here now) but also the shriekers themselves (fac_bugs/cha_shrieker/cha_shrieker, their
+-- gloom kind, their meshes) — flying bugs that die and are destroyed, and Unit.box on a destroyed unit ends the
+-- game: two players' crashes whenever the stratagem list opened over a shrieker nest (a player's logs, 2026-11-05:
+-- one launch "ended inside Unit.box:struct.box.64090088502435dd", cha_shrieker; the next crashed right after two
+-- shriekers' boxes were asked as the ball came up). Nothing living is a structure: fac_ (the factions' characters)
+-- and m_ (meshes) are left out whatever else matches
 local STRUCT_PAT = {
   'gameplay/[%w_/]*spawner', 'il_laser_tower', 'il_teslatower', 'il_turret', 'spore_light_%d+_objective',
-  'bug_hive_chimney', 'shrieker',
+  'bug_hive_chimney', 'bug_shrieker_nest',
 }
-local NOT_STRUCT = { '_marker$', 'decoration' }
+local NOT_STRUCT = { '_marker$', 'decoration', '^fac_', '/cha_', '/m_' }
 local RAYS = 40                                  -- engine rays a frame, at most
 local REACH = 160                                -- metres from the thrower: structures farther are never asked
 local sk = {}                                    -- kind id -> true / false: a structure kind
@@ -66,6 +73,9 @@ local function box_of(s)
   local bx = st.box[s.u]
   if bx ~= nil then return bx end
   st.asked = st.asked + 1
+  -- (2.4.1) a unit destroyed since the walk listed it: never asked (Unit.box on one ends the game; chef.call checks
+  -- only the world, not Unit.alive). Its box stays unknown (nil), not false: a later walk lists it afresh if it's back
+  if chef.unit_alive and chef.unit_alive(s.u) ~= true then return false end
   local pose, half = call('struct.box.' .. s.k, 'Unit.box', s.u)
   local hx, hy, hz
   if pose ~= nil and half ~= nil then

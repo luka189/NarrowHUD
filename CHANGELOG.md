@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1
+
+- Fixes a crash to desktop with the drop or throw line on near a shrieker nest (most often as the stratagem list
+  opened): the shriekers themselves were taken for structures the line could hit.
+
 ## 2.4.0
 
 - NEW, worth a look: Hatched shade (F9 > Look > Shade behind bars > Hatched; not the default). Diagonal stripes on a

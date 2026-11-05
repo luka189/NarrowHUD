@@ -51,6 +51,20 @@ fixed digits; the disconnects fixed (the host's objects never read); the game-pa
 
 ## Open points
 
+0. ~~**Two crash reports (Nexus, 2026-11-04):**~~ found from a player's logs and fixed in 2.4.1: shriekers matched
+   the structure pattern 'shrieker', and Unit.box on one destroyed ended the game (DEVLOG 2.4.1). Was: (a) "crash mid-op often when I
+   have the ring line enabled (the one that circles the ground) … three missions, crashed about halfway through, all
+   when the stratagem list is open; disabled, no crash"; (b) "I'm getting this CTD as well, I'll try disabling the
+   landing mark." The "ring" is likely the landing mark (12_drop / 12_throw's circle on the ground), and the
+   stratagem list is the stratagem input (hide on stratagem: the HUD hides, but do the world lines?). To look at:
+   what the landing mark and the throw line read and draw while the stratagem list is up (the ball's unit, the
+   ground model's unit walk, `Unit.box` of structures), whether anything there runs on a unit that can be gone;
+   then a reproduction attempt (luka: stratagem list open with the landing mark on, a long mission). Chef's trace
+   names a call only on its first use per launch: an unguarded read that ran before won't show there.
+   luka's lead (2026-11-04 evening): the ground distance now reads the game's aim fields (the look point and the
+   crosshair point, af97ede7 / bdc1cb8a, since 2.2.4 / 2.2.5: 12_ground `sample_look`, 12_drop's aim), and opening
+   the stratagem list draws the landing mark if nothing else — start there.
+
 1. **Per-part colours** (effort 3–4). Today: four named tables (CREAM, YELLOW, WARN, RED) and the two mode tones,
    swapped whole by the colourblind palette (`N.apply_palette`; the editor has the same PALETTES). Two steps:
    - a palette of your own: the same swap fed from the layout file (`colors = { cream = {r,g,b}, ... }`) and, for
