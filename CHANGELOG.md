@@ -34,8 +34,6 @@
 - A crash precaution: nothing in the world around you is looked at while you're dead, in your hellpod, or in the
   first 10 seconds after it lands.
 
-(The 2.4.2–2.4.16 development builds behind this release are in docs/DEVLOG.md.)
-
 ## 2.4.1
 
 - Fixes a crash to desktop with the drop or throw line on near a shrieker nest (most often as the stratagem list
