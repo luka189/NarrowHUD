@@ -8,8 +8,8 @@ local cfg = { size = 1, off_x = 0, off_y = 0, custom = true, builtin = 'horizont
               show_bar = true, show_count = true, show_mags = true, show_heat = true, show_charge = true,
               show_stims = true, show_grenades = true, pack = true, font = true,
               research = false, any_build = false, opacity = 1, idle = 1, idle_secs = 4, show_rpm = true, show_fmode = true,
-              show_mode = true, palette = 1, fire = 1, wheel = 1, health = 2, stamina = 2, stim_timer = false, stim_secs = 1, warn = false,
-              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, hide_terminal = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 2, throw_line = true, landing_mark = true, mark_size = 0.7, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
+              show_mode = true, palette = 1, fire = 1, wheel = 1, health = 2, stamina = 2, stim_timer = false, stim_secs = 1, warn = false, low_ammo = 0.25,
+              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, hide_terminal = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 1, throw_line = true, landing_mark = true, mark_size = 0.5, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
 N.apply_palette = nil                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
 if chef.has and chef.has('menu') then
@@ -93,11 +93,16 @@ if chef.has and chef.has('menu') then
   slider('opacity', 'Opacity, %', 20, 100, 5, 100, function(v) cfg.opacity = v / 100 end)
   -- (1.5.55) motion: the few things that move (08_motion) — off, quick (the times as set), or normal (1.6 times)
   choice('motion', 'Motion', { 'Off', 'Quick', 'Normal' }, 2, function(v) cfg.motion = v end,
-    'Parts sliding to a new place, bars easing, a reload sweeping the ticks in, short flashes on an event. Off: everything snaps.')
+    'Parts sliding to a new place, bars easing, a reload or resupply sweeping the pieces in, mode words fading over, short flashes on an event. Off: everything snaps.')
   toggle('shell_flash', 'Shell flash', true,
     'Each round fired jumps out of the ammo bar, square to it and away from the crosshair, and fades, like a shell thrown out. Needs Motion on.')
   slider('shell_len', '   Shell flash length, %', 10, 100, 5, 30, function(v) cfg.shell_len = v end,
     'How much of the shell\'s flight shows before it\'s gone: 30 a flick off the bar, 100 a short throw.')
+  -- (2.4.5, luka: its own row and length, as the shell flash's)
+  toggle('shell_load', 'Shell loading', true,
+    'On weapons that load a round at a time (the Cookout, the Punisher), each round loaded flicks into the ammo bar, the shell flash backwards. Needs Motion on.')
+  slider('shell_load_len', '   Shell loading length, %', 10, 100, 5, 30, function(v) cfg.shell_load_len = v end,
+    'How far out each loaded round starts: 30 a flick into the bar, 100 a short throw in. It takes twice the shell flash\'s time.')
 
   ---------------------------------------------------------------------------------- Visibility: each part's rule
   -- (1.5.60) every part's row a rule (08_show): Off, Always, While not full, On a change, While aiming, or one of
@@ -185,13 +190,19 @@ if chef.has and chef.has('menu') then
     cfg.shade = v ~= 1
     cfg.hatch = v == 3
   end, 'Behind a bar\'s empty part: nothing, a faint fill, or diagonal stripes as the game\'s own bars have. A layout can set its own per bar.')
+  -- (2.4.14) the stripes as one texture (cheap) or drawn stripe by stripe (crisp): luka compares the two in game
+  choice('hatch_way', '   Hatch drawn as', { 'Triangles', 'Texture' }, 2, function(v) cfg.hatch_way = v end,
+    'How the stripes are drawn: each stripe as triangles (the 2.3.9 way, up to ~70 engine calls a bar), or as one texture (a call or two a bar).')
   -- (2.2.0) the count's digits: fixed, the number right-aligned in a box as wide as it gets, so it never slides as
   -- it falls (a Nexus comment, 2026-11-01); a layout's count part can set its own
   choice('count_digits', 'Count digits', { 'Fixed', 'Tight' }, 1, function(v) cfg.count_tight = v == 2 end,
-    'Fixed: the count sits right-aligned in a box as wide as the full magazine, so it never slides as it falls and the parts after it stay put. Tight: the box is the number\'s own width. A layout can set its own.')
+    'Fixed: the count sits right-aligned in a box as wide as a full magazine, so it and the parts after it never slide. Tight: the box is the number\'s own width. A layout can set its own.')
   toggle('mode_colors', 'Modes in colour', false, 'The fire and weapon modes (words and icons) each in a colour of their own, so a switch is easy to see.')
   choice('palette', 'Colours', { 'Standard', 'Colourblind' }, 1, function(v) cfg.palette = v if N.apply_palette then N.apply_palette() end end,
     'Colourblind: white, sky blue, yellow and magenta, told apart by brightness too.')
+  -- (2.4.5, luka) where ammo turns low: the bar, the count and an ammo backpack orange (and the one flash) at this share
+  slider('low_ammo', 'Low ammo at, %', 5, 50, 5, 25, function(v) cfg.low_ammo = v / 100 end,
+    'The ammo bar and count turn orange, with one flash as they do, at this much of a magazine or less; an ammo backpack too.')
   -- (1.5.63) drawn in the game's UI layer: past its exposure and grading, the colours as coded. (2.0.3: no rows for
   -- it any more, luka: "it should always be drawn in the UI layer, otherwise it looks bad". cfg.top_world stays
   -- true; on a Chef without the layer (no chef.TOP) the HUD is drawn in the world with the tone fix, as 1.5.61.)
@@ -220,15 +231,27 @@ if chef.has and chef.has('menu') then
   choice('drop_line', 'Drop line', { 'Off', 'While aiming', 'In hand' }, 2, function(v) cfg.drop_line = v end,
     'Where the shot goes, for grenade launchers, rockets, the crossbow and plasma: a line from the weapon, bending as the round drops.')
   slider('drop_len', '   Drop line length, m', 50, 300, 25, 150, function(v) cfg.drop_len = v end)
+  -- (2.4.15) the line aimed at the game's reticle point (it lags the view in a turn and sways with the sight) or at
+  -- the view itself, as before
+  choice('line_aim', '   Line aimed at', { 'The view', 'The reticle' }, 2, function(v) cfg.line_aim = v end,
+    'The reticle: the line goes where the game\'s reticle points, which lags the view in a turn and sways with the sight. The view: straight along the camera, as before.')
   slider('drop_from', '   Line from a drop of, cm', 0, 50, 1, 10, function(v) cfg.drop_from = v end,
     'The line starts where the shot has fallen this far below a straight aim: a flat-shooting gun\'s line begins far out, a lobbed one\'s near the hand. 0: from the hand.')
   toggle('throw_line', 'Throw line', true, 'Where a stratagem ball, a grenade or C4 goes while you aim it, from your hand to where it lands.')
   -- (2.0.13) the landing mark: a ring where a line meets the ground as 12_ground guesses it (from the map's own
   -- props, calibrated by where Helldivers walk); faint where the ground is a guess between known cells
   toggle('landing_mark', 'Landing mark', true, 'A ring on the ground where a drop or throw line lands, from the map\'s own heights; faint where the ground is a guess.')
-  slider('mark_size', '   Mark size, m', 0.3, 1, 0.1, 0.7, function(v) cfg.mark_size = v end, 'The landing mark\'s width: the ring and the arrow over it.')
+  slider('mark_size', '   Mark size, m', 0.3, 1, 0.1, 0.5, function(v) cfg.mark_size = v end, 'The landing mark\'s width: the ring and the arrow over it.')
   toggle('struct_mark', 'Structure hits', true, 'The mark turns red where the shot or throw would hit an enemy structure (a bug hole, a fabricator, a warp ship) before the ground.')
-  choice('drop_thick', '   Lines', { 'Thin', 'Medium', 'Thick' }, 2, function(v) cfg.drop_thick = v end, 'The drop and throw lines\' thickness.')
+  choice('drop_thick', '   Lines', { 'Thin', 'Medium', 'Thick' }, 1, function(v) cfg.drop_thick = v end, 'The drop and throw lines\' thickness.')
+  -- (2.4.8, luka: "our line and ending markers look like v0.5 next to a v2.5 HUD") the new look, the old one kept
+  choice('line_look', '   Line look', { 'Classic', 'Solid', 'Dashes', 'Flowing dashes' }, 2, function(v) cfg.line_look = v end,
+    'Classic: as before. Solid: one line with dark edges, fading in at the hand. Dashes: the same size on screen near and far (they cost frame time). Flowing: they move toward where it lands.')
+  toggle('line_tri', '   Thick lines as a triangle', false, 'With Lines set to Thick: the third strand over the other two instead of beside them, so the line has a body at a glancing angle.')
+  choice('mark_look', '   Landing mark look', { 'Classic', 'On the ground' }, 2, function(v) cfg.mark_look = v end,
+    'On the ground: a pin painted on the ground where it lands, lying on rocks and slopes, with a chevron icon over it. Classic: the ring of lines, as before.')
+  toggle('blast_zone', '   Blast zone', true,
+    'For explosive rounds and grenades: the full-damage radius painted on the ground under the mark, the outer radius as a dashed ring; red while you stand within reach.')
   -- (2.0.18) the lines' and the mark's opacity: the world's tone mapping burns the cream to white and the red to
   -- pure red, and a correction goes wrong with the planet's grading (luka, 2.0.17); a lower opacity blends more of
   -- the scene in before the curve, which softens both

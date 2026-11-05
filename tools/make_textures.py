@@ -194,6 +194,24 @@ def texture_game(mask):
     return texture_resource_game(size, size, levels), gpu
 
 
+def texture_game_rgba(rgba):
+    """(2.4.8) a colour picture (RGBA, a square power of two) as a BC3 texture with every mip level, the game's icon
+    layout: the ground pictures (tools/decal_art.py), their colour baked in"""
+    size = rgba.shape[0]
+    assert rgba.shape[:2] == (size, size) and size & (size - 1) == 0
+    img = Image.fromarray(rgba, 'RGBA')
+    levels, gpu = 0, b''
+    s = size
+    while s >= 1:
+        m = np.array(img.resize((s, s), Image.LANCZOS)) if s != size else rgba
+        if s < 4:
+            pad = np.zeros((4, 4, 4), np.uint8); pad[:s, :s] = m; m = pad
+        gpu += bc3_encode(np.ascontiguousarray(m))
+        levels += 1
+        s //= 2
+    return texture_resource_game(size, size, levels), gpu
+
+
 def main():
     out = ROOT / 'build' / 'textures'
     out.mkdir(parents=True, exist_ok=True)
@@ -222,6 +240,41 @@ def main():
         (out / f'{hid}.gpu').write_bytes(gpu)
         lua.append(f"  {name}_game = {{ {{ 256, {h}, '{hid}', {w} }} }},   -- (the game's icon layout: BC3, 9 mip levels; the icon {w} wide, {h} high, centred)")
         print(name, 'done:', ', '.join(str(s) for s in sorted(SIZES)), '+ the game layout')
+    # (2.4.8) the ground pictures for 12_decal: decal_<name>_game, in the game's layout as the icons are
+    from decal_art import pictures
+    for name, rgba in pictures().items():
+        size = rgba.shape[0]
+        res = f'{PREFIX}decal_{name}_game'
+        tex, gpu = texture_game_rgba(rgba)
+        hid = '%016x' % resource_hash(res)
+        (out / f'{hid}.texture').write_bytes(tex)
+        (out / f'{hid}.gpu').write_bytes(gpu)
+        Image.fromarray(rgba, 'RGBA').save(out / f'decal_{name}.png')
+        lua.append(f"  decal_{name}_game = {{ {{ {size}, {size}, '{hid}', {size} }} }},   -- (a ground picture, tools/decal_art.py: BC3, every mip level)")
+        print('decal', name, 'done')
+    # (2.4.14) the hatched shade as one texture: white stripes at 45 degrees on a clear ground. (2.4.15) Eight bands of
+    # 64 rows, each with its own period (texels per stripe pair) so 08_draw_kit's hatch_texture can pick the one nearest
+    # the on-screen pitch and sample it near 1:1 (luka: the 8-texel one, stretched 1.6x, came out fat and soft); the
+    # stripes run along (u + v) within the band (the lean matched the triangles' in his screenshots)
+    size, rows = 512, 64
+    periods = [8, 10, 12, 14, 16, 20, 24, 32]
+    rgba = np.zeros((size, size, 4), np.uint8)
+    rgba[..., :3] = 255
+    bands = []
+    for i, period in enumerate(periods):
+        r0 = i * rows
+        col = np.arange(size)[None, :]
+        row = np.arange(rows)[:, None]
+        rgba[r0:r0 + rows, :, 3] = np.where((col + row) % period < period // 2, 255, 0)
+        bands.append(f'{{ {period}, {r0}, {rows} }}')
+    res = f'{PREFIX}hatch_game'
+    tex, gpu = texture_game_rgba(rgba)
+    hid = '%016x' % resource_hash(res)
+    (out / f'{hid}.texture').write_bytes(tex)
+    (out / f'{hid}.gpu').write_bytes(gpu)
+    Image.fromarray(rgba, 'RGBA').save(out / 'hatch.png')
+    lua.append(f"  hatch_game = {{ {{ {size}, {size}, '{hid}', {size}, {{ {', '.join(bands)} }} }} }},   -- (the hatched shade's stripes: BC3, every mip level; bands of {{ period, first row, rows }}, the stripes along u + v)")
+    print('hatch done')
     lua.append('}')
     (ROOT / 'src' / 'textures_generated.lua').write_text('\n'.join(lua) + '\n')
 

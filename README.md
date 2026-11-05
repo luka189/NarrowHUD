@@ -47,13 +47,19 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
 - **Your map pin** and **where you last died** on the screen, where they are in the world, with their distance; an
   arrow at the screen's edge when one is out of view.
 - A **drop line** for grenade launchers, rockets and plasma: the shot's flight, bending down, hidden where it enters
-  the ground (while aiming down the sights by default; or whenever the weapon is in hand). It starts where the shot
-  has fallen a set distance below a straight aim (10 cm by default), so a flat-shooting gun's line begins far out.
+  the ground (while aiming down the sights by default; or whenever the weapon is in hand). It's aimed where the
+  game's own reticle points, so it lags the view in a turn and sways with the sight as the reticle does (or along
+  the view, an F9 choice), and it starts where the shot has fallen a set distance below a straight aim (10 cm by
+  default), so a flat-shooting gun's line begins far out.
 - A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
-- A **landing mark** where a drop or throw line lands: a ring and an arrow on the ground, from the map's own heights
-  (the rocks, trees and props, calibrated by where Helldivers walk, and wherever you have looked, remembered per
-  planet); faint where the ground is a guess. It turns **red** where the shot would hit a bug hole, a fabricator, a
-  warp ship or an Illuminate tower.
+- A **landing mark** where a drop or throw line lands, painted on the ground (it lies on rocks, slopes and steps) with
+  a chevron over it, from the map's own heights (the rocks, trees and props, calibrated by where Helldivers walk, and
+  wherever you have looked, remembered per planet); faint where the ground is a guess. It turns **red** where the
+  shot would hit a bug hole, a fabricator, a warp ship or an Illuminate tower.
+- A **blast zone** under the mark for explosive rounds and grenades: the full-damage radius filled faintly with a
+  bright rim, the outer radius as a dashed ring, red while you stand within reach. The lines are solid with dark
+  edges and a fade-in at your hand; dashes that keep their size near and far, and the old plain line (Classic), are
+  F9 choices.
 
 Four built-in layouts: the **horizontal** stack (the bars under the crosshair), the **arcs** (centred on the
 crosshair, the meters and the backpack inside), the **vertical pair** (the ammo bar standing right of the crosshair,
@@ -66,7 +72,9 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
   size; one sideways and one up / down offset that moves any of them; Spread (the two sides of the crosshair closer
   or farther apart; the horizontal layout up or down as a whole) and how it changes while you aim; opacity; motion (parts sliding, bars easing and one-shot
-  pulses: off, quick or normal); a shell flash per round fired, and how far it flies.
+  pulses, resupplies lighting the magazines in order, mode words and icons fading over: off, quick or normal); a
+  shell flash per round fired, and how far it flies; the same for each round loaded on weapons that load a round at
+  a time (Shell loading); the share of a magazine that counts as low ammo (orange, with one flash).
 - Visibility: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon
   and fire modes, the game's mode icons, the rate of fire, stims, grenades, the backpack bar, health, stamina):
   off, always, while not full, on a change (for a few seconds), while aiming, or one of those joined with aiming;
@@ -75,14 +83,15 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   (pulsing or one flash), a reload line; the hit trail (what each hit took, in chunks or as one piece) and how long it
   stays.
 - Look: the empty magazine squares shown or hidden; bar edges (none, an outline or the game's brackets) and the
-  shade behind the bars (none, solid, or the game's hatching); the count's digits fixed (it never slides as it falls) or tight; the modes in their own
+  shade behind the bars (none, solid, or the game's hatching, drawn as one texture or stripe by stripe); the count's digits fixed (it never slides as it falls) or tight; the modes in their own
   colours; colours standard or colourblind (white, sky blue, yellow,
   magenta: told apart by brightness too). The HUD is drawn in the game's UI layer, so the colours are exact on
   every planet.
 - The world: the sniper crosshair (while aiming or always; and one for the Maxigun and, if you like, the
   flamethrowers in first person), the map pin and death marker, the drop line (while aiming, whenever in hand, or
   off; its length and where it starts), the throw line, the landing mark and its size, structure hits (the mark red), the lines'
-  thickness and opacity.
+  thickness, opacity and look (dashes, flowing dashes or Classic), the mark's look (on the ground or Classic) and the
+  blast zone.
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.
@@ -128,7 +137,8 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
 ## Credits
 
 - Weapon heat and charge values, stim durations, each projectile's speed, mass, drag and gravity: the [Helldivers 2 wiki](https://helldivers.wiki.gg).
-- Uses research from [HD2Runtime by SkyeShade](https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line).
+- Uses research from [HD2Runtime by SkyeShade](https://github.com/SkyeShade/HD2Runtime): which armours have the Med-Kit and Adreno-Defibrillator passives (the stim timer), the projectiles' diameters and how the game flies them (the drop line), and the weapons' and grenades' blast radii (the blast zone).
+- Painting on the ground with the game's own decal unit was first shown by Blast & Trajectory Markers (Nexus 18214) and HUD+; the idea only: NarrowHUD's code and ground pictures are its own.
 - The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used here.
 - The grenade icon was traced by dogo314 and is used with his permission. The stim icon, the all-barrels icon and the sniper crosshair (a
   tracing of the game's default reticle) are luka189's.

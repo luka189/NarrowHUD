@@ -48,9 +48,11 @@ end
 N.engine_made = { gui = 0, mat = 0 }
 local function game_font()
   if gf.failed or not cfg.font then return nil end
+  -- (2.4.13, the frame time: the world asked once a frame, not twice for every text drawn or measured)
+  if gf.gui and gf.frame == N.frame then return gf.gui end
   local world, wid = chef.world(), chef.world_id()
   if world == nil then return nil end
-  if gf.gui and gf.world == world and gf.wid == wid then return gf.gui end
+  if gf.gui and gf.world == world and gf.wid == wid then gf.frame = N.frame return gf.gui end
   gf.gui = nil                                             -- a GUI from an older world is never touched again
   if not gf.checked then
     gf.checked = true
@@ -67,7 +69,7 @@ local function game_font()
     if not (y0 and y1 and y1 > y0) then gf_fail('no measure') return nil end
     gf.cap100, gf.base100 = y1 - y0, y0
   end
-  gf.gui, gf.world, gf.wid = g, world, wid
+  gf.gui, gf.world, gf.wid, gf.frame = g, world, wid, N.frame
   if not gf.said then gf.said = true log('game font on (cap height %.1f at size 100)', gf.cap100) end
   return g
 end
@@ -325,6 +327,49 @@ local function clip(poly, axis, v, keep_ge)
   end
   return out
 end
+-- (2.4.14, the frame time) the stripes as one texture (tools/make_textures.py: 512 texels square), cropped so a texel
+-- is about a pixel and the window starts where the part's corner puts the pattern; tiled when a bar is wider or
+-- taller than the texture at that scale. Each stripe as triangles was a polygon clipped four times and 1–2 engine
+-- calls (a 260 px bar's empty part up to ~74 calls); this is one call a tile. F9 "Hatch drawn as" compares the two
+-- (luka: the stripes are the best-looking shade; the texture saved him ~0.2 ms a frame).
+-- (2.4.15) The texture holds eight bands, each with its own period: the band nearest the on-screen pitch P is taken,
+-- so the sampling is within about 10 % of 1:1 (the 2.4.14 texture had one 8-texel period, stretched 1.6x at luka's
+-- size: fat, soft stripes; the lean was right). A texel (tu, tv) of a tile sits at (tx + tu * scale, ty - tv * scale)
+-- from the tile's top-left corner, so the stripe rule (px - py - base) mod P < P / 2 becomes
+-- (tu + tv + off) mod period < period / 2 with off = (tx - ty - base) / scale — the window's start along u.
+local hatch_tex_ok = true
+local function hatch_texture(x, y, w, h, P, c, L, base)
+  local g = TEXTURES.hatch_game and TEXTURES.hatch_game[1]
+  if not g or not chef.bitmap_uv or type(g[5]) ~= 'table' then return false end
+  local T = g[1]
+  local band, best = nil, nil
+  for _, b in ipairs(g[5]) do
+    local e = math.abs(math.log(P / b[1]))
+    if not best or e < best then band, best = b, e end
+  end
+  local period, r0, rows = band[1], band[2], band[3]
+  local scale = P / period                                 -- screen pixels a texel
+  local tw, th = (T - period) * scale, rows * scale        -- a tile on screen (a period's margin for the shift along u)
+  local ty = y + h
+  while ty > y + 0.01 do
+    local hh = math.min(th, ty - y)
+    local tx = x
+    while tx < x + w - 0.01 do
+      local ww = math.min(tw, x + w - tx)
+      local off = ((tx - ty) - base) / scale
+      off = off - math.floor(off / period) * period
+      local u0, v0 = off / T, r0 / T
+      if chef.bitmap_uv(g[3], u0, v0, u0 + ww / scale / T, v0 + hh / scale / T, tx, ty - hh, ww, hh, c, L) ~= true then
+        hatch_tex_ok = false
+        log('hatched shade: Chef didn\'t draw the stripe texture: the stripes drawn as triangles instead')
+        return false
+      end
+      tx = tx + ww
+    end
+    ty = ty - hh
+  end
+  return true
+end
 local function hatch(x, y, w, h, faint, L, tint, ox, oy)
   if w <= 0 or h <= 0 then return end
   if not hatch_ok then chef.rect(x, y, w, h, col(CREAM, faint), L) return end
@@ -339,6 +384,9 @@ local function hatch(x, y, w, h, faint, L, tint, ox, oy)
   -- (2.3.12: the corner the pattern hangs from: the one given (a solid bar's own, for its empty part that grows and
   -- shrinks — the reload line scrolled its stripes as it filled: luka), else the part's, else this box's)
   local base = (ox or N.hatch_ox or x) - (oy or N.hatch_oy or y)
+  -- (2.4.16, luka's screenshots: the texture's stripes came out brighter than the triangles', 94 against 73 on
+  -- the same ground, so its alpha is scaled to match)
+  if (cfg.hatch_way or 2) == 2 and hatch_tex_ok and hatch_texture(x, y, w, h, P, col(tint or N.hatch_tint or CREAM, 95 * 0.78), L, base) then return end
   -- stripes: the points with ((px - ox) - (py - oy)) mod P in [0, S); k counts them from the part's corner
   for k = math.floor((x - (y + h) - base) / P) - 1, math.ceil((x + w - y - base) / P) + 1 do
     local u0 = base + k * P
@@ -528,7 +576,7 @@ local function pack_state(items, d)
     -- pack's 1000, a shield's) stays one bar
     local top = items.pack_top
     local segs = (top <= 16 and top == math.floor(top)) and top or nil
-    return { f = f, c = items.pack == 0 and RED or (f <= 0.25 and WARN or CREAM), a = 215, marks = {}, segs = segs, n = math.floor(items.pack + 0.5) }
+    return { f = f, c = items.pack == 0 and RED or (f <= (cfg.low_ammo or 0.25) and WARN or CREAM), a = 215, marks = {}, segs = segs, n = math.floor(items.pack + 0.5) }
   end
   return nil
 end
@@ -547,7 +595,7 @@ local function pack_ticks(st, x, y, w, h, vert, L, k, edge, shade)
   for i = 0, n - 1 do
     local a, b = math.floor(i * step + 0.5), math.floor(i * step + step - gap + 0.5)
     local sz = math.max(1, b - a)
-    local on = i < lit   -- (a vertical bar fills from the bottom, as the ammo ticks: 1.5.59, it emptied bottom-up before)
+    local on = N.sweep_lit('pack', i, lit)   -- (a vertical bar fills from the bottom, as the ammo ticks: 1.5.59, it emptied bottom-up before; 2.4.4: a top-up lights them in order)
     if vert then
       if on then chef.rect(x, y + a, w, sz, col(st.c, st.a), L) else empty_rect(x, y + a, w, sz, 55, L, lw, edge, shade) end
     else
@@ -636,24 +684,29 @@ local function mode_rgb(word)
 end
 local TEST_BLUE = { 60, 110, 255 }
 -- e: the sprite; word: the mode it stands for (its colour follows the text's)
-local function mode_icon(e, x, y, tw, L, word)
+local function mode_icon(e, x, y, tw, L, word, k)
   local way = cfg.mode_icons
   local c = mode_rgb(word)
+  local a = 220 * (k or 1)                                  -- (2.4.5: k, its share in a cross-fade)
   -- (2.0.20) a sprite of our own (the all-barrels one: the game's material for it draws nothing): our texture
   if e.tex then
-    local ok = icon_texture(e.tex, x, y, tw, c, 1, L)
+    local ok = icon_texture(e.tex, x, y, tw, c, k or 1, L)
     return ok == true, ok and nil or 'our texture not drawn (Chef says why above)'
   end
   if way == 2 then
-    local ok = chef.bitmap_uv and chef.bitmap_uv(e[1], e[2], e[3], e[4], e[5], x, y, tw, tw, col(c, 220), L) == true
+    local ok = chef.bitmap_uv and chef.bitmap_uv(e[1], e[2], e[3], e[4], e[5], x, y, tw, tw, col(c, a), L) == true
     return ok, ok and nil or 'Chef says why above'
   end
   -- (way 4: a blue vertex colour, the proof the tint takes (2026-10-28: it does); 3 as shipped)
-  return own_sprite(e, x, y, tw, tw, col(way == 4 and TEST_BLUE or c, 220), L)
+  return own_sprite(e, x, y, tw, tw, col(way == 4 and TEST_BLUE or c, a), L)
 end
-local function mode_icons_said(way, keys)
+-- (2.4.6) kept per part (icon1, icon2, the zeroing's): one shared line, two parts on screen (the Autocannon's mode and
+-- fire mode) took turns at it and wrote it every frame (luka's log: 11,000 lines in 4 minutes)
+local function mode_icons_said(way, keys, part)
   local key = way .. ': ' .. table.concat(keys, ' ')
-  if mode_icon_said ~= key then mode_icon_said = key log('icons: the game\'s mode sprites, way %s (+ drawn, - not)', key) end
+  mode_icon_said = mode_icon_said or {}
+  part = part or 'icons'
+  if mode_icon_said[part] ~= key then mode_icon_said[part] = key log('icons: the game\'s mode sprites, way %s (+ drawn, - not)', key) end
 end
 N.icon_texture, N.mode_icon, N.mode_icons_said = icon_texture, mode_icon, mode_icons_said
 

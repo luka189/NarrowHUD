@@ -35,6 +35,23 @@ local gr = { cells = {}, n = 0, samples = 0, skipped = 0, last = {}, at = -100, 
              kinds = {}, walks = 0, dirty = false }
 N.ground = gr
 local watch = chef.watch and chef.watch({ [AVATAR_RESOURCE] = true }, 2) or nil
+-- (2.4.3) the vehicles a Helldiver rides in: every exosuit, the FRVs, the tank (their bodies, by unit kind). A
+-- Helldiver in one moves at walking or driving speed 2-3 m over the ground, which the 3 m/s rule can't tell from
+-- walking: luka's 2026-11-04 mission, a quarter of it in an exosuit, pulled 12 kinds' offsets past trust (their
+-- spread 0.3-0.6 m before, 0.6-1.4 after; 89 trusted kinds in the seed without it, 78 with). A Helldiver unit within
+-- VEH_R metres (across) of one, at the live position, gives no feet sample; teammates' rides too (their units are
+-- the engine's, and the vehicle's unit is near them whoever drives)
+local VEHICLE_KINDS = {}
+for id in string.gmatch([[
+79e4b3d2da5e45e3 17c5d12d8d5dee2c bf4167fd26917ab1 35dbf54f016f3624 df51fe8d62f294be 0736bee2d6328726 7b2326f6fd9c8069
+a526dc7d89ff696d 824b7e0c4c879eb5 c2d449ecf7facab1 65489809a8181b96 08f6089289c83d22 cc21c7ffd3ebefb9 e9cd1d0d118886af
+2d85bfe3d8717fe5 0df7e312f561f8b9 9b2140378640432e 16474112801385b6
+]], '%x+') do VEHICLE_KINDS[id] = true end
+local VEH_R = 3.5
+local vwatch = chef.watch and chef.watch(VEHICLE_KINDS, 1) or nil
+local vpos, vkind = {}, {}                    -- (this sample's vehicles: x, y pairs, and their kinds)
+local vsaid = {}                              -- (research: a kind seen, a Helldiver at one: said once a mission each)
+local function vname(k) local n = UNIT_NAMES and UNIT_NAMES[k] return n and n:match('[^/]+$') or k end
 
 local function cell_key(x, y)
   return (math.floor(x / CELL) + 50000) * 100000 + (math.floor(y / CELL) + 50000)
@@ -260,15 +277,39 @@ local function sample_feet(now)
   if now - gr.at < 0.25 then return end
   local dt = now - gr.at
   gr.at = now
+  -- (2.4.3) where the vehicles are now (live, not the watch's list: an FRV covers 10 m in its second)
+  local nv = 0
+  if vwatch and vwatch.items then
+    for _, it in ipairs(vwatch.items) do
+      if chef.unit_alive(it.unit) then
+        local vx, vy = chef.unit_position(it.unit)
+        if vx then
+          vpos[nv * 2 + 1], vpos[nv * 2 + 2] = vx, vy nv = nv + 1 vkind[nv] = it.kind
+          if it.kind and not vsaid[it.kind] then vsaid[it.kind] = true log('research: ground: a vehicle in the world: %s', vname(it.kind)) end
+        end
+      end
+    end
+  end
   for _, it in ipairs(watch.items) do
     local u = it.unit
     if chef.unit_alive(u) then
       local x, y, z = chef.unit_position(u)
       if x and x == x and y == y and z == z then
         local last = gr.last[u]
+        local riding = false
+        for i = 0, nv - 1 do
+          local ddx, ddy = x - vpos[i * 2 + 1], y - vpos[i * 2 + 2]
+          if ddx * ddx + ddy * ddy < VEH_R * VEH_R then
+            riding = true
+            local k = 'at ' .. tostring(vkind[i + 1])
+            if not vsaid[k] then vsaid[k] = true log('research: ground: a Helldiver at a %s (%.1f m across): no feet samples while there', vname(vkind[i + 1]), math.sqrt(ddx * ddx + ddy * ddy)) end
+            break
+          end
+        end
         -- (a jump, a dive's fall, a jump pack's flight: the height moving over 3 m/s; the first sample after a
-        -- gap can't tell, so it's skipped too)
-        if last and dt < 1 and math.abs(z - last.z) / dt <= 3 then sample(x, y, z)
+        -- gap can't tell, so it's skipped too; 2.4.3: and a Helldiver at a vehicle, riding it or beside it)
+        if riding then gr.riding = (gr.riding or 0) + 1
+        elseif last and dt < 1 and math.abs(z - last.z) / dt <= 3 then sample(x, y, z)
         else gr.skipped = gr.skipped + 1 end
         gr.last[u] = { z = z, at = now }
       end
@@ -436,24 +477,27 @@ local function walk(now)
 end
 
 local function ground_update(now)
-  sample_feet(now)
+  -- (2.4.7) none of the world's units read while you're dead, in the hellpod or just landed (12_vitals)
+  local held = N.units_held and N.units_held(now)
+  if not held then sample_feet(now) end
   sample_look(now)
-  if N.struct_update then N.struct_update(now) end
+  if N.struct_update and not held then N.struct_update(now) end
   -- (the walk in a fence: an error in it is logged once and ends the walk for the session, the feet grid and the
   -- HUD unharmed; Chef switches a mod off after 20 update errors)
-  if not wk.dead then
+  if not wk.dead and not held then
     local ok, err = pcall(walk, now)
     if not ok then wk.dead = true log('ground: the walk stopped: %s', tostring(err)) end
   end
   if cfg.research and now - gr.said >= 60 then
     gr.said = now
-    log('research: ground grid: %d cells, %d feet samples, %d skipped, %d look points (%d left out as bumps)%s', gr.n, gr.samples, gr.skipped, lk.n, lk.out, gr.full and ' (full)' or '')
+    log('research: ground grid: %d cells, %d feet samples, %d skipped, %d at a vehicle, %d look points (%d left out as bumps)%s', gr.n, gr.samples, gr.skipped, gr.riding or 0, lk.n, lk.out, gr.full and ' (full)' or '')
   end
 end
 N.ground_update = ground_update
 -- a new world: the grid starts over; the kinds' offsets stay (they're the map's assets, not the map)
 local function ground_reset()
   gr.cells, gr.n, gr.samples, gr.skipped, gr.last, gr.full, gr.walks, gr.counts = {}, 0, 0, 0, {}, false, 0, nil
+  gr.riding, vsaid = 0, {}
   lk.n, lk.out, lk.last = 0, 0, nil
   for _, st in pairs(gr.kinds) do st.seen = {} end
   wk.units, wk.counts, wk.stats, wk.at = nil, nil, nil, -100
@@ -467,7 +511,9 @@ N.ground_reset = ground_reset
 -- with an arrow pointing down at it; faint when the ground there is a guess ('near', 'loose'); color: the
 -- structure hit's red (12_struct), else cream; px, py: the thrower, the arrow faces them
 local ARROW_W, ARROW_H = 1.0, 1.6              -- the arrow over the mark: metres wide and tall
-local function draw_mark(x, y, z, conf, color, px, py)
+local function draw_mark(x, y, z, conf, color, px, py, blast, key)
+  -- (2.4.8) painted on the ground (12_decal) unless Classic is chosen or the pictures can't be: then these lines
+  if N.mark_painted and N.mark_painted(key or 'mark', x, y, z, conf, color, px, py, blast) then return end
   if not chef.line then return end
   local a = (conf == 'feet' or conf == 'look' or conf == 'props') and 200 or 90
   local c = N.wcol(color or N.CREAM, a)            -- (2.0.17: the world's tone curve)

@@ -42,7 +42,8 @@ local THROW = {
   grenade = { speed = 21, lift = math.rad(8), up = 0.4 },
 }
 local CARRY, CARRY_MOST = 1.4, 3                  -- your speed along the aim carried into the throw
-local STEP, MOST_T, DEEPEST = 0.03, 6, 15         -- the flight: 0.03 s a segment, 6 s or 15 m under your feet at most
+local STEP, MOST_T, DEEPEST = 0.03, 6, 15         -- the flight: 0.03 s a step, 6 s or 15 m under your feet at most
+local PIECE, TURN = 1.2, 0.05                     -- (2.4.13) a piece of the line every 1.2 m of flight, or at a turn of 0.05 rad
 local REACH, REACH_LOW, REACH_HIGH = 1.5, -0.5, 2.5   -- a ball in hand: this close to your Helldiver's feet
 
 local kinds = { [STRAT_BALL] = true, [C4_CHARGE] = true }
@@ -180,6 +181,8 @@ local GRENADE_NAMES = {
   ['14368dc8784220b0'] = 'Dynamite', ['5c14f27759dd3be0'] = 'a standard grenade', ['4ce9eab785a79b7b'] = 'a standard grenade',
 }
 N.GRENADE_KINDS, N.GRENADE_NAMES = GRENADE_KINDS, GRENADE_NAMES
+-- (2.4.12, luka) the Seekers fly on their own after the throw: no line and no blast zone for them
+local NO_ARC = { ['2d398d1ec35e0838'] = true, ['8e325c933e55bf62'] = true }   -- the G-50 Seeker, the G-60 Anti-Tank Seeker
 local HAND_REACH = 0.8                            -- a grenade this close to the hand node is the one in hand
 local last_kind = nil                             -- the kind of the last grenade seen in hand
 local in_hand_at = -100                           -- when one was last seen there
@@ -232,6 +235,7 @@ local function kind_now(grip, now)
   return nil
 end
 local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
+  if kind == 'grenade' and gk and NO_ARC[gk] then return end
   local p = THROW[kind]
   if kind == 'grenade' and gk and GRENADE_KINDS[gk] then p = GRENADE_KINDS[gk] end
   local fh = math.sqrt(cam.fx * cam.fx + cam.fy * cam.fy)
@@ -254,40 +258,51 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
   local vx, vy, vz = hx * speed * math.cos(pitch), hy * speed * math.cos(pitch), speed * math.sin(pitch)
   local x, y, z = ox, oy, oz + p.up
   local c = N.wcol(N.CREAM, 170)                  -- (2.0.17: the world's tone curve)
-  local lines = cfg.drop_thick or 2
+  local lines = cfg.drop_thick or 1
   local crx, cry = cam.fy, -cam.fx
   local cl = math.sqrt(crx * crx + cry * cry)
   if cl < 1e-4 then lines = 1 else crx, cry = crx / cl, cry / cl end
   local n, t = 0, 0
+  -- (2.4.8) the look (12_decal): dashes fading in, dark edges; the blast zone of the grenade or C4 at the mark
+  local lst = N.line_state(now)
+  local dk = N.wcol({ 0, 0, 0 }, 110)
+  local cfun = lst.look ~= 1 and function(f) return N.wcol(N.CREAM, 170 * f), N.wcol({ 0, 0, 0 }, 110 * f) end or nil
+  local blast = BLAST and ((kind == 'grenade' and gk and BLAST.grenades[gk]) or (kind == 'C4' and BLAST.grenades[C4_CHARGE])) or nil
   local floor = (feet_z or z) - DEEPEST
   local mark = cfg.landing_mark and N.ground_landing
   local marked, mst = false, {}
   local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the throw hits one
   local sst = shit and {}
+  -- (2.4.13, the frame time) the flight is stepped every 0.03 s as before, but a piece of the line is drawn (and
+  -- the ground looked at) only every PIECE metres of it, or sooner once it has turned TURN: a grenade's 0.6 m
+  -- steps made 60–100 pieces a throw, each a ground look-up, an across vector and 2–4 engine lines (luka's 2.4.11
+  -- log: the throw line at 0.3–0.5 ms a frame, more than the drop's). A 1.2 m chord on a 21 m/s arc sags 4 mm
+  local hs = math.sqrt(vx * vx + vy * vy)
+  local px, py, pz, plen, pdir, pt = x, y, z, 0, math.atan2(vz, hs), t
   while t < MOST_T and z > floor do
     local nx, ny, nz = x + vx * STEP, y + vy * STEP, z + (vz - G * STEP / 2) * STEP
     vz = vz - G * STEP
-    -- (2.0.13) where the arc meets the ground (12_ground's guess): a ring there; the arc runs on (2.0.14, luka:
-    -- the depth test hides the rest; never within 7 m of you)
-    if shit and not marked and t > 0.1 then
-      local hx, hy, hz = shit(x, y, z, nx, ny, nz, sst, ox, oy)
-      if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, ox, oy) marked = true end
-    end
-    if mark and not marked and t > 0.1 then
-      local gx, gy, gz, conf = mark(x, y, z, nx, ny, nz, ox, oy, mst, 7)
-      if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, ox, oy) marked = true end
-    end
-    local ax, ay, az = N.across(cam, x, y, z, nx, ny, nz)   -- (2.2.6: across the view of this segment)
-    if not ax then ax, ay, az = crx, cry, 0 end
-    for k = 1, lines do
-      local o = 0.0012 * (k - (lines + 1) / 2)
-      local d1 = math.sqrt((x - cam.x) ^ 2 + (y - cam.y) ^ 2 + (z - cam.z) ^ 2) * o
-      local d2 = math.sqrt((nx - cam.x) ^ 2 + (ny - cam.y) ^ 2 + (nz - cam.z) ^ 2) * o
-      chef.line(x + ax * d1, y + ay * d1, z + az * d1, nx + ax * d2, ny + ay * d2, nz + az * d2, c)
-      n = n + 1
-    end
+    plen = plen + math.sqrt((nx - x) ^ 2 + (ny - y) ^ 2 + (nz - z) ^ 2)
     x, y, z, t = nx, ny, nz, t + STEP
+    local last = not (t < MOST_T and z > floor)
+    if plen >= PIECE or last or math.abs(math.atan2(vz, hs) - pdir) >= TURN then
+      -- (2.0.13) where the arc meets the ground (12_ground's guess): a ring there; the arc runs on (2.0.14, luka:
+      -- the depth test hides the rest; never within 7 m of you)
+      if shit and not marked and t > 0.1 then
+        local hx, hy, hz = shit(px, py, pz, x, y, z, sst, ox, oy)
+        if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, ox, oy, blast, 'throw') marked = true end
+      end
+      if mark and not marked and t > 0.1 then
+        local gx, gy, gz, conf = mark(px, py, pz, x, y, z, ox, oy, mst, blast and 3 or 7)   -- (2.4.9: a blast known: from 3 m)
+        if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, ox, oy, blast, 'throw') marked = true end
+      end
+      local ax, ay, az = N.across(cam, px, py, pz, x, y, z)   -- (2.2.6: across the view of this segment)
+      if not ax then ax, ay, az = crx, cry, 0 end
+      n = n + N.line_piece(lst, cam, px, py, pz, x, y, z, ax, ay, az, lines, c, dk, cfun)
+      px, py, pz, plen, pdir, pt = x, y, z, 0, math.atan2(vz, hs), t
+    end
   end
+  n = n + N.line_end(lst, cam, lines, c, dk, cfun)
   -- (1.5.6 to 1.5.12 had an end mark where the arc came down to the feet's height: of no use on the game's slopes)
   N.drop_lines = (N.drop_lines or 0) + n
 end

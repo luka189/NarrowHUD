@@ -126,6 +126,7 @@ end
 -- bottom) the mark goes at the entry (a wall hit, or the ground unknown there)
 local function hit(x1, y1, z1, x2, y2, z2, ls, ox, oy)
   if not chef.ray_box or not cfg.struct_mark then return nil end
+  if N.units_held and N.units_held(N.now or chef.time()) then return nil end   -- (2.4.7: dead, in the hellpod, just landed)
   if not ls.near then ls.near = near(ox, oy) end
   if #ls.near == 0 then return nil end
   local vx, vy, vz = x2 - x1, y2 - y1, z2 - z1

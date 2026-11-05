@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360">
+  <!-- the landing chevron (luka's sketch, 2026-11-05): a wide V with an inverted triangle inside it -->
+  <polygon fill="#ffffff" points="36,30 36,118 180,322 324,118 324,30 180,228"/>
+  <polygon fill="#ffffff" points="128,120 232,120 180,192"/>
+</svg>

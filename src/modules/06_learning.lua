@@ -88,6 +88,13 @@ local function not_yours(goid, o, t, why)
   end
   if hand.goid == goid then hand.goid = nil end
 end
+-- (three shots without it, and a quarter or more of all its shots: a soldier firing while you fire too got 10 with and
+-- 6 without, and took the HUD; your own weapons fire without it never)
+local function unpressed_check(goid, o, t)
+  local p, u = o.pressed or 0, o.unpressed or 0
+  o.mine = p >= 2 and p > u
+  if u >= 3 and u * 4 >= p then not_yours(goid, o, t, 'fires without your fire button') end
+end
 N.not_yours = not_yours
 -- (1.2.5) A weapon that aims by itself isn't in your hands. Weapon types carry a field 6f3ab277 (-0.5 to 1.58, an
 -- angle in radians: the aim's pitch) that reads 0 on every weapon a Helldiver holds (your own, across ten logged
@@ -347,15 +354,27 @@ local function watch_fire(s, grip)
         local so_busy = so and ((so.fired_at and now - so.fired_at <= 0.4) or (so.held_t and now - so.held_t <= 0.4)
           or (so.charging_t and now - so.charging_t <= 0.6) or (st and st.has.heat and so.prev and so.prev.charging == true))
         -- (2.3.5: with Chef's menu open the fire button can't be read: such a shot counts neither way)
+        -- (2.4.6) a magazine of more than one emptied at once with no fire button: maybe a reload taking the rounds
+        -- left out, a read before its stage shows (the AMR's 0 came a read early, 2.3.9). Judged 0.6 s on, below: a
+        -- reload stage by then and it was none. luka's Epoch, three rounds a magazine, reloaded twice with rounds left
+        -- and went "not yours" (2026-11-05): few shots to weigh those against
+        local m_now, m_was = tonumber(w.rounds) or tonumber(w.slot0), o.prev and (tonumber(o.prev.rounds) or tonumber(o.prev.slot0))
         if N.menu_blind(now) then
         elseif pressed_recently(now) then
           if not so_busy then o.pressed = (o.pressed or 0) + 1 end
+        elseif m_now == 0 and (m_was or 0) > 1 and t.has.reload_stage then o.pend_at = now
         else o.unpressed = (o.unpressed or 0) + 1 end
-        local p, u = o.pressed or 0, o.unpressed or 0
-        o.mine = p >= 2 and p > u
-        -- (three shots without it, and a quarter or more of all its shots: a soldier firing while you fire too got 10
-        -- with and 6 without, and took the HUD; your own weapons fire without it never)
-        if u >= 3 and u * 4 >= p then not_yours(goid, o, t, 'fires without your fire button') end
+        unpressed_check(goid, o, t)
+      end
+      if o.pend_at then
+        if (tonumber(w.reload_stage) or 0) ~= 0 then
+          if cfg.research then log('research: %s (object %s): its magazine emptied as a reload began, not a shot', t.id, tostring(goid)) end
+          o.pend_at = nil
+        elseif now - o.pend_at > 0.6 then
+          o.pend_at = nil
+          o.unpressed = (o.unpressed or 0) + 1
+          unpressed_check(goid, o, t)
+        end
       end
       local shown_o = hand.goid and objs[hand.goid]
       local steals = shown_o and shown_o ~= o and shown_o.held_ever and not o.held_ever

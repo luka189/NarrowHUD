@@ -75,7 +75,7 @@ HAS14 = nil                  -- Chef 1.4 (the players event); ONS: the event lis
 ONS = {}
 GUIS = 0
 SPECS = {}                   -- the option rows registered, in order (the menu tests)
-OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1, drop_from = 0 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100)
+OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1, drop_from = 0, line_look = 1, mark_look = 1 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100; 2.4.8: the Classic line and mark, as they were written for)
 LAYOUT = { _v = 1, elements = {} }   -- (2.0: the tests run on Layout: Custom with an empty file — Under's look through the defaults, as the old Under position drew)   -- the F9 menu's values (the tests run with the research log on; the mode icons off unless a test turns them on; the host's objects read, as before 1.5.38, since many tests put the host's objects in; the tone correction off (1.5.62: on by default in the game) so the colours checked are the ones asked for)
 OBJINFO = nil           -- Network.object_info, when a test gives one
 PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
@@ -159,13 +159,15 @@ chef = {
     -- (2.2.2) the weapon models' watch (05_model): MODELS = { { unit = 'W1', kind = '<unit kind>' }, ... }, their positions in WPOS
     if kinds and kinds['1a437158e1b8d2a1'] then return setmetatable({}, { __index = function(t, k) if k == 'items' then return MODELS or {} end end }) end
     if kinds and kinds['16f397ca5f51f271'] then return setmetatable({}, { __index = function(t, k) if k == 'items' then local l = {} if BALL then l[#l + 1] = { unit = 'B' } end if GREN then l[#l + 1] = { unit = 'G' } end return l end end }) end
+    -- (2.4.3) the vehicles' watch (12_ground): VEHICLES = { 'X1', ... }, their positions in WPOS
+    if kinds and kinds['79e4b3d2da5e45e3'] then return setmetatable({}, { __index = function(t, k) if k == 'items' then local l = {} for _, u in ipairs(VEHICLES or {}) do l[#l + 1] = { unit = u, kind = '79e4b3d2da5e45e3' } end return l end end }) end
     return setmetatable({}, { __index = function(t, k) if k == 'items' then return (MATES and MATES.items) or { { unit = 'U', x = 0, y = 0, z = 0 } } end end })
   end,
   camera = function() return { x = 0, y = 0, z = 1, yaw = CAM_YAW or 0, fx = math.sin(CAM_YAW or 0), fy = math.cos(CAM_YAW or 0), fz = CAM_FZ or 0 } end,
   line = function(x1, y1, z1, x2, y2, z2, c) rec({ 'line', x1, y1, z1, x2, y2, c[1], c[2], c[3], c[4], z2 = z2 }) end,
   -- (BITMAP false: the texture can't be drawn, as Chef answers when it isn't loaded)
   bitmap = function(tex, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex }) return true end,
-  bitmap_uv = function(tex, u0, v0, u1, v1, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex, uv = true }) return true end,
+  bitmap_uv = function(tex, u0, v0, u1, v1, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex, uv = true, u0 = u0, v0 = v0, u1 = u1, v1 = v1 }) return true end,
   texture_sizes = function(map) TEX_SIZES = map end,
   -- (a flat stand-in projection: 1000 px a metre of x over y metres ahead, from the screen's centre; nil behind)
   world_to_screen = function(x, y, z)
@@ -176,6 +178,9 @@ chef = {
     return 1720 + fx / fy * 1000, 720 + (z - 1) / fy * 1000
   end,
   unit_alive = function(u) for _, e in ipairs(UNITS or {}) do if e[1] == u then return e.dead ~= true end end return true end,   -- (2.4.1: UNITS' dead)
+  -- (2.4.8) the ground pictures: a spawned decal unit 'D1', 'D2' ...; DECALS[u] its place, scale, picture and opacity
+  -- (NOSPAWN: chef.spawn refuses)
+  spawn = function(id, x, y, z) if NOSPAWN then return nil, 'not loaded' end SPAWNED = (SPAWNED or 0) + 1 local u = 'D' .. SPAWNED DECALS = DECALS or {} DECALS[u] = { id = id, pos = { x, y, z } } return u end,
   unit_position = function(u, node) if WPOS and WPOS[u] == false then return nil end if WPOS and WPOS[u] then local hz = (HAND_UP and node == 42) and 1.3 or 0 return WPOS[u][1], WPOS[u][2], WPOS[u][3] + hz end return 100, 200, 10 end,
   unit_kind = function(u) return u == 'U' and 'a57ae2a703c02899' or (u == 'B' and '16f397ca5f51f271' or (u == 'G' and (GKIND or 'ee4c107b941ab7f4') or 'wkind')) end,
   unit_node = function(u, name) if u == 'U' and name == 'attach_hand_r' then return 42 end return nil end,
@@ -205,6 +210,7 @@ chef = {
     if name == 'Unit.animation_has_variable' then return true end
     if name == 'Unit.animation_find_variable' then return 3 end
     if name == 'Unit.animation_get_variable' then if ASM == false then error('a variable read on a unit without a state machine (ends the game)') end return GRIP end
+    if name == 'Application.can_get' and s == 'texture' then return TEX_OK ~= false end   -- (2.4.8: our ground pictures)
     if name == 'Application.can_get' then if s == 'material' and MAT_OK ~= nil and type(a) == 'string' and a:sub(1, 3) == 'id:' then return MAT_OK end return GAME_FONT end
     if name == 'Network.object_info' and OBJINFO then return OBJINFO(s) end
     if name == 'Mouse.button_index' then return s == 'right' and 1 or 0 end
@@ -248,7 +254,15 @@ chef = {
     if name == 'IdString64.from_hex' then return 'id:' .. s end
     if name == 'Vector2' then return { s, a } end
     if name == 'Gui.material' then MAT_CALLS = (MAT_CALLS or 0) + 1 return 'mat:' .. tostring(a) end
-    if name == 'Material.set_texture' then return true end
+    if name == 'Material.set_texture' then if type(s) == 'string' and s:sub(1, 5) == 'dmat:' then DECALS[s:sub(6)].pic = b end return true end
+    -- (2.4.8) the decals' meshes and materials, their transform
+    if name == 'Unit.mesh' and type(s) == 'string' and s:sub(1, 1) == 'D' then return 'dmesh:' .. s end
+    if name == 'Mesh.material' and type(s) == 'string' and s:sub(1, 6) == 'dmesh:' then return 'dmat:' .. s:sub(7) end
+    if name == 'Material.set_scalar' then if type(s) == 'string' and s:sub(1, 5) == 'dmat:' then DECALS[s:sub(6)].alpha = b end return true end
+    if name == 'Mesh.refresh_instance_hash' then return true end
+    if name == 'Unit.set_local_position' then if DECALS and DECALS[s] then DECALS[s].pos = b end return true end
+    if name == 'Unit.set_local_rotation' then if DECALS and DECALS[s] then DECALS[s].rot = b end return true end
+    if name == 'Unit.set_local_scale' then if DECALS and DECALS[s] then DECALS[s].scale = b end return true end
     if name == 'Quaternion.from_elements' then return { s, a, b, c } end
     if name == 'Material.set_vector4' then VECS = VECS or {} VECS[#VECS + 1] = { a, b } return true end
     -- Gui.bitmap_uv(gui, material, uv00, uv11, pos, size, color)
@@ -514,6 +528,20 @@ def main():
       OBJ[35].fields[ROLE.owner] = '2222222222222222' run(2)''')
     w = rt.eval(LIT)
     check('someone else\'s pack beside it: yours still shown (%s of %s lit)' % (w, rt.eval(ALL)), w == 2 and rt.eval(ALL) == 4)
+    # (2.4.4) the resupply sweep: a pack topped up (2 -> 4) lights its ticks in order, with a cream wash over the bar
+    # (its own runtime: the swap-key tests further on in the shared one hang on its clock, old code too; the pack put
+    # on 11 s in: one worn in a mission's first 10 s isn't yours until used)
+    rp = lua51.LuaRuntime()
+    setup(rp)
+    rp.execute('''GRIP = 10 run(11) OBJ[12] = { name = NAMES.pack2, fields = {} } OBJ[12].fields[ROLE.remaining] = 4 OBJ[12].fields[ROLE.carry] = 0
+      OBJ[12].fields[ROLE.owner] = '0b99cf5492296d6e' run(2.5) OBJ[12].fields[ROLE.remaining] = 2 run(0.5)
+      OBJ[12].fields[ROLE.remaining] = 4 PSW = {} PWASH = 0
+      for i = 1, 60 do run(1 / 60) PSW[#PSW + 1] = %s
+        for _, d in ipairs(draws) do if d[1] == 'rect' and d.l and d.l %% 1000 == 908 and d[6] == 236 and d[7] == 229 then PWASH = PWASH + 1 break end end end''' % LIT)
+    psw = list(rp.eval('PSW').values())
+    seen = [v for i, v in enumerate(psw) if i == 0 or v != psw[i - 1]]
+    check('the pack topped up 2 -> 4: its ticks lit in order (%s), a cream wash over it for %d frames' % (seen, rp.eval('PWASH')),
+          seen == [2, 3, 4] and 4 <= rp.eval('PWASH') <= 30)
     rt.execute('OBJ[35] = nil')
     rt.execute('OBJ[12] = nil run(1.5)')
 
@@ -642,6 +670,28 @@ def main():
     rt.execute('OBJ[22].fields[ROLE.held] = false run(0.2)')
     check('released: no meter', rt.eval("(function() for _, d in ipairs(draws) do if d[1] == 'rect' and d[9] == 230 then return true end end return false end)()") is False)
     rt.execute('OBJ[22] = nil GRIP = 10 run(1.5)')
+    # (2.4.4) UNSAFE: past the mark (2.5 of 3 s) the meter is red (it was orange there, red only at 95 %%), and the mark
+    # brightens for a few frames as the charge crosses it (near white, wider), then back to its red (2.4.5: red from
+    # the start, luka; it was orange)
+    # (its own runtime, as the pack's sweep)
+    rr = lua51.LuaRuntime()
+    setup(rr)
+    rr.execute('''OBJ[22] = { name = NAMES.rail, fields = {} } OBJ[22].fields[ROLE.rounds] = 1 OBJ[22].fields[ROLE.magazines] = 19
+      OBJ[22].fields[ROLE.chamber] = true OBJ[22].fields[ROLE.carry] = 0 OBJ[22].fields[ROLE.held] = false
+      OBJ[22].fields[ROLE.fire_mode] = 6 GRIP = 61 run(2) OBJ[22].fields[ROLE.held] = true run(0.3)
+      OBJ[22].fields[ROLE.rounds] = 0 OBJ[22].fields[ROLE.held] = false run(0.5) OBJ[22].fields[ROLE.fire_mode] = 5 run(0.3)
+      OBJ[22].fields[ROLE.fire_mode] = 6 run(0.3) OBJ[22].fields[ROLE.held] = true run(2.2)
+      function meter_rgb() for _, d in ipairs(draws) do if d[1] == 'rect' and d[9] == 230 then return d[6] .. ',' .. d[7] .. ',' .. d[8] end end end
+      function chmark() for _, d in ipairs(draws) do if d[1] == 'rect' and d.l and d.l % 1000 == 907 then return d end end end
+      BEFORE_RGB = meter_rgb() MK0 = chmark() MK0 = MK0 and (MK0[6] .. ',' .. MK0[9] .. ',' .. math.min(MK0[4], MK0[5])) or nil
+      MARKS = {} for i = 1, 48 do run(1 / 60) local m = chmark() MARKS[#MARKS + 1] = m and (m[6] .. ',' .. m[9] .. ',' .. math.min(m[4], m[5])) or 'none' end
+      AFTER_RGB = meter_rgb()''')
+    marks = list(rr.eval('MARKS').values())
+    bright = [m for m in marks if m != 'none' and int(m.split(',')[1]) > 220]
+    check('Railgun UNSAFE: cream before the mark (%s), red past it (%s); the mark %s, brighter for %d frames as it\'s crossed (%s), then as before (%s)' % (
+          rr.eval('BEFORE_RGB'), rr.eval('AFTER_RGB'), rr.eval('MK0'), len(bright), bright[:2], marks[-1]),
+          rr.eval('BEFORE_RGB') == '236,229,206' and rr.eval('AFTER_RGB') == '210,80,72' and 3 <= len(bright) <= 25
+          and rr.eval('MK0').startswith('210,220,') and int(bright[0].split(',')[0]) > 230 and int(bright[0].split(',')[2]) > int(rr.eval('MK0').split(',')[2]) and marks[-1] == rr.eval('MK0'))
 
     rt.execute('OBJ[23] = nil GRIP = 10 run(1.5)')
 
@@ -861,6 +911,14 @@ def main():
     rt.execute('GKIND = "5c14f27759dd3be0" GREN = true WPOS = { G = { 100.2, 200, 10.3 } } run(1)')
     check('a standard grenade unit at the hand: the standard line [%s]' % rt.eval('M.debug_aim().speed'),
           abs(rt.eval('M.debug_aim().speed') - 21.084) < 0.01)
+    # (2.4.12) the Seekers fly on their own: no line (and so no blast zone) with one in hand; the next kind draws again
+    rt.execute('GKIND = "2d398d1ec35e0838" run(1)')
+    n_seek = rt.eval('count("line")')
+    rt.execute('GKIND = "8e325c933e55bf62" run(1)')
+    n_seek2 = rt.eval('count("line")')
+    rt.execute('GKIND = "5c14f27759dd3be0" run(1)')
+    check('a Seeker at the hand: no line (%d, the Anti-Tank one %d); the standard grenade after it drawn again (%d)' % (n_seek, n_seek2, rt.eval('count("line")')),
+          n_seek == 0 and n_seek2 == 0 and rt.eval('count("line")') > 0)
     rt.execute('GREN = false WPOS = nil GRIP = 10 run(1)')
     # (1.5.57) pose 42 straight from a weapon's pose: the weapon stays shown two seconds (13_main's hold), the kind's
     # line draws all the same (luka's quick Melta throws drew nothing for those two seconds)
@@ -1265,6 +1323,115 @@ def main():
       f[ROLE.slot0] = 0 f[ROLE.selected] = 1 CK = shell_frames(20)''' % type_name('bd5f17dd'))
     ck = r.eval('CK')
     check('the Cookout: the shot emptying a tube throws a shell (%d frames) [%s]' % (ck, r.eval('texts()')), ck >= 8)
+    # (2.4.4) and its reload: a shell into a tube (slot0 up by one, the spare down by one; its reload stage stays 0, as
+    # in luka's logs) flies in
+    r.execute('''CHANGE.shell_load_len(100) local f = OBJ[95].fields FIRE = false run(1) f[ROLE.slot0] = 1 f[ROLE.spare] = 39 CKL = shell_frames(20) f[ROLE.slot0] = 2 f[ROLE.spare] = 38 CKL2 = shell_frames(20)''')
+    check('the Cookout loading: each shell into a tube flies in (%d, %d frames at its own length\'s 100 %%) [%s]' % (r.eval('CKL'), r.eval('CKL2'), r.eval('texts()')),
+          r.eval('CKL') >= 15 and r.eval('CKL2') >= 15)
+    # (2.4.5) Shell loading its own row: off, none loaded flies in (the shell flash still on)
+    r.execute('''local f = OBJ[95].fields CHANGE.shell_load(false) f[ROLE.slot0] = 3 f[ROLE.spare] = 37 CKL3 = shell_frames(20) CHANGE.shell_load(true)''')
+    check('Shell loading off: no shell flies in (%d), the shell flash row on' % r.eval('CKL3'), r.eval('CKL3') == 0)
+    # (2.4.5, luka) a weapon of one round (the Recoilless): its round loaded throws nothing in
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute(SHELLS_LUA + '''
+      OBJ[3] = nil OBJ[4] = nil OBJ[21] = { name = NAMES.rr, fields = {} } OBJ[21].fields[ROLE.rounds] = 0 OBJ[21].fields[ROLE.magazines] = 3
+      OBJ[21].fields[ROLE.chamber] = true OBJ[21].fields[ROLE.carry] = 0 OBJ[21].fields[ROLE.options] = 80
+      FIRE = true GRIP = 20 run(3) OBJ[21].fields[ROLE.chamber] = false run(0.5) OBJ[21].fields[ROLE.chamber] = true run(0.5)
+      OBJ[21].fields[ROLE.chamber] = false run(0.5) OBJ[21].fields[ROLE.chamber] = true run(0.5) FIRE = false run(1)
+      OBJ[21].fields[ROLE.chamber] = false OBJ[21].fields[ROLE.magazines] = 2 RRL = shell_frames(20)''')   # (the chamber field reads chamber_empty)
+    check('a one-round weapon (the Recoilless) reloaded: no loading shell (%d) [%s]' % (r.eval('RRL'), r.eval('texts()')), r.eval('RRL') == 0 and r.eval('texts()').startswith('1 | x2'))
+    # (2.4.4) shells loading (luka's pick): a round loaded on its own — the count up by one as the reserve goes down
+    # by one — comes into the bar from where a thrown shell ends: twice the throw's frames (~6 at 30 %%), fading in
+    # and closing on the bar, its tick lit as it lands; none for a magazine's jump or the chamber's round after it,
+    # none for a count up by one with the reserve as it was
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute(SHELLS_LUA + '''
+      function shell_path(n) local out = {} for i = 1, n do run(1 / 60) local l = shells() if #l > 0 then out[#out + 1] = l[1][2] .. ',' .. l[1][3] .. ',' .. l[1][9] end end return out end
+      function lit_ticks() local c = 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d.l and d.l % 1000 == 905 and d[9] and d[9] >= 100 then c = c + 1 end end return c end
+      FIRE = true GRIP = 70 run(3) OBJ[4].fields[ROLE.rounds] = 11 run(0.5) OBJ[4].fields[ROLE.rounds] = 10 run(0.5)
+      FIRE = false OBJ[4].fields[ROLE.reload_stage] = 1 run(0.5) LIT0 = lit_ticks()
+      OBJ[4].fields[ROLE.rounds] = 11 OBJ[4].fields[ROLE.magazines] = 2
+      LOADP = shell_path(30)
+      LIT1 = lit_ticks()''')
+    path = list(r.eval('LOADP').values())
+    lit0, lit1 = r.eval('LIT0'), r.eval('LIT1')
+    al = [int(v.split(',')[2]) for v in path]
+    xy = [tuple(map(float, v.split(',')[:2])) for v in path]
+    end = xy[-1] if xy else None
+    dists = [abs(a[0] - end[0]) + abs(a[1] - end[1]) for a in xy] if xy else []
+    check('a round loaded: in the air %d frames (twice the throw\'s 3), fading in (%s), closing on the bar (%s), its tick lit after (%s -> %s)' % (len(path), al, [round(d) for d in dists], lit0, lit1),
+          5 <= len(path) <= 7 and al == sorted(al) and al[0] < al[-1] and dists == sorted(dists, reverse=True) and dists[0] > 3 and lit1 == lit0 + 1)
+    # the tick waits for its shell: unlit while it's in the air
+    r.execute('''OBJ[4].fields[ROLE.rounds] = 12 OBJ[4].fields[ROLE.magazines] = 1 run(0.1) MID = lit_ticks() run(0.3) AFTER = lit_ticks()''')
+    check('the loaded round\'s tick unlit while its shell is in the air (%s), lit once it lands (%s)' % (r.eval('MID'), r.eval('AFTER')),
+          r.eval('AFTER') == lit1 + 1 and r.eval('MID') == lit1)
+    # a magazine (a jump of several), then the chamber's round: no shells; off a reload: none
+    r.execute('''OBJ[4].fields[ROLE.rounds] = 30 OBJ[4].fields[ROLE.magazines] = 0 J1 = shell_frames(10) OBJ[4].fields[ROLE.rounds] = 31 J2 = shell_frames(20)
+      OBJ[4].fields[ROLE.reload_stage] = 0 run(1) OBJ[4].fields[ROLE.rounds] = 30 run(0.5) OBJ[4].fields[ROLE.rounds] = 31 J3 = shell_frames(20)''')
+    check('no loading shell for a magazine (%d), the chamber after it (%d), or a count up by one with the reserve as it was (%d)' % (r.eval('J1'), r.eval('J2'), r.eval('J3')),
+          r.eval('J1') == 0 and r.eval('J2') == 0 and r.eval('J3') == 0)
+    # (2.4.4) the mode cross-fade (luka's pick): a fire-mode word that changes fades out as the new one fades in, over
+    # about 100 ms (6 frames); Motion off: it swaps at once
+    rx = lua51.LuaRuntime()
+    setup(rx)
+    rx.execute('''GRIP = 10 run(3) OBJ[3].fields[ROLE.fire_mode] = 2 run(1)
+      function word_a(w) for _, d in ipairs(draws) do if d[1] == 'text' and d[4] == w then return d[9] end end return 0 end
+      function fade_frames(a, b) local out = {} for i = 1, 20 do run(1 / 60) local x, y = word_a(a), word_a(b) if (x > 0 and x < 200) or (y > 0 and y < 200) then out[#out + 1] = x .. '/' .. y end end return out end
+      OBJ[3].fields[ROLE.fire_mode] = 3 XF = fade_frames('SEMI', 'BURST')
+      CHANGE.motion(1) OBJ[3].fields[ROLE.fire_mode] = 4 XF0 = fade_frames('BURST', 'VOLLEY')''')
+    xf, xf0 = list(rx.eval('XF').values()), list(rx.eval('XF0').values())
+    olds, news = [int(v.split('/')[0]) for v in xf], [int(v.split('/')[1]) for v in xf]
+    check('the mode word cross-fades: SEMI out as BURST comes in over %d frames (%s); Motion off: at once (%s)' % (len(xf), xf, xf0),
+          4 <= len(xf) <= 7 and olds == sorted(olds, reverse=True) and news == sorted(news) and all(abs(o + n - 200) <= 2 for o, n in zip(olds, news) if o > 0) and xf0 == [])
+    # (2.4.5) the mode icons cross-fade as the words do (luka: they take the HUD's opacity in game, so the alpha works)
+    ri = lua51.LuaRuntime()
+    setup(ri)
+    ri.execute('''GRIP = 10 run(3) M.debug_cfg("icon_tex", 1) M.debug_cfg("mode_icons", 2) OBJ[3].fields[ROLE.fire_mode] = 2 run(1)
+      function icon_alphas() local l = {} for _, d in ipairs(draws) do if d[1] == 'bitmap' and d.uv and d.tex == 'f9a3f22a93eedcbd' then l[#l + 1] = d[9] end end table.sort(l) return table.concat(l, '/') end
+      OBJ[3].fields[ROLE.fire_mode] = 1 IXF = {} for i = 1, 20 do run(1 / 60) local a = icon_alphas() if a:find('/') then IXF[#IXF + 1] = a end end
+      IEND = icon_alphas()''')
+    ixf = list(ri.eval('IXF').values())
+    ri.execute('NLOG0 = #logs run(2)')
+    icon_lines = [l for l in list(ri.eval('logs').values())[ri.eval('NLOG0'):] if 'mode sprites' in l]
+    check('the icons\' log line: not written again while they stay the same (%d in 2 s)' % len(icon_lines), len(icon_lines) == 0)
+    check('the mode icon cross-fades: two drawn for %d frames, their alphas summing to the one (%s), one at full after (%s)' % (len(ixf), ixf, ri.eval('IEND')),
+          3 <= len(ixf) <= 7 and all(abs(sum(int(v) for v in x.split('/')) - 220) <= 2 for x in ixf) and '/' not in ri.eval('IEND'))
+    # (2.4.5, luka) F9 Low ammo at: the share where the bar and count turn orange, and the flash, moved (50 %%: 15 of 30)
+    r.execute('''CHANGE.low_ammo(50) FIRE = true OBJ[4].fields[ROLE.rounds] = 16 run(0.6) LA0 = countc and countc('16')
+      function countc(s) for _, d in ipairs(draws) do if d[1] == 'text' and d[4] == s then return d[6] .. ',' .. d[7] .. ',' .. d[8] end end end
+      LA0 = countc('16') OBJ[4].fields[ROLE.rounds] = 15 run(0.12) LA1 = countc('15') run(0.5) LA2 = countc('15') CHANGE.low_ammo(25)''')
+    check('Low ammo at 50 %%: 16 of 30 cream (%s), 15 flashes (%s) then orange (%s)' % (r.eval('LA0'), r.eval('LA1'), r.eval('LA2')),
+          r.eval('LA0') == '236,229,206' and r.eval('LA2') == '240,170,90' and r.eval('LA1') and int(r.eval('LA1').split(',')[2]) > 120)
+    # (2.4.6) luka's Epoch (2026-11-05): a reload with rounds left empties the magazine as it begins (3 > 0, its stage
+    # a read later or the same read), no fire button: three of those were "fires without your fire button: not yours".
+    # A magazine of more than one emptied at once is held 0.6 s for a reload stage; three real shots alone still count
+    rq = lua51.LuaRuntime()
+    setup(rq)
+    rq.execute('''FIRE = true GRIP = 10 run(3) OBJ[3].fields[ROLE.rounds] = 43 run(0.5) OBJ[3].fields[ROLE.rounds] = 42 run(0.5) FIRE = false run(1)
+      for i = 1, 4 do
+        OBJ[3].fields[ROLE.rounds] = 0 run(0.1) OBJ[3].fields[ROLE.reload_stage] = 1 run(1.5) OBJ[3].fields[ROLE.rounds] = 44 OBJ[3].fields[ROLE.reload_stage] = 0 run(1)
+      end
+      for i = 1, 2 do
+        OBJ[3].fields[ROLE.rounds] = 0 OBJ[3].fields[ROLE.reload_stage] = 1 run(1.5) OBJ[3].fields[ROLE.rounds] = 44 OBJ[3].fields[ROLE.reload_stage] = 0 run(1)
+      end''')
+    nl = [l for l in rq.eval('logs').values() if 'not yours' in l]
+    rl = [l for l in rq.eval('logs').values() if 'emptied as a reload began' in l]
+    check('reloads with rounds left, no fire button (the magazine to 0 a read before the stage, or with it): not "not yours" %s, still shown [%s]; %d held and let go' % (nl, rq.eval('texts()'), len(rl)),
+          not nl and rq.eval('texts()').startswith('45 |') and len(rl) == 4)
+    rq.execute('''for i = 1, 3 do OBJ[3].fields[ROLE.rounds] = 44 - i run(0.8) end''')
+    nl = [l for l in rq.eval('logs').values() if 'not yours' in l]
+    check('three shots without the fire button after them: "not yours" as before %s' % nl, len(nl) == 1)
+    # (2.4.4) the orange turn (luka's pick): the count flashes once as the ammo drops to a quarter and turns orange
+    # (8 -> 7 of 30), then plain orange; the next shot (7 -> 6) no flash
+    r.execute('''FIRE = true OBJ[4].fields[ROLE.rounds] = 8 run(0.6)
+      function countc(s) for _, d in ipairs(draws) do if d[1] == 'text' and d[4] == s then return d[6] .. ',' .. d[7] .. ',' .. d[8] end end end
+      OBJ[4].fields[ROLE.rounds] = 7 run(0.12) OT1 = countc('7') run(0.5) OT2 = countc('7')
+      OBJ[4].fields[ROLE.rounds] = 6 run(0.12) OT3 = countc('6')''')
+    ot1, ot2, ot3 = r.eval('OT1'), r.eval('OT2'), r.eval('OT3')
+    check('the orange turn: 7 of 30 brighter than orange just after (%s), orange after (%s); 6 no flash (%s)' % (ot1, ot2, ot3),
+          ot1 and ot2 == '240,170,90' and int(ot1.split(',')[2]) > 120 and ot3 == '240,170,90')
     # a controller: its right trigger is the fire button (the mouse untouched)
     rt7 = lua51.LuaRuntime()
     setup(rt7)
@@ -1613,7 +1780,7 @@ def main():
         return c.most_common(1)[0] if c else None
     r = lua51.LuaRuntime()
     setup(r)
-    r.execute('''OPTS.reload_line = true M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(1) CHANGE.shade(3) run(3)
+    r.execute('''OPTS.reload_line = true M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(1) CHANGE.shade(3) CHANGE.hatch_way(1) run(3)
       local f = OBJ[3].fields f[ROLE.rounds] = 30 run(0.3) f[ROLE.reload_stage] = 1 run(2) f[ROLE.rounds] = 45 f[ROLE.reload_stage] = 0 run(1)
       f[ROLE.rounds] = 30 run(0.3) f[ROLE.reload_stage] = 1 run(0.5)''')
     line = [(d[3], d[5]) for d in r.eval('draws').values() if d[1] == 'rect' and d[6] == 236 and d[9] == 230 and d[5] <= 8]
@@ -1628,7 +1795,7 @@ def main():
         rv = lua51.LuaRuntime()
         rv.execute('OPTS_X = true')
         setup(rv)
-        rv.execute('''OPTS.health, OPTS.stamina = 2, 1 M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(%d) CHANGE.shade(3) CHANGE.trail(1)
+        rv.execute('''OPTS.health, OPTS.stamina = 2, 1 M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(%d) CHANGE.shade(3) CHANGE.hatch_way(1) CHANGE.trail(1)
           local f = OBJ[2].fields f.health, f.max_health, f.stamina = 100, 125, 1 run(2.5)''' % lay)
         ta = set((round(d[2], 2), round(d[3], 2), round(d[4], 2), round(d[5], 2)) for d in rv.eval('draws').values() if d[1] == 'tri' and d[9] == 95)
         rv.execute('OBJ[2].fields.health = 60 run(1)')
@@ -1751,21 +1918,81 @@ def main():
     zs = [l[4] for l in ls if l[7] == 236 and l[10] == 170]
     check('GL-21 in hand: a drop line of %d segments, from z %.1f down to %.1f' % (len(zs), zs[0] if zs else 0, zs[-1] if zs else 0),
           len(zs) >= 15 and 0.3 < zs[0] < 0.7 and max(zs) < 1.5 and zs[-1] < -10 and all(zs[i] >= zs[i + 1] for i in range(5, len(zs) - 1)))
+    # (2.4.7, HUDdle 0.7.1's idea 3) no drop line in a vehicle seat (your Helldiver's flags word 2, bit 50), nor while
+    # you sprint (not aiming, your stamina falling: the line set to Always here); back after
+    def dl(): return len([l for l in r.eval('lines()').values() if l[7] == 236 and l[10] == 170])
+    r.execute('''OBJ[2].fields['gz3n3yj'] = { '0000000000000000', '0004000000000000', '0000000000000000' } run(0.5)''')
+    seated = dl()
+    r.execute('''OBJ[2].fields['gz3n3yj'] = { '0000000000000000', '0000000000000000', '0000000000000000' } run(0.5)''')
+    back = dl()
+    r.execute('''for i = 1, 6 do OBJ[2].fields.stamina = 1 - i * 0.05 run(0.1) end SPR = 0 for _, d in ipairs(draws) do if d[1] == 'line' and d[7] == 236 and d[10] == 170 then SPR = SPR + 1 end end run(1)''')
+    sprint, after = r.eval('SPR'), dl()
+    why = [l for l in r.eval('logs').values() if l.startswith('research: drop line')]
+    check('no drop line seated (%d; %d after), nor sprinting (%d; %d after) %s' % (seated, back, sprint, after, why[:4]),
+          seated == 0 and back >= 15 and sprint == 0 and after >= 15 and 'research: drop line hidden: seated' in why and 'research: drop line hidden: sprinting' in why)
+    # the Recoilless kneels to reload: no line while its stage isn't 0
+    rk = lua51.LuaRuntime()
+    setup(rk)
+    rk.execute('''function lines() local l = {} for _, d in ipairs(draws) do if d[1] == 'line' then l[#l + 1] = d end end return l end
+      OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 3, 0.4 } }
+      OBJ[3] = nil OBJ[91] = { name = NAMES.rr, fields = {} } local f = OBJ[91].fields f[ROLE.rounds] = 0 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = false f[ROLE.carry] = 0 f[ROLE.reload_stage] = 0 saved = { grip = { ["b2bfd847"] = 20 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 20 run(3) K0 = #lines() OBJ[91].fields[ROLE.reload_stage] = 4 run(0.5) K1 = #lines() OBJ[91].fields[ROLE.reload_stage] = 0 run(0.5) K2 = #lines()''')
+    check('the Recoilless: its line (%d), none while it kneels to reload (%d), back after (%d)' % (rk.eval('K0'), rk.eval('K1'), rk.eval('K2')),
+          rk.eval('K0') >= 10 and rk.eval('K1') == 0 and rk.eval('K2') >= 10)
     # (2.2.4 research) the game's aim points beside the line: the look point (af97ede7 = fjpn_od) and the crosshair's
     # point (bdc1cb8a = npqf7xc) read from the avatar every half second, against our ground and the mark
-    r.execute('OBJ[2].fields.fjpn_od = { 40, 60, -2 } OBJ[2].fields.npqf7xc = { 41, 61, -2.5 } run(1.2)')
+    r.execute('OBJ[2].fields.gz3n3yj = nil OBJ[2].fields.fjpn_od = { 40, 60, -2 } OBJ[2].fields.npqf7xc = { 41, 61, -2.5 } AIM = true run(1.2) AIM = false')   # (2.4.9: logged while aiming; the flags word from the seat test cleared, its aim bit 0 overrides the button)
     al = [l for l in r.eval('logs').values() if l.startswith('research: aim points:')]
-    check('aim points logged while the line is drawn: %s' % al[-1:], len(al) >= 2 and 'look 72.' in al[-1] and 'crosshair point 73.' in al[-1] and '(1.5 m from the look point)' in al[-1])
+    check('aim points logged while the line is drawn: %s' % al[-1:], len(al) >= 2 and 'look 72.' in al[-1] and 'crosshair point 73.' in al[-1] and '(1.5 m from the look point)' in al[-1]
+          and ' deg over the camera\'s line, ' in al[-1] and al[-1].endswith('; 8c0aee6e, not fired yet'))   # (2.4.7: the weapon, the angle, the last shot)
+    r.execute('FIRE = true OBJ[90].fields[ROLE.rounds] = 9 run(0.5) AIM = true run(0.6) AIM = false FIRE = false')
+    al = [l for l in r.eval('logs').values() if l.startswith('research: aim points:')]
+    check('after a shot: the line says when it fired (%s)' % al[-1][-40:], 'fired 0.' in al[-1] or 'fired 1.' in al[-1])
     # (2.2.5) the line converges on the look point while there is one (2.2.7: its distance along the view, eased,
     # the aim itself the camera's every frame): the view level from z 1, the look point 20 m out on it, the hand
     # at z 1.7: the first part heads down to it more steeply than to the old 100 m point; the point gone (the sky,
     # or not read), the old 100 m
-    r.execute('OBJ[2].fields.fjpn_od = { 0, 20, 1 } run(0.6)')
+    r.execute('CHANGE.line_aim(1) OBJ[2].fields.fjpn_od = { 0, 20, 1 } run(0.6)')   # (2.4.15: the view's own aim here; the reticle below)
     lk = [l[4] for l in r.eval('lines()').values() if l[7] == 236 and l[10] == 170]
     r.execute('OBJ[2].fields.fjpn_od = nil OBJ[2].fields.npqf7xc = nil run(1)')
     ls = list(r.eval('lines()').values())
     zs2 = [l[4] for l in ls if l[7] == 236 and l[10] == 170]
     check('the line aimed at the look point 20 m out at eye level, from a hand 0.6 m lower: climbs more steeply than toward the 100 m point (z at the 5th segment %.2f against %.2f without it)' % (lk[5], zs2[5]), lk[5] > zs2[5] + 0.1 and abs(zs2[5] - zs[5]) < 0.15)
+    # (2.4.15) "Line aimed at: The reticle": the game's reticle point (npqf7xc) 20 m out and 3.5 m to the right of the
+    # view (10 deg): the line heads to it (x grows along it); one 60 deg off the view, or none, or one 1 m out: the
+    # view's own aim, and the research log says why
+    def line_x_at(y_at):
+        pts = sorted((l[3], l[2]) for l in r.eval('lines()').values() if l[7] == 236 and l[10] == 170)
+        near = min(pts, key=lambda p: abs(p[0] - y_at))
+        return near[1]
+    r.execute('CHANGE.line_aim(2) OBJ[2].fields.npqf7xc = { 3.5, 20, 1 } run(1.1)')
+    xr = line_x_at(20)
+    r.execute('OBJ[2].fields.npqf7xc = { 35, 20, 1 } run(1.1)')
+    xo = line_x_at(20)
+    r.execute('OBJ[2].fields.npqf7xc = { 0, 1, 1 } run(1.1)')
+    xn = line_x_at(20)
+    r.execute('OBJ[2].fields.npqf7xc = nil run(1.1)')
+    xv = line_x_at(20)
+    said = [l for l in r.eval('logs').values() if l.startswith('research: the drop line aimed at')]
+    # (2.4.16) a point 1000 m out (the reticle on the sky) still aims the line; a moving point leads it by 2 frames of
+    # its motion (0.5 m a frame to the right: at 20 m the line sits ~1 m further right than the point), a still one
+    # after 0.1 s doesn't
+    r.execute('OBJ[2].fields.npqf7xc = { 175, 1000, 1 } run(1.1)')
+    xf = line_x_at(20)
+    r.execute('OBJ[2].fields.npqf7xc = { 0, 20, 1 } run(0.5) for i = 1, 6 do OBJ[2].fields.npqf7xc = { i * 0.5, 20, 1 } run(1 / 60) end')
+    xm = line_x_at(20)
+    r.execute('run(0.3)')
+    xs_ = line_x_at(20)
+    check('a point 1000 m out, 10 deg right: taken (x %.1f at 20 m); a point moving 0.5 m a frame led by 2 frames (x %.1f, the point at 3.0); still for 0.3 s: no lead (x %.1f)' % (xf, xm, xs_),
+          2.5 < xf < 4.5 and 3.6 < xm < 4.4 and 2.6 < xs_ < 3.4)
+    r.execute('OPTS.line_lead = 0 run(0.2)')
+    check('lead 0: the point itself (x %.1f)' % line_x_at(20), 2.6 < line_x_at(20) < 3.4)
+    r.execute('OPTS.line_lead = nil OBJ[2].fields.npqf7xc = nil run(0.5)')
+    check('the line aimed at the reticle: x %.1f at 20 m toward a point 3.5 m right; the view\'s aim with the point 60 deg off (%.1f), 1 m out (%.1f) or gone (%.1f); said: %s' % (
+          xr, xo, xn, xv, [l[33:] for l in said]),
+          2.5 < xr < 4.5 and abs(xo) < 0.5 and abs(xn) < 0.5 and abs(xv) < 0.5
+          and any('the reticle' in l for l in said) and any('deg off the view' in l for l in said) and any('m out' in l for l in said) and any('not read' in l for l in said))
     # (2.2.5) the look point as ground: the cell keeps the lowest point seen; one 7 m over it is a wall, left out
     r.execute('OBJ[2].fields.fjpn_od = { 40, 60, -2 } run(0.3)')
     g1 = r.eval('(function() local n, s, k, h, c = M.debug_ground(40, 60) return tostring(h) .. " " .. tostring(c) end)()')
@@ -1790,7 +2017,7 @@ def main():
     check('thickness Medium: the line drawn twice (%d, was %d)' % (n2, n1), n2 == 2 * n1)
     r.execute('CHANGE.drop_thick(1) run(0.2)')
     # (2.1.1) "Line from a drop of, cm": the line starts where the flight has fallen that far below the straight aim
-    # (the GL's lob at 10 cm: 18 m out instead of the hand's 13; at 50 cm farther still); 0: the hand's 10 m
+    # (the GL's lob at 10 cm: 18 m out instead of the hand's 13; at 50 cm farther still); 0: 3 m past the hand (2.4.12)
     r.execute('CHANGE.drop_from(10) run(0.2)')
     f10 = min(l[3] for l in r.eval('lines()').values())
     r.execute('CAM_FZ = -0.1 run(0.2)')
@@ -1800,16 +2027,34 @@ def main():
     r.execute('CHANGE.drop_from(0) run(0.2)')
     f0 = min(l[3] for l in r.eval('lines()').values())
     check('Line from a drop of 10 cm: the GL line from %.1f m (aimed down: %.1f, the start fixed per weapon, not per aim); 50 cm: %.1f m; 0: %.1f m (the hand\'s)' % (f10, f10b, f50, f0),
-          17 <= f10 <= 21 and abs(f10b - f10) < 1 and f50 > f10 + 5 and 9 <= f0 <= 12)
+          17 <= f10 <= 21 and abs(f10b - f10) < 1 and f50 > f10 + 5 and 5.5 <= f0 <= 7)
     # from the right hand (0.4 m right, 3 m ahead of the camera, 0.4 up... the mock's unit position), toward the
     # point 100 m along the camera's line: the first segment by the hand, x back near 0 by 100 m
     first = min(l[3] for l in ls)
     near100 = [l for l in ls if l[10] == 170 and 90 <= l[3] <= 110]
-    check('the line starts past the hand (%.1f m out, 7 m from it: x %.1f, a hand\'s width left of 0.4) and converges on the crosshair (x %.2f at 100 m)' % (first, ls[0][2], near100[0][2] if near100 else 9),
-          9 <= first <= 12 and 0.2 < ls[0][2] <= 0.35 and near100 and abs(near100[0][2]) < 0.1)
+    check('the line starts past the hand (%.1f m out, 3 m from it: x %.2f, a little left of 0.4) and converges on the crosshair (x %.2f at 100 m)' % (first, ls[0][2], near100[0][2] if near100 else 9),
+          5.5 <= first <= 7 and 0.2 < ls[0][2] < 0.4 and near100 and abs(near100[0][2]) < 0.1)
     r.execute('WPOS = { U = false } run(0.5)')
     first = min(l[3] for l in r.eval('lines()').values())
-    check('with no hand position (the unit can\'t be asked): from the view, %.1f m out' % first, 6 <= first <= 9)
+    check('with no hand position (the unit can\'t be asked): from the view, %.1f m out' % first, 2.5 <= first <= 3.5)
+    # (2.4.12) the flight blended between the cached half-degree flights: the line's end moves with every small
+    # turn of the aim (0.001 of fz, about 0.06 deg), by about the same amount each time, no steps
+    ends = []
+    for i in range(11):
+        r.execute('CAM_FZ = %.4f run(0.1)' % (-0.030 - i * 0.001))
+        ends.append(max(l[6] for l in r.eval('lines()').values() if l[7] == 236 and l[10] == 170))
+    steps = [ends[i] - ends[i + 1] for i in range(len(ends) - 1)]
+    check('the line\'s end moves smoothly as the aim turns (steps of %s m)' % [round(x, 2) for x in steps],
+          all(x > 0 for x in steps) and max(steps) < 2.5 * min(steps))
+    r.execute('CAM_FZ = nil run(0.3)')
+    # (2.4.12, luka) no drop line for the Verdict or the Re-Educator
+    rv = lua51.LuaRuntime()
+    setup(rv)
+    rv.execute('''function lines() local l = {} for _, d in ipairs(draws) do if d[1] == 'line' then l[#l + 1] = d end end return l end
+      OPTS.drop_line = 3 OPTS.drop_thick = 1 OBJ[3] = nil OBJ[90] = { name = NAMES.verdict, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["c7dfd9eb"] = 10 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 10 run(3)''')
+    check('the Verdict in hand: no drop line (%d lines)' % len(rv.eval('lines()')), len(rv.eval('lines()')) == 0)
     ys = [l[3] for l in ls]
     check('the line runs along the aim (y up to %.0f)' % max(ys), max(ys) > 40 and min(l[2] for l in ls) > -2)
     r.execute('OPTS.drop_line = 2 M = (function(...) ' + SRC + ' end)(chef) GRIP = 51 run(2)')
@@ -1859,7 +2104,7 @@ def main():
     top = max(l[4] for l in ls) if ls else 0
     check('a grenade out: an arc of %d segments from the hand (y %.1f), rising to %.1f then down (%d from a gun)' % (
           len(ls), ls[0][3] if ls else 0, top, r.eval('n_gun')),
-          r.eval('n_gun') == 0 and len(ls) > 30 and 1.5 < ls[0][3] < 2.5 and top > 0.5 and ls[-1][4] < -10)
+          r.eval('n_gun') == 0 and 20 <= len(ls) <= 40 and 1.5 < ls[0][3] < 2.5 and top > 0.5 and ls[-1][4] < -10)   # (2.4.13: a piece every 1.2 m, not every step)
     # 1.5.16: the same grenade with Servo-Assisted armour (SA-12, armor_set f2b7d3f5): a longer arc
     def landing(lines_):
         # the distance along the throw where the arc comes back down to the hand's height (a line's start: x y z)
@@ -1883,7 +2128,7 @@ def main():
     ls2 = list(r.eval('lines()').values())
     check('a stratagem ball in hand: the arc all the while, from the ball (%d, from y %.1f); with no ball unit found, from the hand (%d, y %.1f)' % (
           len(ls), ls[0][3] if ls else 0, len(ls2), ls2[0][3] if ls2 else 0),
-          len(ls) > 30 and 2.2 < ls[0][3] < 3.5 and len(ls2) > 30 and 1.5 < ls2[0][3] < 2.5)
+          len(ls) > 20 and 2.2 < ls[0][3] < 3.5 and len(ls2) > 20 and 1.5 < ls2[0][3] < 2.5)
     r.execute('''FIRE = false BALL = nil OBJ[3] = nil OBJ[95] = { name = NAMES.c4, fields = {} } local f = OBJ[95].fields f[ROLE.rounds] = 1 f[ROLE.magazines] = 3
       f[ROLE.options] = 0 f[ROLE.carry] = 0 saved = { grip = { ["6b2c3bed"] = 42 } } M = (function(...) ''' + SRC + ''' end)(chef) GRIP = 42 run(2)''')
     n_c4 = len(r.eval('lines()'))
@@ -1893,7 +2138,7 @@ def main():
     n_det = len(r.eval('lines()'))
     r.execute('AIM = false')
     check('C4 in DEPLOY: an arc aimed or not (%d, %d); none with the detonator (%d) [%s]' % (n_c4, n_aim, n_det, r.eval('texts()')),
-          n_c4 > 30 and n_aim > 30 and n_det == 0)
+          n_c4 > 20 and n_aim > 20 and n_det == 0)
     # the stim icon as a texture (its size ladder told to Chef once), the pixel sprite when it can't be drawn: the
     # test's way (no menu row since 1.5.13: M.debug_cfg sets it)
     r = lua51.LuaRuntime()
@@ -2446,7 +2691,39 @@ def main():
     r.execute('WPOS = { U = { 0.4, 3, 6 }, M1 = { 20, 0, 3 }, M2 = { 40, 0, 1 } } run(0.3) WPOS = { U = { 0.4, 3, 0.4 }, M1 = { 20, 0, 3 }, M2 = { 40, 0, 1 } } run(0.3)')
     cells2, samples2, skipped2, h_far, _c2 = r.eval('M.debug_ground(200, 200)')
     check('the feet grid: three cells from three Helldivers (%s cells, %s samples), the height between them from both (%s), none far away (%s), a jump skipped (%s)' % (cells, samples, h_mid, h_far, skipped2),
-          cells and cells >= 3 and samples >= 18 and h_mid is not None and 0.3 < h_mid < 2.7 and h_far is None and skipped2 >= 2)
+          cells and cells >= 3 and samples >= 9 and h_mid is not None and 0.3 < h_mid < 2.7 and h_far is None and skipped2 >= 2)   # (2.4.7: no unit reads till your Helldiver is known, the first 1.2 s here)
+    # (2.4.3) a Helldiver in an exosuit (its body 1 m off, the seat 2.5 m over the ground): no feet samples from him
+    # while it's beside him, the others' still counted; out of it, his again
+    h_before = r.eval('M.debug_ground(20, 0)')[3]
+    r.execute('VEHICLES = { \'EX\' } WPOS.EX = { 20.6, 0.8, 1.2 } WPOS.M1 = { 20, 0, 5.5 } run(0.25)')
+    _, s_a, _, _, _ = r.eval('M.debug_ground(10, 0)')
+    r.execute('run(2)')
+    _, s_b, _, _, _ = r.eval('M.debug_ground(10, 0)')
+    h_suit = r.eval('M.debug_ground(20, 0)')[3]
+    r.execute('VEHICLES = nil WPOS.EX = nil WPOS.M1 = { 20, 0, 3 } run(0.6)')
+    _, s_c, _, _, _ = r.eval('M.debug_ground(10, 0)')
+    VL = [l for l in r.eval('logs').values() if l.startswith('research: ground: a ')]
+    check('in an exosuit: the research lines say so, once each (%s)' % VL,
+          len(VL) == 2 and 'a vehicle in the world: combat_walker' in VL[0] and 'a Helldiver at a combat_walker (1.0 m across)' in VL[1])
+    check('in an exosuit: no feet samples from him (%s -> %s over 2 s: two Helldivers, 8 ticks: 16), the ground under him unchanged (%s, %s); out of it, his counted again (%s)' % (s_a, s_b, h_before, h_suit, s_c),
+          14 <= s_b - s_a <= 18 and h_before is not None and h_suit == h_before and s_c - s_b >= 5)
+    # (2.4.7, HUDdle 0.7.3's crash fix) no unit reads while you're dead, in your hellpod (its landing field false), or
+    # in the first 10 s after it lands: the feet samples stand still then, and go on after
+    def fs(): return r.eval('M.debug_ground(10, 0)')[1]
+    r.execute('OBJ[2].fields.health = 0 run(0.5)')
+    d0 = fs()
+    r.execute('run(2)')
+    d1 = fs()
+    r.execute('''OBJ[12] = { name = NAMES.avatar, fields = { du7kbt = 4, ei6_t2 = 5, health = 125, qj687ja = false } } OBJ[1].fields.u4d1h9a = 12 run(2)''')
+    p1 = fs()
+    r.execute('OBJ[12].fields.qj687ja = true run(5)')
+    p2 = fs()
+    r.execute('run(6)')
+    p3 = fs()
+    hl = [l for l in r.eval('logs').values() if 'unit reads' in l or 'landed' in l]
+    check('dead: no feet samples (%s -> %s); in the hellpod (%s), 5 s after it lands (%s): none; 11 s after: again (%s) %s' % (d0, d1, p1, p2, p3, hl[-4:]),
+          d1 == d0 and p1 == d1 and p2 == p1 and p3 > p2 and any('landed' in l for l in hl))
+    r.execute('OBJ[1].fields.u4d1h9a = 2 OBJ[12] = nil OBJ[2].fields.health = 125 run(1)')
     # the walks: the count, then the positions (both within the first seconds); every 20 s after (the rocks become
     # trusted samples one walk after their offset is learned: the walk meets them before the three in feet cells)
     r.execute('run(45)')
@@ -2487,15 +2764,101 @@ def main():
     level, drop = ring_and_line()
     arrow = [d for d in lines_all_of(r) if d[10] == 200 and abs(d.z2 - d[4]) > 1e-6]
     check('the landing mark: a level ring of 16 segments, a cross and an arrow\'s top where the lobbed shot meets the walked ground, 33 m out (%d level segments at y %.1f, alpha %s), the arrow\'s two sides (%d, 1.6 m tall: %.1f); the line runs on past it (%d segments, ending at z %.1f)' % (len(level), level[0][3] if level else 0, sorted(set(d[10] for d in level)), len(arrow), abs(arrow[0].z2 - arrow[0][4]) if arrow else 0, len(drop), drop[-1].z2 if drop else 0),
-          len(level) == 19 and all(d[10] == 200 for d in level) and level and abs(level[0][3] - 36.5) < 1 and len(arrow) == 2 and abs(abs(arrow[0].z2 - arrow[0][4]) - 1.6) < 1e-6 and len(drop) >= 30 and drop[-1].z2 < -10)
+          len(level) == 19 and all(d[10] == 200 for d in level) and level and abs(level[0][3] - 36.5) < 1 and len(arrow) == 2 and abs(abs(arrow[0].z2 - arrow[0][4]) - 1.6) < 1e-6 and len(drop) >= 20 and drop[-1].z2 < -10)
     r.execute('CAM_FZ = -0.035 run(0.5)')
     level, drop = ring_and_line()
     check('aimed shorter, before the walked cells: the ring faint, where the line crosses the guessed height, not at the gate (%d segments at y %.1f, alpha %s)' % (len(level), level[0][3] if level else 0, sorted(set(d[10] for d in level))),
           len(level) == 19 and all(d[10] == 90 for d in level) and abs(level[0][3] - 25.2) < 0.5)
     r.execute('CAM_FZ = -0.12 run(0.5)')
     level, drop = ring_and_line()
-    check('aimed at your feet (under 20 m): no ring, the line still drawn (%d level segments, %d line segments)' % (len(level), len(drop)),
-          not level and len(drop) >= 30)
+    # (2.4.12: a weapon with a blast marks from 3 m out, so the ring shows even at the feet)
+    check('aimed at your feet (under 20 m): the GL\'s ring still drawn, its blast known (%d level segments at y %.1f), the line too (%d segments)' % (len(level), level[0][3] if level else 0, len(drop)),
+          len(level) == 19 and level and level[0][3] < 20 and len(drop) >= 20)
+    # (2.4.8) the new look: the GL-21's line as dashes (gaps between pieces, dark edges, fading in at the hand); the
+    # mark painted on the ground — the pin (1.6 m at Mark size 1), the blast zone (its full-damage 3.5 m radius: 7 m
+    # across, a 7 m box) and the outer 7.5 m radius (15 m, a 12 m box) — turned to project down, no ring of lines;
+    # aimed at the feet (no landing): the pictures parked 5 km down; our pictures not loaded: the Classic ring
+    def newlook(extra=''):
+        rn = lua51.LuaRuntime()
+        setup(rn)
+        rn.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 OPTS.line_look = 3 OPTS.mark_look = 2 WPOS = { U = { 0.4, 36, 0.4 } } ''' + extra + '''
+          OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+          f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+          GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+        return rn
+    rn = newlook()
+    dec = rn.eval('DECALS') or {}
+    decs = {k: dict(v) for k, v in dec.items()}
+    pics = {}
+    tex = {n: rn.eval("TEXTURES and nil") for n in ()}
+    for k, v in decs.items():
+        sc = list(dict(v['scale']).values()) if v.get('scale') else None
+        pics[str(v.get('pic'))] = (sc, list(dict(v['pos']).values()) if v.get('pos') else None, v.get('alpha'))
+    sizes = sorted(round(p[0][0], 2) for p in pics.values() if p[0])
+    depths = sorted(round(p[0][1], 2) for p in pics.values() if p[0])
+    ls = [d for d in rn.eval('draws').values() if d[1] == 'line']
+    # (a line record: x1, y1, z1, x2, y2, r, g, b, a at 2..10, z2 by name)
+    dark = [d for d in ls if d[7] == 0 and d[8] == 0 and d[9] == 0 and d[10] <= 110]
+    level = [d for d in ls if abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]
+    drop = [d for d in ls if d[7] == 236 and d[8] == 229 and d[10] <= 170]
+    gaps = sum(1 for i in range(len(drop) - 1) if (abs(drop[i][5] - drop[i + 1][2]) + abs(drop[i][6] - drop[i + 1][3])) > 0.05)
+    fades = sorted(set(d[10] for d in drop))[:3]
+    check('the new look: 3 pictures on the ground %s, %s across in boxes %s deep, turned down; no ring of lines (%d); the line in dashes (%d pieces, %d gaps), dark edges (%d), fading in (alphas %s)' % (
+          sorted(pics), sizes, depths, len(level), len(drop), gaps, len(dark), fades),
+          len(pics) == 3 and sizes == [1.6, 7.0, 15.0] and depths == [6, 7, 12] and len(level) == 0 and gaps >= 10 and len(dark) >= gaps and fades[0] < 170
+          and all(dict(v['rot']) and abs(list(dict(v['rot']).values())[0] + 0.7071) < 0.001 for v in decs.values()))
+    # (2.4.9) the chevron as a screen icon over the landing point (our chevron texture, cream), one bitmap; Thick
+    # lines as a triangle: the third strand above the other two (a z offset), not beside them; Solid (the default):
+    # one line with dark edges and the fade, no gaps
+    chev = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
+    # (the screen's y up from the bottom: the icon's bottom over the landing point's screen y — 2.4.9 subtracted and drew
+    # it under the pin, luka's screenshot; the landing's y from its decal's place)
+    pin = [v for v in dict(rn.eval('DECALS')).values() if v['pic'] == 'id:5e71cb0818cee761'][0]
+    px, py, pz = dict(pin['pos']).values()
+    lp = rn.eval('(function() local sx, sy = chef.world_to_screen(%f, %f, %f) return sy end)()' % (px, py, pz))
+    check('the chevron icon over the landing point (%d drawn, %s), its bottom above the point (y %s > %s)' % (len(chev), chev and (chev[0][6], chev[0][7], chev[0][8]), chev and chev[0][3], lp),
+          len(chev) == 1 and (chev[0][6], chev[0][7], chev[0][8]) == (236, 229, 206) and chev[0][3] > lp)
+    # (2.4.18, luka: on guessed ground the zone was hard to see on day maps) aimed shorter, before the walked cells:
+    # the pictures stay at full strength (1, 0.9, 0.7), only the chevron is dimmed (alpha 110 of 220)
+    rn.execute('CAM_FZ = -0.035 run(0.5)')
+    gpics = {str(v['pic']): round(v['alpha'], 2) for v in (dict(x) for x in dict(rn.eval('DECALS')).values()) if v.get('alpha') is not None}
+    gchev = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
+    check('on guessed ground: the pictures at full strength (%s), the chevron dimmed (alpha %s)' % (sorted(gpics.values()), gchev and gchev[0][9]),
+          sorted(gpics.values()) == [0.7, 0.9, 1.0] and len(gchev) == 1 and gchev[0][9] == 110)
+    rn.execute('CAM_FZ = -0.005 run(0.5)')
+    gchev = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
+    check('on known ground: the chevron bright again (alpha %s)' % (gchev and gchev[0][9]), len(gchev) == 1 and gchev[0][9] == 209)
+    rt3 = newlook('OPTS.drop_thick = 3 OPTS.line_look = 2')
+    ls3 = [d for d in rt3.eval('draws').values() if d[1] == 'line' and d[7] == 236 and d[8] == 229]
+    # (gaps: a piece's end to the next piece's start, the strands' sideways offsets allowed)
+    gaps3 = sum(1 for i in range(0, len(ls3) - 3, 3) if abs(ls3[i][6] - ls3[i + 3][3]) > 0.05)
+    trio = [d for d in ls3 if abs(d[3] - ls3[9][3]) < 0.01][:3]   # (the three strands of one piece: the same y along the shot)
+    zs = sorted(round(t[4], 4) for t in trio)
+    dark3 = [d for d in rt3.eval('draws').values() if d[1] == 'line' and d[7] == 0 and d[8] == 0]
+    # (2.4.11) the far pieces merged: the Solid line has fewer pieces than the drop's points, still reaching its end
+    far = max(d[6] for d in ls3)
+    check('the far pieces merged: %d strands (3 a piece), the line still out to %.0f m' % (len(ls3), far), len(ls3) <= 90 and far > 100)
+    check('Solid, Thick as a triangle: three strands a piece with one above the others (z %s), no gaps (%d), dark edges (%d)' % (zs, gaps3, len(dark3)),
+          len(ls3) % 3 == 0 and gaps3 == 0 and len(zs) == 3 and zs[2] - zs[1] > 0.005 and zs[1] - zs[0] < 0.01 and len(dark3) >= 20)
+    # (2.4.11) the chevron a frame behind the landing (the engine shows a moved decal a frame later): after a turn
+    # of the aim, this frame's chevron sits where last frame's pin was
+    rn.execute('CAM_FZ = -0.02 run(1 / 60) P1 = nil for _, v in pairs(DECALS) do if v.pic == "id:5e71cb0818cee761" then P1 = { v.pos[1], v.pos[2], v.pos[3] } end end CAM_FZ = -0.04 run(1 / 60)')
+    chev2 = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35'][0]
+    p1 = list(rn.eval('P1').values())
+    sy1 = rn.eval('(function() local sx, sy = chef.world_to_screen(%f, %f, %f) return sy end)()' % (p1[0], p1[1], p1[2] + 0.1))
+    check('the chevron a frame behind: its y %.1f from last frame\'s pin (%.1f)' % (chev2[3], sy1), abs(chev2[3] - (sy1 + chev2[5] * 0.15)) < 1.5)
+    rn.execute('CAM_FZ = 0.5 run(0.5)')
+    parked = [list(dict(v['pos']).values())[2] for v in dict(rn.eval('DECALS')).values()]
+    check('aimed at the sky: the pictures parked 5 km down (%s), none spawned again (%d)' % (parked, rn.eval('SPAWNED')), all(z == -5000 for z in parked) and rn.eval('SPAWNED') == 3)
+    rn.execute('CAM_FZ = -0.005 run(0.5)')
+    check('back on the ground: the same three reused (%d spawned), placed again' % rn.eval('SPAWNED'),
+          rn.eval('SPAWNED') == 3 and sum(1 for v in dict(rn.eval('DECALS')).values() if list(dict(v['pos']).values())[2] != -5000) == 3)
+    rn = newlook('TEX_OK = false')
+    ls = [d for d in rn.eval('draws').values() if d[1] == 'line']
+    level = [d for d in ls if abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]
+    said = [l for l in rn.eval('logs').values() if l.startswith('ground pictures:')]
+    check('our pictures not loaded: the Classic ring of lines (%d), nothing spawned (%s) %s' % (len(level), rn.eval('SPAWNED'), said),
+          len(level) == 19 and rn.eval('SPAWNED') is None and said and 'the Classic lines instead' in said[0])
     # (2.0.16) a bug hole (a structure kind, with a box) in the shot's path: the mark red at the hit, no landing ring;
     # the row off: the landing ring as before
     r = lua51.LuaRuntime()
@@ -2542,7 +2905,7 @@ def main():
     red_c = [d for d in lines_all_of(r) if d[10] == 200 and d[7] < 210 and d[8] < 80]
     check('the world lines through the tone curve (cfg.world_tone, off since 2.0.18): the drop line\'s cream sent as %s, the mark\'s red as %s' % (
           [drop_c[0][7], drop_c[0][8], drop_c[0][9]] if drop_c else None, [red_c[0][7], red_c[0][8], red_c[0][9]] if red_c else None),
-          len(drop_c) >= 30 and drop_c[0][7] < 150 and len(red_c) >= 16 and red_c[0][7] < 150 and red_c[0][7] > red_c[0][8])
+          len(drop_c) >= 12 and drop_c[0][7] < 150 and len(red_c) >= 16 and red_c[0][7] < 150 and red_c[0][7] > red_c[0][8])
     r.execute('OPTS.world_tone = false')
     # (2.0.18) Line opacity: the row's 20-100 is 10-50 % in the engine (2.0.19, luka: over 50 % looks like 100 %); the
     # default 60 (30 %) sends the lines at 78 and the mark at 92; 100 -> 131 and 154; 20 -> 26 and 31
@@ -2672,6 +3035,18 @@ def main():
           cnt and cnt[0][2] > 3000 and cnt[0][3] > 1200 and cnt[0].size == 80)
     sq = [d for d in dr if d[1] == 'rect' and d[4] == d[5] == 6]
     check('custom: 7 magazine squares (%d)' % len(sq), len(sq) == 7)
+    # (2.4.4) the resupply sweep: magazines topped up (3 -> 7) light in order, with the cream wash over the squares
+    r.execute('''OBJ[3].fields[ROLE.magazines] = 3 run(0.5) OBJ[3].fields[ROLE.magazines] = 7 MSW = {} MWASH = 0
+      for i = 1, 40 do run(1 / 60) local n = 0
+        for _, d in ipairs(draws) do
+          if d[1] == 'rect' and d[4] == 6 and d[5] == 6 and d[9] == 220 then n = n + 1 end
+          if d[1] == 'rect' and d.l and d.l % 1000 == 908 and d[6] == 236 and d[7] == 229 and d[5] == 6 then MWASH = MWASH + 1 end
+        end
+        MSW[#MSW + 1] = n end''')
+    msw = list(r.eval('MSW').values())
+    seen = [v for i, v in enumerate(msw) if i == 0 or v != msw[i - 1]]
+    check('magazines topped up 3 -> 7: the squares lit in order (%s), a cream wash over them for %d frames' % (seen, r.eval('MWASH')),
+          seen[0] in (3, 4) and seen[-1] == 7 and seen == sorted(seen) and len(seen) >= 3 and 4 <= r.eval('MWASH') <= 30)
     spr = [d for d in dr if d[1] == 'bitmap']
     check('custom: no stims, the grenade at the middle (%s)' % [(s_[2], s_[3]) for s_ in spr], len(spr) == 1 and abs(spr[0][2] + (spr[0][4] - round(spr[0][4] * 149 / 256)) // 2 - 1720) < 6)
     check('custom: read again with the key', any('layout file: read (the reload key)' in l for l in r.eval('logs').values()))
@@ -2796,6 +3171,18 @@ def main():
     check('shade off: the fill alone (%s)' % rc, len(rc) == 1 and rc[0][4] == 235)
     # (2.3.9) Hatched: the empty part a dark ground and diagonal stripes (triangles) inside it, none over the fill
     r.execute('CHANGE.shade(3) for _, o in pairs(OBJ) do if o.fields[ROLE.rounds] then o.fields[ROLE.rounds] = math.floor(o.fields[ROLE.rounds] / 2) end end run(0.5)')
+    # (2.4.14) Hatched, drawn as the texture (the default): the dark ground and one bitmap of the stripe texture over
+    # the empty part, a texel P / 8 px (P 10 at the HUD's size 1), the window starting within a period; then as triangles
+    bm = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == '9d1ae52177072a62']
+    dark = [q for q in rects() if q[4] == 70]
+    tex_ok = len(bm) == 1 and len(dark) == 1 and abs(bm[0][2] - dark[0][0]) < 0.01 and abs(bm[0][4] - dark[0][2]) < 0.01
+    if tex_ok:
+        # (2.4.15: the band with the 10-texel period for P 10, rows 64-127: a texel 1 px, the window within a period)
+        scale = (bm[0].u1 - bm[0].u0) * 512 / bm[0][4]
+        tex_ok = abs(scale - 1) < 0.02 and 0 <= bm[0].u0 * 512 < 10 and abs(bm[0].v0 * 512 - 64) < 0.01 and abs((bm[0].v1 - bm[0].v0) * 512 - bm[0][5]) < 0.01
+    check('shade hatched as the texture: one bitmap over the dark ground (%s; %s), the 10-texel band (v0 %s) at a texel a pixel, the window within a period (u0 %s texels), alpha 74 (%s)' % (
+          [(b[2], b[3], b[4], b[5]) for b in bm], dark, bm and round(bm[0].v0 * 512, 1), bm and round(bm[0].u0 * 512, 2), bm and bm[0][9]), tex_ok and bm[0][9] == 74)
+    r.execute('CHANGE.hatch_way(1) run(0.5)')
     tris = [(d[2], d[3], d[4], d[5], d.x3, d.y3) for d in r.eval('draws').values() if d[1] == 'tri']
     dark = [q for q in rects() if q[4] == 70]
     xs = [v for t in tris for v in (t[0], t[2], t[4])]
@@ -2806,6 +3193,42 @@ def main():
     rh = lua51.LuaRuntime()
     setup(rh)
     rh.execute('CHANGE.layout(1) CHANGE.shade(3) GRIP = 70 FIRE = true run(3) for i = 11, 5, -1 do OBJ[4].fields[ROLE.rounds] = i run(0.3) end FIRE = false run(0.5)')
+    # (2.4.14) the texture's pattern fixed to the bar too: the stripes' phase against the box's own corner (the window's
+    # start, u0 texels, times the texel size, mod P) the same before and after the bar moves, and after the empty
+    # part grows (the pattern's corner is the part's, so a stripe stays where it was on the bar)
+    def tex_phase():
+        bs = [d for d in rh.eval('draws').values() if d[1] == 'bitmap' and d.tex == '9d1ae52177072a62']
+        if not bs: return None, None
+        b = bs[0]
+        sc = b[4] / ((b.u1 - b.u0) * 512)        # (px a texel)
+        ph = (b[2] - (b[3] + b[5]) - b.u0 * 512 * sc) % (8 * sc)   # (the pattern's corner on the screen, mod P)
+        return round((ph - (b[2] - (b[3] + b[5]))) % (8 * sc), 2), b[2]
+    def tex_tiles():
+        return set((d[2], round(d.u0 * 512, 2)) for d in rh.eval('draws').values() if d[1] == 'bitmap' and d.tex == '9d1ae52177072a62')
+    p0, x0 = tex_phase()
+    rh.execute('CHANGE.off_x(3) run(1)')
+    p1, x1 = tex_phase()
+    t1 = tex_tiles()
+    rh.execute('OBJ[4].fields[ROLE.rounds] = 3 run(1)')
+    t2 = tex_tiles()
+    check('the stripe texture moves with the bar (phase %s at x %s, %s at x %s) and holds as more ticks empty (%d tiles as before, %d new)' % (p0, x0, p1, x1, len(t1 & t2), len(t2 - t1)),
+          p0 is not None and p0 == p1 and x0 != x1 and t1 <= t2 and len(t2) > len(t1))
+    # (2.4.14) a bar wider than the texture at its scale is tiled: a 2000 px health bar at 20 / 125, the tiles end to
+    # end, each starting at the same point of the pattern (a tile is a whole number of periods wide)
+    rw = lua51.LuaRuntime()
+    rw.execute('OPTS_X = true')
+    setup(rw)
+    rw.execute('''OPTS.health = 2 LAYOUT = { _v = 1, elements = { health = { length = 2000, x = 0, anchor = 'bottom_left', align = 'bottom_left' } } }
+      M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.shade(3) local f = OBJ[2].fields f.health, f.max_health = 20, 125 run(2.5)''')
+    tiles = sorted((d[2], d[4], round(d.u0 * 512, 2), round(d.u1 * 512, 1)) for d in rw.eval('draws').values() if d[1] == 'bitmap' and d.tex == '9d1ae52177072a62')
+    joined = all(abs(tiles[i][0] + tiles[i][1] - tiles[i + 1][0]) < 0.01 for i in range(len(tiles) - 1))
+    # (the pattern continues across a tile's edge: the next window starts the previous tile's width (in texels, a
+    # texel a pixel here) further into the period)
+    cont = all(abs(((tiles[i][2] + tiles[i][1]) - tiles[i + 1][2]) % 10) < 0.05 for i in range(len(tiles) - 1))
+    check('a 2000 px bar at 20 / 125: the stripes in %d tiles end to end (%s), the pattern continuing across the edges (%s: u0 %s), none past the texture (u1 <= 512: %s)' % (
+          len(tiles), joined, cont, [t[2] for t in tiles], max(t[3] for t in tiles) if tiles else None),
+          3 <= len(tiles) <= 5 and joined and cont and sum(t[1] for t in tiles) > 1500 and all(t[3] <= 512 for t in tiles))
+    rh.execute('CHANGE.off_x(0) CHANGE.hatch_way(1) run(1)')
     def stripe_off():
         ds = list(rh.eval('draws').values())
         dk = sorted([(d[2], d[3]) for d in ds if d[1] == 'rect' and d[6] == 0 and d[7] == 0 and d[8] == 0])
@@ -3052,6 +3475,36 @@ def main():
     x2 = box('count')[0]
     r.execute('AIM = false run(0.5) CHANGE.aim_spread(0)')
     check('Aim spread 5 %%: the count on its way at 50 ms (%d < %d), 72 px right after (%d)' % (x0, x1, x2), x0 < x1 < x2 and x2 == x0 + 72)
+    # (2.4.2) the spread's run (2.4.6: luka's second take — full speed from the first frame, then slowing into place
+    # over the last 40 %%, about 3 frames at 60 fps): the first steps the biggest, the last three shrinking
+    r.execute('CHANGE.aim_spread(5) run(0.5) AIM = true')
+    xs = []
+    for i in range(9):
+        r.execute('run(1 / 60)')
+        xs.append(box('count')[0])
+    r.execute('run(0.5) AIM = false run(0.5) CHANGE.aim_spread(0)')
+    steps = [xs[i + 1] - xs[i] for i in range(len(xs) - 1)]
+    moving = [q for q in steps if q > 0]
+    check('the spread\'s speed profile: steps per frame %s — fast from the first, slowing over the last three, 72 px in all' % steps,
+          len(moving) >= 5 and moving[0] >= max(moving) - 1 and moving[-1] < moving[-2] < moving[-3] <= max(moving) and xs[-1] - xs[0] == 72)
+    # (2.4.2) the two passes in step: the ammo bar (the weapon pass) and the health bar (the vitals pass, drawn after)
+    # move by the same spread in one frame — N.ease stepped on every call, so the vitals were a step ahead each frame
+    rv = lua51.LuaRuntime()
+    rv.execute('OPTS_X = true')
+    setup(rv)
+    rv.execute('''OPTS.health = 2 M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.layout(1) CHANGE.aim_spread(5) GRIP = 70 FIRE = true run(3) OBJ[4].fields[ROLE.rounds] = 11 run(0.5) FIRE = false run(0.5)
+      function bar_y(c) for _, d in ipairs(draws) do if d[1] == 'rect' and d[6] == c[1] and d[7] == c[2] and d[8] == c[3] and d[4] >= 200 then return d[3] end end end''')
+    rv.execute('OBJ[2].fields.health = 60 run(0.5)')
+    def ys():   # (the health fill's y — orange at 60 of 125 — and the count's y, the weapon pass's)
+        return rv.eval('(function() local hy, by for _, d in ipairs(draws) do if d[1] == "rect" and d[4] >= 100 and d[6] == 240 and d[7] == 170 then hy = d[3] elseif d[1] == "text" and d[4] == "11" then by = d[3] end end return hy, by end)()')
+    rest = ys()
+    rv.execute('AIM = true run(1 / 60) run(1 / 60) run(1 / 60)')
+    mid = ys()
+    rv.execute('run(0.5)')
+    end_ = ys()
+    dh, db = rest[0] - mid[0], rest[1] - mid[1]
+    check('the two passes in step: at the third frame the health bar moved %s px and the ammo bar %s px (the same); at rest %s, the end %s' % (dh, db, rest, end_),
+          abs(dh - db) < 0.01 and dh > 0 and round(rest[0] - end_[0]) == round(rest[1] - end_[1]) == 72)
 
     # the Halt: two loaded ammo types (slot0 flechette, slot1 stun), chosen by the selected field: each named, each its
     # own magazine (a switch isn't a reload)

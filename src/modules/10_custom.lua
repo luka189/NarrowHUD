@@ -281,7 +281,7 @@ local function weapon_tone(d)
   if d.top and d.top > 0 then frac = math.max(0, math.min(1, d.value / d.top)) end
   local tone = CREAM
   if d.kind == 'ammo' then
-    if d.value == 0 then tone = RED elseif frac <= 0.25 then tone = WARN end
+    if d.value == 0 then tone = RED elseif frac <= (cfg.low_ammo or 0.25) then tone = WARN end   -- (2.4.5: F9 Low ammo at)
   else
     if d.overheated then tone = RED
     elseif d.heat_marks then tone = heat_tone(d, frac)
@@ -582,10 +582,21 @@ function EL_DRAW.bar(e, k, d, x, y, dry)
   end
   return w, h
 end
+-- (2.4.4) the charge mark as the charge crosses it: brighter, near white, and a pixel or two wider for a few frames
+-- (08_motion's 'chmark' pulse); past it the bar is red (luka: it was orange there, red only at 95 %). (2.4.5) The
+-- mark itself red, from the start (luka: it was orange)
+local function chmark_look(k)
+  local b = N.pulse_k('chmark')
+  local mw = math.max(1, math.floor(2 * k))
+  if b <= 0 then return col(RED, 220), mw, 0 end
+  local extra = math.floor(2 * k * b + 0.5)
+  return col(N.pulsed('chmark', RED), 220 + math.floor(35 * b)), mw + extra, math.floor(extra / 2)
+end
 function EL_DRAW.charge(e, k, d, x, y, dry)
-  if not d or not d.charge_frac then return nil end
+  if not d or not d.charge_frac then N.ease_reset('charge') return nil end   -- (2.4.4: a new charge starts from empty)
   local f = d.charge_frac
-  local cc = d.locked and WARN or (f >= 0.95 and d.t0 and not d.t0.has.lock and not d.charge_safe and RED or (f >= (d.charge_mark or 2) and WARN or CREAM))
+  local over = d.charge_mark and f >= d.charge_mark
+  local cc = d.locked and WARN or (((over or f >= 0.95) and d.t0 and not d.t0.has.lock and not d.charge_safe) and RED or CREAM)
   if d.kind == 'none' then cc = f >= 1 and WARN or CREAM end
   local edge, shade = look_of(e)
   local lw = math.max(1, math.floor(k * 0.8 + 0.5))
@@ -594,7 +605,7 @@ function EL_DRAW.charge(e, k, d, x, y, dry)
     local g, w, h = arc_geom(e, k)
     if dry then return w, h, g.cx, g.cy end
     arc_solid(g, x, y, f, col(cc, 230), lw, 40, edge, shade)
-    if d.charge_mark then arc_mark(g, x, y, d.charge_mark, math.max(1, math.floor(2 * k)), col(WARN, 220)) end
+    if d.charge_mark then local mc, mw = chmark_look(k) arc_mark(g, x, y, d.charge_mark, mw, mc) end
     return w, h
   end
   local vert = e.style ~= 'horizontal'
@@ -603,9 +614,9 @@ function EL_DRAW.charge(e, k, d, x, y, dry)
   if dry then return w, h end
   solid_bar(x, y, w, h, f, col(cc, 230), L_CUSTOM, lw, vert, edge, shade)
   if d.charge_mark then
-    local mw = math.max(1, math.floor(2 * k))
-    if vert then chef.rect(x - 1, y + math.floor(h * d.charge_mark), w + 2, mw, col(WARN, 220), L_CUSTOM + 2)
-    else chef.rect(x + math.floor(w * d.charge_mark), y - 1, mw, h + 2, col(WARN, 220), L_CUSTOM + 2) end
+    local mc, mw, back = chmark_look(k)
+    if vert then chef.rect(x - 1 - back, y + math.floor(h * d.charge_mark) - back, w + 2 + 2 * back, mw, mc, L_CUSTOM + 2)
+    else chef.rect(x + math.floor(w * d.charge_mark) - back, y - 1 - back, mw, h + 2 + 2 * back, mc, L_CUSTOM + 2) end
   end
   return w, h
 end
@@ -644,10 +655,11 @@ function EL_DRAW.mags(e, k, d, x, y, dry)
         local lw = math.max(1, math.floor(k * 0.8 + 0.5))
         for i = 0, top - 1 do
           local sx = x + i * (ps + pg)
-          if i < d.reserve then chef.rect(sx, y, ps, ps, col(N.pulsed('mags', CREAM), 220), L_CUSTOM)
+          if N.sweep_lit('mags', i, d.reserve) then chef.rect(sx, y, ps, ps, col(N.pulsed('mags', CREAM), 220), L_CUSTOM)   -- (2.4.4: a resupply lights them in order)
           elseif cfg.edge == 2 then empty_rect(sx, y, ps, ps, 55, L_CUSTOM, lw, 2, false)
           else chef.rect(sx, y, ps, ps, col({ 150, 150, 150 }, 120), L_CUSTOM) end
         end
+        N.glow('mags', x, y, top * ps + (top - 1) * pg, ps, L_CUSTOM)   -- (2.4.4: and the wash over them, as a bar's)
       end
       return top * ps + (top - 1) * pg, ps
     end
@@ -668,11 +680,33 @@ function EL_DRAW.mags(e, k, d, x, y, dry)
   return txt_width(str, small), small
 end
 -- (1.5.54) the modes apart: mode1 the weapon mode (HEAT, UB, the ammo kind), mode2 the fire mode and the zeroing text
-local function mode_text(parts, k, x, y, dry)
+-- (2.4.4) a mode word that changes cross-fades (luka's pick): the old one out as the new one comes in over 100 ms
+-- (Motion's scale), on the same weapon; a new weapon, or the part back after a moment away, shows at once
+local word_fades = {}
+local function mode_text(parts, k, x, y, dry, key, d)
   if #parts == 0 then return nil end
   local small = math.max(7, math.floor(16 * k + 0.5))
   local str = table.concat(parts, '  ')
-  if not dry then txt_modes(x, y, str, small, 200, L_CUSTOM) end
+  if not dry then
+    local now = N.now or chef.time()
+    local goid = d and (d.goid or d.goid0)
+    local f = key and word_fades[key]
+    if key and (not f or f.goid ~= goid or now - f.at > 0.25) then
+      f = { cur = str, goid = goid } word_fades[key] = f
+    elseif f and f.cur ~= str then
+      f.old, f.cur, f.t0 = f.cur, str, now
+    end
+    local secs = 0.1 * N.motion_scale()
+    local p = (f and f.old and secs > 0) and (now - f.t0) / secs or 1
+    if f then f.at = now end
+    if p >= 1 then
+      if f then f.old = nil end
+      txt_modes(x, y, str, small, 200, L_CUSTOM)
+    else
+      txt_modes(x, y, f.old, small, math.floor(200 * (1 - p) + 0.5), L_CUSTOM)
+      txt_modes(x, y, str, small, math.floor(200 * p + 0.5), L_CUSTOM)
+    end
+  end
   return txt_width(str, small), small
 end
 function EL_DRAW.mode1(e, k, d, x, y, dry)
@@ -681,18 +715,18 @@ function EL_DRAW.mode1(e, k, d, x, y, dry)
   if d.kind == 'heat' and cfg.show_heat then parts[#parts + 1] = 'HEAT' end
   if d.underbarrel then if cfg.show_mode then parts[#parts + 1] = d.ub_label or 'UB' end
   elseif d.mode then parts[#parts + 1] = d.mode end
-  return mode_text(parts, k, x, y, dry)
+  return mode_text(parts, k, x, y, dry, 'mode1', d)
 end
 function EL_DRAW.mode2(e, k, d, x, y, dry)
   if not d then return nil end
   local parts = {}
   if d.fmode and not d.underbarrel then parts[#parts + 1] = d.fmode end
-  return mode_text(parts, k, x, y, dry)
+  return mode_text(parts, k, x, y, dry, 'mode2', d)
 end
 -- (1.5.65) the zeroing as text on its own (whenever the weapon's scope is known: the part being on is the choice)
 function EL_DRAW.zoom(e, k, d, x, y, dry)
   if not d or not d.zoom_word then return nil end
-  return mode_text({ d.zoom_word }, k, x, y, dry)
+  return mode_text({ d.zoom_word }, k, x, y, dry, 'zoom', d)
 end
 function EL_DRAW.rpm(e, k, d, x, y, dry)
   if not d or not d.setting then return nil end
@@ -730,7 +764,11 @@ local function icon_el(rows, n, k, x, y, dry)
 end
 -- (1.5.18) the game's own icons of the weapon's mode and fire mode: squares of twice the stim's width (the sprites
 -- have a lot of padding), in a line or stacked (the fire mode first, under or right of it the ammo kind)
-local function icon_list(e, k, list, x, y, dry)
+-- (2.4.5, luka: the icons as the words) an icon that changes in its place cross-fades over the same 100 ms, the
+-- old one out as the new one comes in; a new weapon, or the part back after a moment away, at once. (Whether the
+-- game's icon material takes the colour's alpha isn't proven: the tint is, 1.5.20; if not, both show for 100 ms)
+local icon_fades = {}
+local function icon_list(e, k, list, x, y, dry, key, d)
   local tw = N.icon_px(k)
   local gap = math.floor(4 * k)
   local n = #list
@@ -738,13 +776,36 @@ local function icon_list(e, k, list, x, y, dry)
   if e.style == 'stacked' then w, h = tw, n * tw + (n - 1) * gap else w, h = n * tw + (n - 1) * gap, tw end
   if dry then return w, h end
   local keys = {}
+  local now = N.now or chef.time()
+  local goid = d and (d.goid or d.goid0)
+  local secs = 0.1 * N.motion_scale()
+  local fades = key and icon_fades[key]
+  if key and (not fades or fades.goid ~= goid or now - fades.at > 0.25) then fades = { goid = goid, slots = {} } icon_fades[key] = fades end
+  if fades then fades.at = now end
   for i = 1, n do
     local ex, ey
     if e.style == 'stacked' then ex, ey = x, y + h - i * tw - (i - 1) * gap else ex, ey = x + (i - 1) * (tw + gap), y end
-    local ok, why = N.mode_icon(list[i], ex, ey, tw, L_CUSTOM, list[i].word)
-    keys[#keys + 1] = list[i][6] .. (ok and '+' or ('-' .. tostring(why)))
+    local it = list[i]
+    local sl = fades and fades.slots[i]
+    if fades then
+      if not sl then sl = { cur = it } fades.slots[i] = sl
+      elseif sl.cur.word ~= it.word or sl.cur[1] ~= it[1] or sl.cur[2] ~= it[2] or sl.cur[3] ~= it[3] or sl.cur.tex ~= it.tex then
+        sl.old, sl.cur, sl.t0 = sl.cur, it, now                  -- (a sprite of the same atlas: its uv tells)
+      else sl.cur = it end
+    end
+    local p = (sl and sl.old and secs > 0) and (now - sl.t0) / secs or 1
+    local ok, why
+    if p >= 1 then
+      if sl then sl.old = nil end
+      ok, why = N.mode_icon(it, ex, ey, tw, L_CUSTOM, it.word)
+    else
+      N.mode_icon(sl.old, ex, ey, tw, L_CUSTOM, sl.old.word, 1 - p)
+      ok, why = N.mode_icon(it, ex, ey, tw, L_CUSTOM, it.word, p)
+    end
+    keys[#keys + 1] = it[6] .. (ok and '+' or ('-' .. tostring(why)))
   end
-  N.mode_icons_said(cfg.mode_icons, keys)
+  if fades then for i = n + 1, #fades.slots do fades.slots[i] = nil end end
+  N.mode_icons_said(cfg.mode_icons, keys, key)
   return w, h
 end
 local function without_zoom(list)
@@ -757,7 +818,7 @@ function EL_DRAW.zoomicon(e, k, d, x, y, dry)
   if not d or not (cfg.mode_icons and cfg.mode_icons > 1) or not N.mode_icons then return nil end
   local list = N.mode_icons()
   if not list then return nil end
-  for _, it in ipairs(list) do if it.word == 'ZOOM' then return icon_list(e, k, { it }, x, y, dry) end end
+  for _, it in ipairs(list) do if it.word == 'ZOOM' then return icon_list(e, k, { it }, x, y, dry, 'zoomicon', d) end end
   return nil
 end
 -- (1.5.57) the icons apart, as the modes: icon1 the weapon mode's (the ammo kind, the underbarrel), icon2 the fire
@@ -770,7 +831,7 @@ local function icons_part(fire)
     local part = {}
     for _, it in ipairs(without_zoom(list)) do if N.FIRE_WORD(it.word or '') == fire then part[#part + 1] = it end end
     if #part == 0 then return nil end
-    return icon_list(e, k, part, x, y, dry)
+    return icon_list(e, k, part, x, y, dry, fire and 'icon2' or 'icon1', d)
   end
 end
 EL_DRAW.icon1, EL_DRAW.icon2 = icons_part(false), icons_part(true)
@@ -799,7 +860,7 @@ function EL_DRAW.pack(e, k, d, x, y, dry, items)
       local segf = (1 + gapf) / n - gapf
       for i = 0, n - 1 do
         local f0 = i * (segf + gapf)
-        if i < lit then arc_piece(g, x, y, f0, f0 + segf, g.r_in, g.r_out, col(st.c, st.a), L_CUSTOM)
+        if N.sweep_lit('pack', i, lit) then arc_piece(g, x, y, f0, f0 + segf, g.r_in, g.r_out, col(st.c, st.a), L_CUSTOM)
         else arc_empty(g, x, y, f0, f0 + segf, 55, lw, edge, shade) end
       end
       if edge == 3 then arc_brackets(g, x, y, lw) end
@@ -927,13 +988,52 @@ local function side_of(e)
   return 'none'
 end
 N.side_of = side_of
-local function resolve(els, w, h, sizes, last, offsets)
-  local boxes, visiting = {}, {}
+-- (2.4.13, the frame time) the boxes kept while nothing that places them has changed: the layout, the screen, the
+-- parts' measured sizes, the other pass's boxes, the Spread, the aim spread and the offsets. luka's 2.4.11 log had
+-- the HUD's parts at ~0.4 ms a frame with few engine calls; the harness profile put a third of the frame's Lua in
+-- place() and draw_custom(), run twice a frame (a pass each for the parts and the vitals) over every part
+local rcache = {}
+local function same_size(a, b)
+  if a == b then return true end
+  if not a or not b then return false end
+  return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] and a[4] == b[4]
+end
+local function same_box(a, b)
+  if a == b then return true end
+  if not a or not b then return false end
+  return a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h and a.ax == b.ax and a.ay == b.ay
+end
+local function resolve(els, w, h, sizes, last, offsets, pass)
   local ox, oy = 0, 0
   if offsets then ox, oy = w * (cfg.off_x or 0) / 100, h * (cfg.off_y or 0) / 100 end
+  local spread = h * (cfg.spread or 0) / 100
+  local aim = h * N.tween('aimspread', N.aim_now and (cfg.aim_spread or 0) or 0, 120 / math.max(N.motion_scale(), 1), 0, 0.4) / 100
+  local rc = rcache[pass or 1]
+  if rc and rc.els == els and rc.w == w and rc.h == h and rc.ox == ox and rc.oy == oy and rc.spread == spread and rc.aim == aim
+     and rc.size == cfg.size then
+    local same = true
+    for _, el in ipairs(ELEMENTS) do
+      local id = el.id
+      if not same_size(rc.sizes[id], sizes[id]) or not same_box(rc.last[id], last[id]) then same = false break end
+    end
+    if same then return rc.boxes end
+  end
+  local boxes, visiting = {}, {}
   -- (1.5.55: while aiming, the Aim spread eases in on top)
   -- (1.5.59: 120 ms at Quick and at Normal alike — luka found Normal's 190 too slow for this one)
-  local spread = h * ((cfg.spread or 0) + N.ease('aimspread', N.aim_now and (cfg.aim_spread or 0) or 0, 120 / math.max(N.motion_scale(), 1))) / 100
+  -- (2.4.2) The Aim spread is kept out of the boxes: a box is the part's place at rest (the F9 Spread in it), and
+  -- the aim part is an offset on top (ax, ay by the part's side; a pinned part takes its target's), added after the
+  -- part's slide. Before, the eased spread moved the box itself every frame, and the slide (150 ms to a box that
+  -- moved) never got going until the box stood still — so the parts sat for 120 ms, then slid 150 ms ease-out, and
+  -- each started on its own frame (the frame its box's rounding stopped changing): luka's "the two sides are a frame
+  -- or two out of sync". Now every part moves by one value, the same frame: a tween with luka's speed profile,
+  -- 15 / 70 / 15 (08_motion), advanced once a frame
+  local function aim_of(e)
+    local sd = side_of(e)
+    if sd == 'left' then return -aim, 0 elseif sd == 'right' then return aim, 0
+    elseif sd == 'down' then return 0, -aim elseif sd == 'up' then return 0, aim end
+    return 0, 0
+  end
   local function free_point(e)
     local an = ANCHORS[e.anchor]
     local px = w * an[1] + h * e.x / 100 + ox
@@ -966,9 +1066,12 @@ local function resolve(els, w, h, sizes, last, offsets)
       target = nil
     end
     local x, y
+    local ax, ay = aim_of(e)
     if target then
       visiting[id] = true
       local tb = place(target)
+      ax, ay = tb.ax or 0, tb.ay or 0                            -- (with its target)
+      if e.pin == 'none' then local _, oay = aim_of(e) ay = oay end   -- (y its own: a free point)
       if tb.hidden and not hidden then tb = place(target, ew, eh) end   -- (takes its place: see above)
       visiting[id] = nil
       local k = (h / 1440) * cfg.size * e.size
@@ -995,11 +1098,14 @@ local function resolve(els, w, h, sizes, last, offsets)
       x = math.max(0, math.min(x, w - ew))
       y = math.max(0, math.min(y, h - eh))
     end
-    if aw then return { x = x, y = y, w = ew, h = eh, hidden = false, taken = true } end
-    boxes[id] = { x = x, y = y, w = ew, h = eh, hidden = hidden }
+    if aw then return { x = x, y = y, w = ew, h = eh, hidden = false, taken = true, ax = ax, ay = ay } end
+    boxes[id] = { x = x, y = y, w = ew, h = eh, hidden = hidden, ax = ax, ay = ay }
     return boxes[id]
   end
   for _, el in ipairs(ELEMENTS) do place(el.id) end
+  local lc = {}
+  for id, b in pairs(last) do lc[id] = { x = b.x, y = b.y, w = b.w, h = b.h, ax = b.ax, ay = b.ay } end
+  rcache[pass or 1] = { els = els, w = w, h = h, ox = ox, oy = oy, spread = spread, aim = aim, size = cfg.size, sizes = sizes, last = lc, boxes = boxes }
   return boxes
 end
 N.resolve_layout = resolve
@@ -1046,10 +1152,12 @@ local function draw_custom(d, items, vitals)
       end
     end
   end
-  local boxes = resolve(els, w, h, sizes, drawn, offsets)
-  -- (tests: this pass's boxes, the other pass's kept as they were)
-  layout.boxes = layout.boxes or {}
-  for _, el in ipairs(ELEMENTS) do if (el.vitals == true) == (vitals ~= nil) then layout.boxes[el.id] = boxes[el.id] end end
+  local pass = vitals and 2 or 1
+  local boxes = resolve(els, w, h, sizes, drawn, offsets, pass)
+  -- (tests: this pass's boxes, the other pass's kept as they were — M.debug_boxes reads them; 2.4.13: no copy a
+  -- frame, that was a sixth of this function's time)
+  layout.pass_boxes = layout.pass_boxes or {}
+  layout.pass_boxes[pass] = boxes
   -- (1.5.55) a part whose place changed slides there (150 ms; a move over a quarter of the screen snaps); one that
   -- wasn't drawn last frame fades in (120 ms) where it is, no slide
   local was = layout.was or {}
@@ -1060,11 +1168,12 @@ local function draw_custom(d, items, vitals)
     if sz and silent[el.id] then
       -- (holding its place: the slot stays for the parts pinned to it, nothing drawn; it fades in when it's back)
       local b = boxes[el.id]
-      drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h }
+      drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h, ax = b.ax, ay = b.ay }
       b.held = true
       was[el.id] = nil
     elseif sz then
       local e, b = els[el.id], boxes[el.id]
+      b.held = nil
       local c0 = el_clock and el_clock()
       local k = (h / 1440) * cfg.size * e.size
       local key = 'el:' .. el.id
@@ -1076,6 +1185,7 @@ local function draw_custom(d, items, vitals)
       local age = now - was[el.id]
       if age < 0.12 * N.motion_scale() then fade = age / (0.12 * N.motion_scale()) end
       local sx, sy = N.slide(key, b.x, b.y, 150, h * 0.25)
+      sx, sy = sx + math.floor((b.ax or 0) + 0.5), sy + math.floor((b.ay or 0) + 0.5)   -- (2.4.2: the aim spread on top)
       -- (1.5.60: the part's Show rule, eased: held back, it keeps its place and isn't drawn (or is dimmed))
       local rule = N.el_alpha(el.id)
       N.alpha_k = base * e.opacity / 100 * fade * rule
@@ -1083,7 +1193,7 @@ local function draw_custom(d, items, vitals)
       -- pattern to, or the box's own)
       N.hatch_tint, N.hatch_ox, N.hatch_oy, N.hatch_k = nil, nil, nil, k
       if rule > 0.01 then EL_DRAW[el.id](e, k, d, sx, sy, false, items, vitals) end
-      drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h }
+      drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h, ax = b.ax, ay = b.ay }
       if c0 then clocks[el.id] = (clocks[el.id] or 0) + el_clock() - c0 end
     elseif sizes[el.id] == false then
       was[el.id] = nil
@@ -1094,7 +1204,7 @@ local function draw_custom(d, items, vitals)
 end
 
 
-N.layout, N.load_layout, N.draw_custom = layout, load_layout, draw_custom
+N.layout, N.load_layout, N.draw_custom, N.ELEMENTS = layout, load_layout, draw_custom, ELEMENTS
 -- (2.0: every layout is a layout; the Under and Beside modules that drew the old positions by hand are gone)
 N.draw = function(d, items) return draw_custom(d, items) end
 N.draw_vitals = function(vit) return draw_custom(nil, nil, vit) end

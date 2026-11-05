@@ -285,6 +285,32 @@ local function check_step()
     end
   end
 end
+-- (2.4.7, HUDdle 0.7.1's idea 3) no drop line where it can't apply: in a vehicle seat (your Helldiver's seat bit;
+-- a mounted gun shown from its seat keeps its line: the Grenadier Battlement lobs), in the hellpod (its landing field
+-- still false: 12_vitals; HUDdle goes by the camera's distance, which our own landing field makes unneeded), while a launcher that kneels to reload reloads (the Recoilless, the Epoch, the
+-- Airburst: their stage not 0), and, not aiming, while you sprint (your stamina falling: only a Drop line set to
+-- Always shows then). The throw line keeps the last two. -> why, or nil
+local KNEEL = { b2bfd847 = true, ['314a1bf5'] = true, ['8a3c6fee'] = true }
+local arcs = { st = nil, st_at = -100, said = nil }
+function N.arc_blocked(now, d, vit)
+  local why
+  local st8 = N.state8
+  if vit and type(vit.st) == 'number' then
+    if arcs.st and vit.st < arcs.st - 0.0005 then arcs.st_at = now end
+    arcs.st = vit.st
+  end
+  local seat = N.seat
+  if st8 and st8.seat == 1 and not (seat and seat.gun and hand.goid == seat.gun) then why = 'seated' end
+  if not why and st8 and st8.landed == false then why = 'in the hellpod' end
+  local id = d and d.t0 and d.t0.id
+  if not why and id and KNEEL[id] and (tonumber(d.reload_stage) or 0) ~= 0 then why = 'kneeling to reload' end
+  if not why and not N.aim_now and now - arcs.st_at < 0.6 then why = 'sprinting' end
+  if why ~= arcs.said then
+    if cfg.research and (why or arcs.said) then log('research: drop line %s', why and ('hidden: ' .. why) or 'back') end
+    arcs.said = why
+  end
+  return why
+end
 local flash = { text = nil, till = 0 }                -- a short message under the crosshair (forgetting)
 local function build_gate(now)
   if game_build.known == false and not cfg.any_build then
@@ -314,6 +340,7 @@ local function read_forget_keys(now, s)
     log('==== MARK %d ==== hand pose %s, shown: %s (object %s), fire button %.1f s ago, swap %.1f s ago%s%s', marks,
       tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100), where, kit)
     flash.text, flash.till = string.format('NarrowHUD: mark %d in the log', marks), now + 1.5
+    N.mark_at = now                                -- (2.4.9: the aim-points research line counts afresh for 20 s)
   end
   if N.startup_flash then flash.text, flash.till, N.startup_flash = N.startup_flash, now + 8, nil end
   if keys.reload_layout and keys.reload_layout.pressed and keys.reload_layout.pressed() == true then
@@ -741,25 +768,41 @@ function M.update(dt)
   -- (health and stamina: dimmed or hidden with the rest when nothing changes, never while you're hurt or out of breath)
   if RESEARCH_BUILD ~= 'R1' and vit and (vit.show_h > 0 or vit.show_s > 0 or vit.stim) and hand.vhidef > 0.01 then
     N.alpha_k = cfg.opacity * ((vit.busy or vit.stim) and 1 or (hand.fade or 1)) * aim_alpha * hand.vhidef
+    local tv = t0 and clock()
     N.draw_vitals(vit)
+    if tv then N.el_time.vitals = (N.el_time.vitals or 0) + (clock() - tv) end   -- (2.4.11: the parts' timing covers everything drawn)
   end
   -- (1.3.0) your map pin and your last death, on the screen where they are; hidden with the stratagem input
   if cfg.swatches and chef.screen then local sw, sh = chef.screen() if sw then N.draw_swatches(sw, sh) end end
   if RESEARCH_BUILD ~= 'R1' and hand.hidef > 0.01 then
     N.alpha_k = cfg.opacity * hand.hidef
+    local tm = t0 and clock()
     N.draw_markers()
     -- (1.5.43) the sniper rifles' crosshair, aimed in third person
     N.draw_reticle(shown_now, now)
+    local td = t0 and clock()
+    if td then N.el_time.markers = (N.el_time.markers or 0) + (td - tm) end
     -- (1.4.0) the drop line of the weapon in hand
     N.drop_lines = 0
-    if shown_now and shown_now.tid and hand.grip and hand.grip ~= 0 then N.draw_drop(shown_now.tid) end
-    -- (1.5.0) a throw's line: a stratagem ball, a grenade or C4 aimed
-    N.throw_step(now, hand.grip, shown_now)
+    N.decal_time = 0
+    local no_arc = N.arc_blocked(now, shown_now, vit)
+    if shown_now and shown_now.tid and hand.grip and hand.grip ~= 0 and not no_arc then N.draw_drop(shown_now.tid) end
+    local tt = t0 and clock()
+    if tt then N.el_time.drop = (N.el_time.drop or 0) + (tt - td) end
+    -- (1.5.0) a throw's line: a stratagem ball, a grenade or C4 aimed (2.4.7: not seated, nor in the hellpod)
+    if no_arc ~= 'seated' and no_arc ~= 'in the hellpod' then N.throw_step(now, hand.grip, shown_now) end
+    if tt then
+      N.el_time.throw = (N.el_time.throw or 0) + (clock() - tt)
+      -- (the ground pictures' share, counted inside the two lines: taken out of theirs and listed on its own)
+      N.el_time.ground_pics = (N.el_time.ground_pics or 0) + N.decal_time
+      N.el_time.drop = N.el_time.drop - N.decal_time
+    end
   end
   -- (Chef keeps showing the last lines dispatched until a frame draws some again: a line of nothing for a few
   -- frames after the last, so a drop or throw line that goes doesn't stay in the world; the 1.4.2 and 1.5.1 logs)
   if N.drop_lines > 0 then hand.lines_at = now
   elseif hand.lines_at and now - hand.lines_at < 0.25 and not N.CHEF14 then N.drop_clear() end   -- (Chef 1.4 clears them itself)
+  N.decal_sweep()                                  -- (2.4.8: the ground pictures not painted this frame parked)
   N.alpha_k = cfg.opacity
   if t0 then
     lap('drawing', t0)
@@ -794,6 +837,7 @@ function M.update(dt)
 end
 
 function M.debug_objs() return objs end   -- (tests)
+function M.debug_N() return N end   -- (tests: the shared table)
 function M.debug_fly(b, pitch, len) return N.drop_fly(b, pitch, len) end
 function M.debug_cfg(k, v) cfg[k] = v end
 function M.debug_tone(ch, v) return N.tone(ch, v) end   -- (tests: the world's tone curve)   -- (tests: a setting with no menu row, such as the texture test's way)
@@ -804,7 +848,15 @@ function M.debug_handheld(id) return N.HANDHELD[id] end   -- (tests)
 function M.debug_seat() local st = N.seat return string.format('goid=%s gun=%s since=%s pose_since=%s ref=%s', tostring(st.goid), tostring(st.gun), tostring(st.since), tostring(st.pose_since), tostring(N.av_refs['20efbed4'])) end
 function M.debug_seat_try(g) return N.seat_gun(nil, g, chef.time()) end
 function M.debug_icons() local l = N.mode_icons and N.mode_icons() local out = {} for i, e in ipairs(l or {}) do out[i] = e[6] .. ':' .. tostring(e.word) end return out end
-function M.debug_boxes() local out = {} for id, b in pairs(N.layout.boxes or {}) do out[id] = string.format('%d,%d %dx%d%s%s', b.x, b.y, b.w, b.h, b.hidden and ' hidden' or '', b.held and ' held' or '') end return out end
+function M.debug_boxes()
+  local out = {}
+  for _, el in ipairs(N.ELEMENTS) do
+    local b = (N.layout.pass_boxes or {})[el.vitals and 2 or 1]
+    b = b and b[el.id]
+    if b then out[el.id] = string.format('%d,%d %dx%d%s%s', b.x + math.floor((b.ax or 0) + 0.5), b.y + math.floor((b.ay or 0) + 0.5), b.w, b.h, b.hidden and ' hidden' or '', b.held and ' held' or '') end
+  end
+  return out
+end
 function M.debug_state8(k, v) N.state8[k] = v end   -- (tests)
 function M.debug_aim() return N.last_aim end   -- (tests: the last throw line drawn)
 function M.debug_ground(x, y) local g = N.ground local h, conf if N.ground_height then h, conf = N.ground_height(x, y) end return g and g.n, g and g.samples, g and g.skipped, h, conf end   -- (tests, 2.0.4 / 2.0.13)

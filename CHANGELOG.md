@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.5.0
+
+- **NEW: a blast zone on the ground.** For explosive rounds and grenades, the area the blast reaches is painted on the
+  ground where the line lands: the full-damage radius filled faintly with a bright rim, the outer radius as a dashed
+  ring, red while you stand within reach. Radii per weapon and grenade from the game's own data (the Recoilless and
+  the EAT get no zone or mark: their blast hardly matters and the mark got in the way of the aim).
+- **The drop line follows the reticle.** It's aimed where the game's own reticle points, so it lags the view in a
+  turn and sways with the sight as the reticle does (F9 "Line aimed at": The reticle, or The view as before).
+- **The lines and marks look new.** Solid lines with dark edges that fade in at your hand (Line look: Solid; Dashes
+  and Flowing dashes keep their size near and far; Classic is the old line). The landing mark is painted on the
+  ground, lying on rocks, slopes and steps, with a chevron icon over it that always faces you (red on a structure
+  hit); Classic keeps the old ring. The marks reach farther on higher Object Detail settings. Where the ground is a
+  guess only the chevron is dimmed; the mark and the zone stay at full strength.
+- The drop line starts 3 m from your hand for every weapon and moves smoothly as you aim (it used to step in half
+  degrees); the Crossbow's zone shows from close in. No drop line for the Verdict or the Re-Educator; no throw line
+  for the Seekers (they fly on their own). Blast zones for the Grenadier Battlement and the One-Two's underbarrel.
+- The drop line hides where it can't apply: in a vehicle seat, in the hellpod, while the Recoilless, Epoch or
+  Airburst reload kneeling, and while you sprint. The throw line hides in a seat and in the hellpod.
+- New F9 setting "Low ammo at, %": how much of a magazine is left when the ammo bar and count turn orange (and flash
+  once); 25 by default, as before. An ammo backpack follows it too.
+- Rounds loaded one at a time (the Cookout, the Punisher, a launcher's rocket) flick into the ammo bar; a resupply
+  lights the magazine squares in order; the ammo bar flashes once as it turns orange; the charge mark brightens as
+  the charge crosses it and the bar is red from there; mode words and icons fade over to the new one. Shell loading
+  has its own F9 rows, on / off and its length.
+- The Aim spread's move is quick off the mark and settles over its last few frames, every part on the same frame.
+- Less frame time: the HUD's layout is worked out only when something changes, the lines cost less, the hatched
+  shade is drawn as one texture (F9 "Hatch drawn as" keeps the stripe-by-stripe way).
+- Fixes: a weapon with few rounds a magazine (the Epoch) no longer disappears as "not yours" after reloads with
+  rounds left; the log no longer fills with a line about the mode icons; the ground learning no longer counts a
+  Helldiver in an exosuit, the FRV or the tank as standing on the ground.
+- New defaults: Lines Thin, Mark size 0.5 m.
+- A crash precaution: nothing in the world around you is looked at while you're dead, in your hellpod, or in the
+  first 10 seconds after it lands.
+
+(The 2.4.2–2.4.16 development builds behind this release are in docs/DEVLOG.md.)
+
 ## 2.4.1
 
 - Fixes a crash to desktop with the drop or throw line on near a shrieker nest (most often as the stratagem list

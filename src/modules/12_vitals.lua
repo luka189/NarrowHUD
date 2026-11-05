@@ -102,7 +102,10 @@ local function read_state(s, now)
   if held then st8.strat_at = now end   -- (1.5.56: the throw line tells a stratagem ball from a mine at the same pose by it)
   local av = me.avatar
   if not av or not alive(s, av, TYPES[2]) then return end
-  if st8.goid ~= av then st8.goid, st8.aim, st8.emote, st8.view, st8.ads, st8.wheel = av, 0, -1, nil, nil, nil end
+  if st8.goid ~= av then
+    st8.goid, st8.aim, st8.emote, st8.view, st8.ads, st8.wheel = av, 0, -1, nil, nil, nil
+    st8.landed, st8.pod_t, st8.land_t, st8.seat, st8.pod_seen = false, now, nil, nil, nil   -- (2.4.7: a new Helldiver comes in its hellpod)
+  end
   if now - st8.at < 0.1 then return end
   st8.at = now
   local e = call('avatar.emote', 'GameSession.game_object_field', s, av, 'active_emote')
@@ -137,6 +140,25 @@ local function read_state(s, now)
     end
     st8.view = view
   end
+  -- (2.4.7) word 2 bit 50: in a vehicle seat (HUDdle 0.7.1's note from Blast & Trajectory Markers and Universal
+  -- Trajectory Indicator; ours to confirm in the research log): no drop or throw line there
+  local seat = type(w2) == 'string' and #w2 == 16 and math.floor((tonumber(w2:sub(4, 4), 16) or 0) / 4) % 2 or nil
+  if seat ~= st8.seat then
+    if cfg.research and (st8.seat ~= nil or seat ~= nil) then log('research: seat bit (6ff0e58a word 2, bit 50) %s > %s; hand pose %s', tostring(st8.seat), tostring(seat), tostring(N.hand and N.hand.grip)) end
+    st8.seat = seat
+  end
+  -- (2.4.7) the hellpod: your Helldiver's d49efb40 reads false in the pod and true once it has landed (its first
+  -- true: it flips in jumps and ragdolls later; HUDdle 0.5.4's finding). Unreadable counts as landed; 30 s at most
+  -- (the 10 s after only for a pod seen: a Helldiver standing at the first read — the mod started mid-mission — has
+  -- landed long ago)
+  if st8.landed == false then
+    local g = call('avatar.landed', 'GameSession.game_object_field', s, av, FNAME['d49efb40'] or 'qj687ja')
+    if g == false then st8.pod_seen = true end
+    if g ~= false or now - (st8.pod_t or now) > 30 then
+      st8.landed, st8.land_t = true, st8.pod_seen and now or nil
+      if cfg.research and st8.pod_seen then log('research: your Helldiver (object %s) %s', tostring(av), g == true and 'landed' or (g == nil and 'has no landing field' or 'not seen landing in 30 s')) end
+    end
+  end
   if ads ~= st8.ads then
     if cfg.research and (st8.ads ~= nil or ads ~= nil) then
       log('research: aim bit (6ff0e58a word 2, bit 18) %s > %s; the aim button %s, stance %s, hand pose %s', tostring(st8.ads), tostring(ads), tostring(N.input and N.input.aiming), tostring(st8.aim), tostring(N.hand and N.hand.grip))
@@ -151,6 +173,20 @@ local function read_state(s, now)
   end
 end
 N.state8 = st8
+-- (2.4.7, HUDdle 0.7.3's crash fix, our own way) no reads of the world's units while you're dead, in your hellpod, or
+-- in the first 10 s after it lands: a crash "about 30 s after dying in a hellpod that landed in a bug-nest hole" came
+-- from reading units there ("the world around a death may still be changing"). Held: the ground walk, the feet and
+-- vehicle samples, the structures' boxes (12_ground, 12_struct)
+local hold = { on = nil }
+function N.units_held(now)
+  local on = N.dead == true or not (N.me and N.me.avatar) or st8.landed == false
+    or (st8.land_t ~= nil and now - st8.land_t < 10)
+  if on ~= hold.on then
+    if cfg.research and hold.on ~= nil then log('research: unit reads %s', on and 'held (dead, in the hellpod or just landed)' or 'resumed') end
+    hold.on = on
+  end
+  return on
+end
 
 -- The stim timer: a stim of yours (your stim count going down) lasts 4 s, 6 s with the Med-Kit or Adreno-Defibrillator
 -- armour passive (the Helldivers wiki). The armours with them: from HD2Runtime's armour passive catalog (SkyeShade,

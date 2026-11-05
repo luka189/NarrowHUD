@@ -13,7 +13,8 @@
 local cfg = N.cfg
 
 local eased, slides, pulses = {}, {}, {}
-local function scale() return ({ [1] = 0, [2] = 1, [3] = 1.6 })[cfg.motion or 2] or 1 end
+local SCALES = { [1] = 0, [2] = 1, [3] = 1.6 }
+local function scale() return SCALES[cfg.motion or 2] or 1 end
 local function out3(p)
   p = math.max(0, math.min(1, p))
   local q = 1 - p
@@ -36,6 +37,39 @@ local function ease(key, target, ms)
   return e.v
 end
 local function ease_reset(key) eased[key] = nil end
+-- (2.4.2) a value travelling to its target on a clock, with a speed profile: gathers speed over the first 15 % of
+-- the time, runs at full speed for 70 %, slows over the last 15 % (luka: "covers the distance very fast, then slows
+-- down for the last few frames"). A new target mid-way starts a fresh run from where it is. Unlike ease(), it is
+-- advanced once a frame however often it's asked (the frame's number is kept), so two draw passes read one value
+-- (2.4.6, luka on 2.4.5: "the start and end are too swift; fast at the start, the slow-down into place over about 3
+-- frames") the profile takes its parts: a the share gathering speed (0: full speed from the first frame), d the share
+-- slowing down; the Aim spread's is 0 and 0.4 (the last 48 of its 120 ms: 3 frames at 60 fps, 4 at 83)
+local tweens = {}
+local function profile(p, a, d)
+  a, d = a or 0.15, d or 0.15
+  local v = 1 / (1 - (a + d) / 2)                 -- (the full speed: the distance under the profile is 1)
+  if p <= 0 then return 0 elseif p >= 1 then return 1 end
+  if p < a then return v * p * p / (2 * a) end
+  if p < 1 - d then return v * (a / 2 + (p - a)) end
+  local q = p - (1 - d)
+  return v * (a / 2 + (1 - d - a) + q - q * q / (2 * d))
+end
+local function tween(key, target, ms, a, d)
+  local s = scale()
+  if s == 0 then tweens[key] = nil return target end
+  local t = tweens[key]
+  local now = now_s()
+  if not t then tweens[key] = { v = target, to = target, from = target, t0 = now, frame = N.frame } return target end
+  if target ~= t.to then t.from, t.to, t.t0 = t.v, target, now end
+  if t.frame == N.frame then return t.v end
+  t.frame = N.frame
+  local secs = ms * s / 1000
+  local p = secs > 0 and (now - t.t0) / secs or 1
+  t.v = t.from + (t.to - t.from) * profile(p, a, d)
+  if p >= 1 then t.v = t.to end
+  return t.v
+end
+N.tween, N.tween_profile = tween, profile
 -- the ammo / heat bar's solid fill: 120 ms, a refill (ammo rising) 200
 local last_bar = nil
 local function bar_eased(frac, d)
@@ -93,14 +127,33 @@ end
 -- a magazine landing: the ticks from `from` to `to` light left to right over 150 ms
 local refill = nil
 local function refill_start(from, to) if scale() > 0 then refill = { t0 = now_s(), from = from, to = to, ms = 0.15 * scale() } end end
+local landing = {}                                     -- (2.4.4: tick i -> when its loaded shell lands: unlit till then)
 local function tick_lit(i, value)
   if i >= value then return false end
+  local land = landing[i]
+  if land then
+    if now_s() < land then return false end
+    landing[i] = nil
+  end
   local r = refill
   if not r or i < r.from then return true end
   local p = (now_s() - r.t0) / r.ms
   if p >= 1 then refill = nil return true end
   return i < r.from + (r.to - r.from) * p
 end
+-- (2.4.4) the same for other counts rising (luka's pick of the resupply sweep): the magazine squares and the
+-- backpack's uses light in order as they're topped up, from `from` to `to` over ms, by key ('mags', 'pack')
+local sweeps = {}
+local function sweep_start(key, from, to, ms) if scale() > 0 then sweeps[key] = { t0 = now_s(), from = from, to = to, ms = ms * scale() } end end
+local function sweep_lit(key, i, n)
+  if i >= n then return false end
+  local r = sweeps[key]
+  if not r or i < r.from then return true end
+  local p = (now_s() - r.t0) / r.ms
+  if p >= 1 then sweeps[key] = nil return true end
+  return i < r.from + (r.to - r.from) * p
+end
+N.sweep_start, N.sweep_lit = sweep_start, sweep_lit
 -- the weapon swap: the new weapon's HUD from a third of its opacity to all of it over 100 ms
 local swap_at = nil
 local function swap_start() if scale() > 0 then swap_at = now_s() end end
@@ -121,24 +174,34 @@ end
 -- barely leave the bar and already disappear"), fading out over that part.
 local shells = {}
 local SHELL_S = 0.32                                   -- (the whole flight; the part shown is cfg.shell_len %)
-local function shell_eject(i, top)
-  if scale() <= 0 or not cfg.shell_flash then return end
+-- (2.4.4) Loading, the same flight backwards (luka's pick): on a round-by-round reload (the Cookout, the Punisher)
+-- each round that lands comes in from where a thrown shell ends and lands in its tick, which lights as it lands;
+-- twice the throw's time (luka: "around 6 frames", the throw's 3 at 60 fps), fading in as the throw fades out
+local LOAD_K = 2
+-- (2.3.6: 100 % is half the old flight — luka: the most it should ever be — and the default 30 % is the old 15 %)
+-- (2.4.5) a loaded round's own length row (Shell loading length): how far out it starts
+local function shell_cut(load) return math.max(0.025, math.min(0.5, ((load and cfg.shell_load_len or cfg.shell_len) or 30) / 200)) end
+local function shell_dur(load) return SHELL_S * shell_cut(load) * math.max(scale(), 0.01) * (load and LOAD_K or 1) end
+local function shell_eject(i, top, load)
+  if scale() <= 0 or not (load and cfg.shell_load or (not load and cfg.shell_flash)) then return end
   if #shells >= 10 then table.remove(shells, 1) end
-  shells[#shells + 1] = { t0 = now_s(), i = i, top = top }
+  local t = now_s()
+  shells[#shells + 1] = { t0 = t, i = i, top = top, load = load }
+  if load then landing[i] = t + shell_dur(true) end
 end
--- the shells in the air now, each with p (0 thrown, 1 gone)
+-- the shells in the air now, each with p (0 at the bar, 1 at the flight's end: thrown 0 to 1, loaded 1 to 0)
 local live = {}
 local function shells_live()
   local t, n, keep = now_s(), 0, 0
-  -- (2.3.6: 100 % is half the old flight — luka: the most it should ever be — and the default 30 % is the old 15 %)
-  local cut = math.max(0.025, math.min(0.5, (cfg.shell_len or 30) / 200))
-  local dur = SHELL_S * cut * math.max(scale(), 0.01)
+  local cut, dur, lcut, ldur = shell_cut(false), shell_dur(false), shell_cut(true), shell_dur(true)
   for j = 1, #shells do
     local sh = shells[j]
-    local p = (t - sh.t0) / dur
+    local p = (t - sh.t0) / (sh.load and ldur or dur)
     if p < 1 then
       keep = keep + 1 shells[keep] = sh
-      n = n + 1 live[n] = sh sh.p = math.max(0, p) sh.u = sh.p * cut   -- (p: through the part shown; u: through the whole flight)
+      p = math.max(0, p)
+      if sh.load then p = 1 - p end
+      n = n + 1 live[n] = sh sh.p = p sh.u = p * (sh.load and lcut or cut)   -- (p: through the part shown; u: through the whole flight)
     end
   end
   for j = keep + 1, #shells do shells[j] = nil end
@@ -154,12 +217,32 @@ local function events(d, items, vit, goid)
     if prev.goid ~= nil and goid ~= nil then swap_start() end
     ease_reset('bar') ease_reset('charge') refill = nil
     for j = #shells, 1, -1 do shells[j] = nil end
+    for i in pairs(landing) do landing[i] = nil end
+    sweeps.mags = nil
     prev.goid, prev.value, prev.reserve, prev.hot = goid, nil, nil, nil
   end
+  local t_now = now_s()
   if d and d.kind == 'ammo' and type(d.value) == 'number' then
+    local same = prev.tid == d.tid and (prev.mode == d.mode or prev.mode == nil) and prev.ub == (d.underbarrel and true or false)
     if prev.value ~= nil then
       if d.value == 0 and prev.value > 0 then pulse('bar') end
       if d.value > prev.value + 1 and d.top and d.top > 1 then refill_start(prev.value, d.value) end
+      -- (2.4.4) the orange turn (luka's pick): one flash as the ammo bar drops to a quarter and turns orange, as
+      -- Flash once does for health — firing only (a reload, a switch, another mode never), and not to empty (the
+      -- zero pulse is that one)
+      local top = d.top
+      local low = cfg.low_ammo or 0.25                     -- (2.4.5: F9 Low ammo at)
+      if same and top and top > 0 and prev.top == top and d.value < prev.value and d.value > 0
+         and d.value / top <= low and prev.value / top > low then pulse('bar', 'warn') end
+      -- (2.4.4) a round loaded on its own: up by one as the reserve goes down by one, in the same read (the shown
+      -- weapon is read whole). The Cookout's reload stage stays 0 while it loads (luka's 2026-11-04 logs: slot0 0>3,
+      -- slot1 5>8 as its spare went 59>53, no stage), so the stage can't tell; a magazine's jump has the reserve down
+      -- by one but the count up by many, the chamber's round after it no reserve change at all
+      -- (2.4.5, luka: none on a weapon of one round, a launcher's rocket: its row and length its own, Shell loading)
+      if d.value == prev.value + 1 and cfg.shell_load and same and d.top and d.top > 1 and type(d.reserve) == 'number'
+         and type(prev.reserve) == 'number' and prev.reserve - d.reserve == 1 then
+        shell_eject(prev.value, d.top or d.value, true)
+      end
       local drop = prev.value - d.value
       if drop >= 1 and drop <= 3 and cfg.shell_flash and prev.tid == d.tid and (prev.mode == d.mode or prev.mode == nil) then
         local o = goid and N.objs and N.objs[goid]
@@ -170,9 +253,14 @@ local function events(d, items, vit, goid)
         end
       end
     end
-    prev.value, prev.tid, prev.mode = d.value, d.tid, d.mode
+    prev.value, prev.tid, prev.mode, prev.top, prev.ub = d.value, d.tid, d.mode, d.top, d.underbarrel and true or false
     if type(d.reserve) == 'number' then
       if prev.reserve ~= nil and d.reserve == 0 and prev.reserve > 0 then pulse('mags') end
+      -- (2.4.4) the resupply sweep (luka's pick): magazines topped up light in order, with the cream wash stamina
+      -- has at full; the same weapon, the same magazines (not the underbarrel's after its switch)
+      if prev.reserve ~= nil and same and d.reserve > prev.reserve then
+        sweep_start('mags', prev.reserve, d.reserve, 0.2) pulse('mags', 'good')
+      end
       prev.reserve = d.reserve
     end
   elseif d and d.kind == 'heat' then
@@ -182,7 +270,17 @@ local function events(d, items, vit, goid)
     if prev.s ~= nil and items.s < prev.s then pulse('stims') end
     if prev.g ~= nil and items.g < prev.g then pulse('grenades') end
     prev.s, prev.g = items.s, items.g
+    -- (2.4.4) the backpack's uses topped up (a pack counted in uses: the supply pack's 4, a launcher's rounds): lit
+    -- in order with the cream wash, as the magazines; the same pack (its top unchanged), whole uses only
+    local top = items.pack_top
+    local segs = items.pack and top and top >= 2 and top <= 16 and top == math.floor(top)
+    local n = segs and math.floor(items.pack + 0.5) or nil
+    if n and prev.pack and prev.pack_top == top and n > prev.pack then sweep_start('pack', prev.pack, n, 0.2) pulse('pack', 'good') end
+    prev.pack, prev.pack_top = n, top
   end
+  -- (2.4.4) the charge mark (luka's pick): it brightens for a few frames as the charge crosses it
+  if d and d.charge_mark and d.charge_frac and not d.reload_line then edge_pulse('chmark', d.charge_frac >= d.charge_mark, 'chmark', 'good')
+  else edges.chmark = false end
   if vit and type(vit.st) == 'number' then
     edge_pulse('stamina', vit.st <= 0.02)
     edge_pulse('stamina_full', vit.st >= 0.995, 'stamina', 'good')   -- (1.5.58: and full again, luka's wish)

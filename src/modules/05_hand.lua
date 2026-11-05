@@ -264,6 +264,9 @@ N.cooling = cooling_of
 local function fired(prev, w, switching)
   if prev == nil then return false end
   local function down(k) return type(prev[k]) == 'number' and type(w[k]) == 'number' and w[k] < prev[k] end
+  -- (2.4.6) the magazine emptied as a reload begins (the game takes the rounds left out at the reload's start: the
+  -- Epoch's 3 > 0 with its stage 0 > 5, luka's 2026-11-05 log) is no shot
+  if (down('rounds') or down('slot0')) and (tonumber(w.reload_stage) or 0) ~= 0 and (tonumber(w.rounds) or tonumber(w.slot0)) == 0 then return false end
   if down('rounds') then return true end
   if not switching and (down('slot0') or down('slot1')) then return true end
   if not switching and prev.chamber == false and w.chamber == true then return true end   -- the chambered one left (a single shell, a C4)

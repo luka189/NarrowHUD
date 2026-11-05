@@ -6,6 +6,9 @@ while" rows), a research-log part for what it's unsure of, and an in-game test b
 done, and how, is in docs/DEVLOG.md (every build) and docs/HISTORY.md; the per-version plans that used to be here
 (1.2.0–1.6.0, 2.0) are all done or closed and were cut.
 
+Version numbers: x.y.0 a public release, x.y.z the internal builds in between and bugfix patches, x.0.0 a change
+that defines the mod anew (luka, 2026-11-05; DEVLOG's head). The next public release is 2.5.0.
+
 ## Where it stands (2.4.0, public 2026-11-04)
 
 Done since 2.3.2 (2.4.0): the shell flash (luka's "flash per bullet", built as a shell thrown from the bar), the
@@ -106,9 +109,20 @@ fixed digits; the disconnects fixed (the host's objects never read); the game-pa
 
 ## Ideas going forward (not planned; in the order they seem worth it)
 
-- **Small ones from HUDdle 0.7.0** (RESEARCH.md): a low-ammo threshold slider (ours is a fixed quarter); a text
-  outline for bright planets; a short glow on the count after a resupply; F9 settings saved to a file and loaded
-  back; hidden while the game is paused.
+- **Small ones from HUDdle 0.7.0** (RESEARCH.md): a text outline for bright planets; F9 settings saved to a file
+  and loaded back; hidden while the game is paused. (The low-ammo slider and the resupply glow: done in 2.4.4-2.4.5.)
+- **From HUDdle 0.7.3** (RESEARCH.md, 2026-11-05), luka's calls the same day:
+  - Done in 2.4.7: no drop line while seated, in the hellpod, while a kneeling launcher reloads, or sprinting (the
+    throw line: not seated or in the pod); unit reads held while dead, in the hellpod and 10 s after landing.
+  - Later, to consider: a cooked grenade's arc ending at its fuse, with a countdown (the flags word's throw bit);
+    steady throw arcs (the hand's sway smoothed) if ours jitter; the Ultimatum's and Crossbow's rounds carrying your
+    movement.
+  - Not decided: a grey dud mark inside a launcher's arming distance (asked luka; ties in with the blast zone).
+  - Never: the mark on the arc's nearest point when no landing is found (and its distance in metres with it).
+  - Not for us (scope): the Gear Finder, falling hellpods, supply counts, sentries' rounds.
+  - Tested and closed (RESEARCH.md, luka's 2.4.9 run): the weapon's aim point tracks the look point within half a
+    metre and ±0.6 degrees before, during and after firing, for the Crossbow, GL-21 and Ultimatum — not raised for
+    the drop, not stale before a shot. Our arc's model stands; nothing to change.
 
 - **Degrade, don't break**: a one-line health row in F9 ("382 types, build matches, layout Arcs, 0 errors"), so a
   bug report starts from the right place; the learned file shown as a feature (what's known of your weapons).
