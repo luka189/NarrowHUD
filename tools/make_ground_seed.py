@@ -3,6 +3,8 @@
 
     python3 tools/make_ground_seed.py research/logs/ground/*.log
 
+From 2.5.4 the census lines ("census: ground kinds: ...") are in narrowhud_ground.log, written only with F9's
+"Ground census" on (before: "research: ground kinds: ..." in the research log; both read here).
 Each log's LAST "ground kinds" / "ground units" block gives, per kind, the mean and spread of (unit height - the
 feet grid's height in the same cell) over n cells. From 2.0.14 the line reports only the session's own samples (the
 seed's share left out), so a log from a seeded build adds to the seed without counting it twice; a 2.0.13 log would

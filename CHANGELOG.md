@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.6.0
+
+- **NEW: the red mark knows the structures' real shapes.** It turns red only where the shot would go in — a bug
+  hole's shaft and mouth, not its mound; the shrieker nest's and the spore spewer's trunk and cap; the warp ship's
+  hull; the tesla tower and the Illuminate turret; the Automaton fabricator and the big factory; the Automaton
+  emplacements' guns (mortar, anti-air, cannon, autocannon), whichever way they turn. The shapes come from the
+  structures' own models. Testing > "Draw structure boxes" draws them in the world. A Custom layout file can set
+  its own shapes (`struct_parts`, docs/LAYOUT.md).
+- **NEW: Hide in a vehicle** (Visibility, on): the HUD, health and stamina away while you drive the FRV or a tank,
+  pilot an exosuit or man a tank's gun; they stay as a passenger and on the FRV's turret, where you can be shot.
+- **NEW: a key that hides the HUD** (Keys > "Hide the HUD"): everything of NarrowHUD's away until pressed again.
+  Set it to the game's own hide-HUD key and both go together.
+- **NEW: the Range part**, the metres to the landing chevron while a line is up, else to where the reticle points
+  ("-" on the sky). Placed in the four built-in layouts; Off / While aiming / Always. And the distance beside the
+  chevron itself ("Distance by the chevron", on): the Range part never shows the number twice.
+- **The sniper crosshair follows the aim**: the ring and dot sit where the game aims, lagging the view in a turn
+  and swaying as the reticle does, with a larger ring marking the centre (Crosshairs > "Crosshair at": The reticle,
+  or The centre as before).
+- **F9 regrouped** into Layout, Motion, Parts, Visibility, Look, Crosshairs, Lines and marks, Keys and Testing.
+  Every setting keeps its value.
+- The drop line and the crosshair no longer flick to the centre when the aim crosses from a near surface to a far
+  one; the drop line's end no longer jumps as you aim.
+- The red mark on bug holes and nests sits right on every one of them (it was off on all but the first met in a
+  mission); the Illuminate warp ship's and the spore spewer's red marks (a Nexus report).
+- The ground census (for the ground model) has a log and a Testing row of its own.
+
 ## 2.5.0
 
 - **NEW: a blast zone on the ground.** For explosive rounds and grenades, the area the blast reaches is painted on the

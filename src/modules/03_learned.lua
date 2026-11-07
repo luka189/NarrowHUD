@@ -170,6 +170,9 @@ if chef.bind and chef.has and chef.has('bind') then
     -- (1.2.4: the HUD out of the way while the stratagem key is held; a controller's left shoulder button too)
     -- (no key until set: Left Ctrl, the game's default, is many players' crouch key, and the HUD hid while they crouched)
     keys.strat = (chef.bind('strat_key', 'off', kl('Stratagem key (yours)')))
+    -- (2.5.23, luka) a key that hides everything of NarrowHUD's until pressed again: set it to the game's own
+    -- hide-HUD key and both go together. No key until set
+    keys.hide_hud = (chef.bind('hide_hud', 'off', kl('Hide the HUD')))
     if N.settings_hide then N.settings_hide() end
     keys.reload_layout = (chef.bind('reload_layout', 'off', kl('Reload layout file')))
     -- (the Testing rows: 02's toggles first, so the heading sits on them, then the keys)

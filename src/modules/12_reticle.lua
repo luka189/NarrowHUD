@@ -16,6 +16,7 @@ local SNIPERS = { b697955d = 'APW-1 Anti-Materiel Rifle', ['30294946'] = 'R-40 S
 local FIRST_PERSON = { b3246bb7 = { 'Maxigun', 'reticle_fp' } }
 for id, name in string.gmatch('15f1a9f0=Cremator def25ee4=Flamethrower 2ddd091d=Sterilizer 104184f7=Torcher 0fe87029=Crisper', '(%x+)=(%a+)') do FIRST_PERSON[id] = { name, 'reticle_flame' } end
 local rt = { on = false, said = nil }
+local BLEND = 0.25                                   -- (2.5.9) the crosshair's hand-over between the reticle and the centre, s
 local function first_person()
   local cam = chef.camera()
   local u = N.my_unit and N.my_unit()
@@ -51,6 +52,42 @@ local function draw_reticle(d, now)
   local sx, sy = math.floor(w / 2 + 0.5), math.floor(h / 2 + 0.5)
   local L = N.L0 + 895
   local c, back = N.col(N.CREAM, 240), N.col({ 0, 0, 0 }, 150)
+  -- (2.5.1, luka) the ring and dot follow the game's own aim (the reticle point 12_drop reads for the drop line,
+  -- led the same two frames, projected to the screen), as the game's reticle would if it drew one: it lags the view
+  -- in a turn and sways with the sight. A larger, thinner ring stays at the screen's middle, so the crosshair comes
+  -- to rest inside it as the aim settles. F9 "Crosshair at": The reticle, or The centre (the static crosshair).
+  local ring = false
+  if (cfg.reticle_at or 2) == 2 and N.reticle_point and chef.world_to_screen then
+    ring = true
+    local cam = chef.camera()
+    local rp, why = nil, 'no camera'
+    if cam then rp, why = N.reticle_point(cam, true) end
+    local px, py
+    if rp then px, py = chef.world_to_screen(rp.x, rp.y, rp.z) end   -- (not `rp and f()`: that keeps one value)
+    -- (2.5.9, luka: the crosshair "teleports to the centre too often" — his log: 20 falls to the centre in a
+    -- minute, all "off the screen": the reticle point lags a fast turn by up to 35 deg, and the projection has
+    -- nothing for a point outside the view, mostly up or down on a wide screen) a hand-over between the two
+    -- places is eased over BLEND seconds from where the crosshair was, while plain tracking stays live
+    local tx, ty = sx, sy
+    if px and py then tx, ty = px, py end
+    local on_point = (px and py) and true or false
+    if rt.on_point ~= nil and rt.on_point ~= on_point and rt.cx then rt.blend_t, rt.bx, rt.by = now, rt.cx, rt.cy end
+    rt.on_point = on_point
+    if rt.blend_t then
+      local f = (now - rt.blend_t) / BLEND
+      if f >= 1 then rt.blend_t = nil
+      else
+        f = 1 - (1 - f) ^ 3
+        tx, ty = rt.bx + (tx - rt.bx) * f, rt.by + (ty - rt.by) * f
+      end
+    end
+    rt.cx, rt.cy = tx, ty
+    sx, sy = math.floor(tx + 0.5), math.floor(ty + 0.5)
+    if cfg.research then   -- (where the crosshair sits and why, on change, at most once a second)
+      local what = (px and py) and 'the reticle' or ('the centre: ' .. tostring(rp and 'off the screen' or why))
+      if rt.at ~= what and now - (rt.at_t or -100) >= 1 then rt.at, rt.at_t = what, now log('research: the crosshair on %s', what) end
+    end
+  end
   -- (1.5.68, luka: the game's own default crosshair, traced by him — art/icons/reticle.svg, a ring and a dot — as a
   -- texture, like the stim and grenade icons. Its size is the screen's, not F9's Size (the game's crosshair doesn't
   -- scale either): "World: crosshair size" pixels across at 1440p. A dark copy a pixel off in four directions
@@ -66,6 +103,17 @@ local function draw_reticle(d, now)
       N.icon_texture('reticle', x0 + o[1], y0 + o[2], S, { 0, 0, 0 }, 0.7, L - 1)
     end
     drawn = N.icon_texture('reticle', x0, y0, S, N.CREAM, 1.09, L)
+    if ring and drawn then
+      -- the centre ring: 1.6 times the crosshair, at the screen's middle, a little dimmer
+      local S2 = math.floor(S * 1.6 + 0.5)
+      local iw2 = math.floor(S2 * 0.875 + 0.5)
+      local cx, cy = math.floor(w / 2 + 0.5), math.floor(h / 2 + 0.5)
+      local x1, y1 = cx - math.floor(iw2 / 2), cy - math.floor(S2 / 2)
+      for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+        N.icon_texture('ring', x1 + o[1], y1 + o[2], S2, { 0, 0, 0 }, 0.6, L - 1)
+      end
+      N.icon_texture('ring', x1, y1, S2, N.CREAM, 0.85, L)
+    end
   end
   if drawn then return end
   local k = ks * (cfg.size or 1)

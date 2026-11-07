@@ -91,6 +91,9 @@ if chef.has and chef.has('menu') then
   slider('aim_spread', '   Aim spread, %', -30, 30, 0.5, 0, function(v) cfg.aim_spread = v end,
     'While you aim, the Spread changes by this (eased). 0: no change.')
   slider('opacity', 'Opacity, %', 20, 100, 5, 100, function(v) cfg.opacity = v / 100 end)
+
+  ---------------------------------------------------------------------------------- Motion: the things that move
+  group('Motion', 'Motion: ')   -- (2.5.23, luka: its own group — was under Layout and Visibility)
   -- (1.5.55) motion: the few things that move (08_motion) — off, quick (the times as set), or normal (1.6 times)
   choice('motion', 'Motion', { 'Off', 'Quick', 'Normal' }, 2, function(v) cfg.motion = v end,
     'Parts sliding to a new place, bars easing, a reload or resupply sweeping the pieces in, mode words fading over, short flashes on an event. Off: everything snaps.')
@@ -103,6 +106,23 @@ if chef.has and chef.has('menu') then
     'On weapons that load a round at a time (the Cookout, the Punisher), each round loaded flicks into the ammo bar, the shell flash backwards. Needs Motion on.')
   slider('shell_load_len', '   Shell loading length, %', 10, 100, 5, 30, function(v) cfg.shell_load_len = v end,
     'How far out each loaded round starts: 30 a flick into the bar, 100 a short throw in. It takes twice the shell flash\'s time.')
+  -- (1.2.0) a line shrinking over a stim's effect (4 s; 6 s with the Med-Kit or Adreno-Defibrillator armour, which
+  -- Auto learns per armour set the first time it can tell)
+  toggle('stim_timer', 'Stim timer', false, 'A line shrinking while a stim works.')
+  choice('stim_secs', '   Stim lasts', { 'Auto (armour)', '4 s', '6 s' }, 1, function(v) cfg.stim_secs = v end,
+    'Auto: 6 s with the Med-Kit or Adreno-Defibrillator armour passives, learned per armour set, else 4 s.')
+  -- (2.3.9: three ways; a saved on / off from the toggle it was reads as Pulsing / Off)
+  choice('warn', 'Warning pulses', { 'Off', 'Pulsing', 'Flash once' }, 1, function(v)
+    if v == true then v = 2 elseif v == false then v = 1 end
+    cfg.warn = (v ~= 1) and v or false
+  end, 'Under 25 % health, and with no stims while hurt: off, pulsing twice a second, or one flash as it happens (then just red).')
+  -- (2.3.8) what a hit took, on the health bar: in chunks, each hit's own piece held and drained on its own (luka's
+  -- wish); as one piece that a new hit holds back (2.3.7); or none. On a red bar none either way
+  choice('trail', 'Hit trail', { 'Off', 'One piece', 'In chunks' }, 3, function(v) cfg.trail = v end,
+    'What a hit took, in red on the health bar: each hit its own chunk, held then drained; or one piece a new hit holds back. None on a red bar.')
+  slider('trail_hold', '   Hit trail held, s', 0, 1, 0.05, 0.4, function(v) cfg.trail_hold = v end,
+    'How long a hit\'s red stays before it drains away (in 0.2 s).')
+  toggle('reload_line', 'Reload line', false, 'A line filling over a reload, from a weapon\'s second reload on (the first teaches it the time).')
 
   ---------------------------------------------------------------------------------- Visibility: each part's rule
   -- (1.5.60) every part's row a rule (08_show): Off, Always, While not full, On a change, While aiming, or one of
@@ -110,7 +130,7 @@ if chef.has and chef.has('menu') then
   -- the draws test; cfg.vis[part] the rule. (2.0.3: "Visibility", with the aim opacity and the old Extras after
   -- the rules. The hints at 200 characters or under: Chef makes no row at all for a longer one, and 2.0.0 lost
   -- the bar, count, magazines, charge and backpack rows and the heading that way.)
-  group('Visibility', 'Visibility: ')
+  group('Parts', 'Parts: ')   -- (2.5.23, luka: Visibility split — each part's rule here, the rules for all under Visibility)
   local BAR_RULES = { 'Off', 'Always', 'While not full', 'On a change', 'While aiming', 'Not full/aiming', 'Change/aiming' }
   local TEXT_RULES = { 'Off', 'Always', 'On a change', 'While aiming', 'Change/aiming' }
   local TEXT_MAP = { 1, 2, 4, 5, 7 }
@@ -138,6 +158,14 @@ if chef.has and chef.has('menu') then
   chef.on_change('vis_icons', function(v) cfg.mode_icons = (TEXT_MAP[v or 2] or 2) ~= 1 and 3 or 1 end)
   rule('vis_rpm', 'rpm', 'Rate of fire', true, 'show_rpm', nil, 'The rate-of-fire setting (640 RPM ...). ' .. TEXT_HINT)
   rule('vis_stims', 'stims', 'Stims', false, 'show_stims')
+  -- (2.5.3, luka) the range part: off by default; a layout places it (after the grenades in the built-in ones)
+  -- (2.5.5, luka) its own rule: shown except while the chevron carries the number, so it isn't shown twice
+  -- (2.5.24, luka: "Not by the chevron" is how it always behaves, the choice gone — the list is Off, While aiming,
+  -- Always, so the old default 3 reads as Always; a saved 4 (the old While aiming) reads as aiming)
+  choice('vis_range', 'Range', { 'Off', 'While aiming', 'Always' }, 3, function(v)
+    cfg.vis.range = v == 1 and 1 or ((v == 2 or v == 4) and 5 or 2)
+    cfg.show_range = v ~= 1
+  end, 'The metres to the landing chevron while a line is up, else to where the reticle points ("-" on the sky). Never while the chevron carries the number itself.')
   rule('vis_grenades', 'grenades', 'Grenades', false, 'show_grenades')
   rule('vis_pack', 'pack', 'Backpack bar', false, 'pack', nil, 'The backpack\'s ammo, heat or recharge. ' .. RULE_HINT)
   -- (1.1.0) health and stamina: off, always, or only while not full (then gone 2 s after it's full again); on since
@@ -145,6 +173,8 @@ if chef.has and chef.has('menu') then
   choice('health', 'Health', { 'Off', 'Always', 'When hurt', 'On a change', 'While aiming', 'Hurt/aiming', 'Change/aiming' }, 2,
     function(v) cfg.health = v cfg.vis.health = v end, 'Your health bar. ' .. RULE_HINT)
   choice('stamina', 'Stamina', BAR_RULES, 2, function(v) cfg.stamina = v cfg.vis.stamina = v end, 'Your stamina bar. ' .. RULE_HINT)
+  ---------------------------------------------------------------------------------- Visibility: the rules for all, and the hiding
+  group('Visibility', 'Visibility: ')
   slider('show_secs', 'A change lasts, s', 1, 15, 1, 4, function(v) cfg.show_secs = v end,
     'How long a part on "On a change" stays after its value moved.')
   choice('show_rest', 'Held-back parts', { 'Hidden', 'Dimmed' }, 1, function(v) cfg.show_rest = v end,
@@ -157,23 +187,18 @@ if chef.has and chef.has('menu') then
   choice('idle', 'Idle HUD is', { 'Shown', 'Dimmed', 'Hidden' }, 1, function(v) cfg.idle = v end,
     'When nothing has changed for a while and you haven\'t fired: shown, dimmed to a quarter, or hidden. Back at once on a change.')
   slider('idle_secs', '   Idle after, s', 2, 15, 1, 4, function(v) cfg.idle_secs = v end)
-  -- (1.2.0) a line shrinking over a stim's effect (4 s; 6 s with the Med-Kit or Adreno-Defibrillator armour, which
-  -- Auto learns per armour set the first time it can tell)
-  toggle('stim_timer', 'Stim timer', false, 'A line shrinking while a stim works.')
-  choice('stim_secs', '   Stim lasts', { 'Auto (armour)', '4 s', '6 s' }, 1, function(v) cfg.stim_secs = v end,
-    'Auto: 6 s with the Med-Kit or Adreno-Defibrillator armour passives, learned per armour set, else 4 s.')
-  -- (2.3.9: three ways; a saved on / off from the toggle it was reads as Pulsing / Off)
-  choice('warn', 'Warning pulses', { 'Off', 'Pulsing', 'Flash once' }, 1, function(v)
-    if v == true then v = 2 elseif v == false then v = 1 end
-    cfg.warn = (v ~= 1) and v or false
-  end, 'Under 25 % health, and with no stims while hurt: off, pulsing twice a second, or one flash as it happens (then just red).')
-  -- (2.3.8) what a hit took, on the health bar: in chunks, each hit's own piece held and drained on its own (luka's
-  -- wish); as one piece that a new hit holds back (2.3.7); or none. On a red bar none either way
-  choice('trail', 'Hit trail', { 'Off', 'One piece', 'In chunks' }, 3, function(v) cfg.trail = v end,
-    'What a hit took, in red on the health bar: each hit its own chunk, held then drained; or one piece a new hit holds back. None on a red bar.')
-  slider('trail_hold', '   Hit trail held, s', 0, 1, 0.05, 0.4, function(v) cfg.trail_hold = v end,
-    'How long a hit\'s red stays before it drains away (in 0.2 s).')
-  toggle('reload_line', 'Reload line', false, 'A line filling over a reload, from a weapon\'s second reload on (the first teaches it the time).')
+  -- (2.5.23: the hiding rows here, under Visibility, not after the stratagem key under Keys; N.settings_hide stays a
+  -- name 03_learned calls, empty)
+  -- (the game's stratagem input and an emote: the HUD out of the way; health and stamina stay for the stratagems)
+  toggle('hide_strat', 'Hide on stratagem', true, 'The HUD out of the way while the stratagem key is held (health and stamina stay).')
+  toggle('hide_emote', 'Hide on emote', true, 'The HUD out of the way while you emote.')
+  toggle('hide_wheel', 'Hide on weapon settings', true, 'The HUD out of the way while the weapon settings wheel is open.')
+  toggle('hide_terminal', 'Hide at a terminal', true, 'The HUD, health and stamina out of the way while you work a terminal (its screen takes the middle).')
+  -- (2.5.24, luka) hidden where you can't be hurt or can't shoot: driving, piloting an exosuit, the tank's gun; not as
+  -- a passenger or on the FRV's turret, where you're out in the open
+  toggle('hide_vehicle', 'Hide in a vehicle', true, 'The HUD, health and stamina away while you drive (the FRV, the tank), pilot an exosuit or man the tank\'s gun. They stay as a passenger and on the FRV\'s turret, where you can be shot.')
+  -- (2.5.23, luka) a key of your own hides everything of NarrowHUD's until pressed again — set it to the game's own
+  -- hide-HUD key and both go together (the key row is under Keys: "Hide the HUD")
 
   ---------------------------------------------------------------------------------- the look
   group('Look', 'Look: ')
@@ -218,14 +243,20 @@ if chef.has and chef.has('menu') then
   -- (1.5.43) the sniper rifles' third-person crosshair (12_reticle); (1.3.0) your map pin and the spot of your last
   -- death, with their distance, an arrow at the screen's edge when out of view; (1.4.0) the drop line: the shot's
   -- flight from the crosshair, for weapons whose shot drops; (1.5.0) throw lines: a stratagem ball, a grenade or C4
-  group('World', 'World: ')
+  ---------------------------------------------------------------------------------- Crosshairs
+  group('Crosshairs', 'Crosshairs: ')   -- (2.5.23: out of World)
   toggle('reticle', 'Sniper crosshair', true, 'A crosshair for the APW-1, R-40 and AMW-20 in third person, where the game draws none: the game\'s own ring and dot.')
   choice('reticle_when', '   Shown', { 'While aiming', 'Always' }, 1, function(v) cfg.reticle_always = v == 2 end,
     'Always: with the rifle out, aimed or not (third person only; in first person the scope is up).')
+  -- (2.5.1) the crosshair on the game's own aim, a larger ring marking the centre; or static at the centre
+  choice('reticle_at', '   Crosshair at', { 'The centre', 'The reticle' }, 2, function(v) cfg.reticle_at = v end,
+    'The reticle: the ring and dot follow where the game aims, lagging the view in a turn and swaying as the reticle does, with a larger ring marking the centre. The centre: the crosshair static in the middle.')
   toggle('reticle_fp', 'Maxigun crosshair', true, 'The same ring and dot for the Maxigun in first person, where the game draws none.')
   toggle('reticle_flame', 'Flamethrower crosshair', false, 'The ring and dot for the flamethrowers in first person, where the game draws none. Off: a flamethrower is aimed by its stream.')
   slider('reticle_px', '   Crosshair size, px', 8, 64, 1, 17, function(v) cfg.reticle_px = v end,
     'Its width at 1440p (the game\'s is 17). It follows the screen, not Size.')
+  ---------------------------------------------------------------------------------- Lines and marks
+  group('Lines and marks', 'Lines and marks: ')   -- (2.5.23: 'World' split: the crosshairs above)
   toggle('map_pin', 'Map pin', true, 'Your map pin where it is in the world, with its distance; an arrow at the screen\'s edge when it\'s out of view.')
   toggle('death_mark', 'Death mark', true, 'Where you last died: a red diamond with its distance, for 3 minutes.')
   choice('drop_line', 'Drop line', { 'Off', 'While aiming', 'In hand' }, 2, function(v) cfg.drop_line = v end,
@@ -241,6 +272,7 @@ if chef.has and chef.has('menu') then
   -- (2.0.13) the landing mark: a ring where a line meets the ground as 12_ground guesses it (from the map's own
   -- props, calibrated by where Helldivers walk); faint where the ground is a guess between known cells
   toggle('landing_mark', 'Landing mark', true, 'A ring on the ground where a drop or throw line lands, from the map\'s own heights; faint where the ground is a guess.')
+  toggle('mark_range', '   Distance by the chevron', true, 'The metres to the landing, small, to the right of the chevron.')
   slider('mark_size', '   Mark size, m', 0.3, 1, 0.1, 0.5, function(v) cfg.mark_size = v end, 'The landing mark\'s width: the ring and the arrow over it.')
   toggle('struct_mark', 'Structure hits', true, 'The mark turns red where the shot or throw would hit an enemy structure (a bug hole, a fabricator, a warp ship) before the ground.')
   choice('drop_thick', '   Lines', { 'Thin', 'Medium', 'Thick' }, 1, function(v) cfg.drop_thick = v end, 'The drop and throw lines\' thickness.')
@@ -258,20 +290,17 @@ if chef.has and chef.has('menu') then
   -- (2.0.19, luka: anything over 50 % looks like 100 %, so the row's 20–100 is 10–50 in the engine, 60 (30) the default)
   slider('line_alpha', '   Line opacity, %', 20, 100, 5, 60, function(v) cfg.line_alpha = v / 200 end,
     'The drop and throw lines and the landing mark. Lower softens the white-out the game\'s tone mapping gives world lines.')
-
   -- the rows that go with the keys (03_learned registers the keys; these follow the stratagem key) and the testing
   -- rows at the very end
-  function N.settings_hide()
-    -- (the game's stratagem input and an emote: the HUD out of the way; health and stamina stay for the stratagems)
-    toggle('hide_strat', 'Hide on stratagem', true, 'The HUD out of the way while the stratagem key is held (health and stamina stay).')
-    toggle('hide_emote', 'Hide on emote', true, 'The HUD out of the way while you emote.')
-    toggle('hide_wheel', 'Hide on weapon settings', true, 'The HUD out of the way while the weapon settings wheel is open.')
-    toggle('hide_terminal', 'Hide at a terminal', true, 'The HUD, health and stamina out of the way while you work a terminal (its screen takes the middle).')
-  end
+  function N.settings_hide() end   -- (2.5.23: the hiding rows are under Visibility now)
   function N.settings_testing()
     group('Testing', 'Testing: ')
     toggle('research', 'Research log', false, 'For bug reports: what the mod reads, in narrowhud_research.log, from the next start. Post it with narrowhud.log.')
+    -- (2.5.4, luka) the ground census (the seed's source) apart, in narrowhud_ground.log, only when asked for
+    toggle('census', 'Ground census', false, 'For the ground seed (the mod\'s maker): every unit kind the ground walk meets, in narrowhud_ground.log. Needs the research log on.')
     if N.research_types then N.research_types() end
+    -- (2.5.13, luka) the structures' boxes drawn in the world, to see the model against the game
+    toggle('struct_boxes', 'Draw structure boxes', false, 'The boxes the red mark tests, drawn in red lines in the world (the parts the shot hits brighter). For checking them against the game.')
     toggle('any_build', 'Any game version', false, 'Run on a game version the mod wasn\'t made for. It may crash the game.')
     -- (1.5.38) the host's objects are never listed, sorted or read: with them, a client lost its host 12 to 17
     -- minutes into every mission (luka's three drops, the reporters'); without them, none in 44 minutes (the

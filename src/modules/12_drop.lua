@@ -226,8 +226,8 @@ local aim_d = { d = nil, at = nil, at0 = nil }   -- (the aim's distance along th
 local LEAD = 2
 local ret = { frame = nil, ok = false, why = 'off', x = 0, y = 0, z = 0, said = nil, said_at = -100,
   lx = nil, ly = nil, lz = nil, lt = nil, vx = 0, vy = 0, vz = 0 }
-local function reticle_point(cam)
-  if (cfg.line_aim or 2) ~= 2 then return nil, 'off' end
+local function reticle_point(cam, any)   -- (any: asked for the crosshair, whatever "Line aimed at" says)
+  if not any and (cfg.line_aim or 2) ~= 2 then return nil, 'off' end
   if ret.frame == N.frame then return ret.ok and ret or nil, ret.why end
   ret.frame, ret.ok = N.frame, false
   if not AIMPT_NAME then ret.why = 'no field name' return nil, ret.why end
@@ -242,17 +242,25 @@ local function reticle_point(cam)
   if fl < 1e-6 then ret.why = 'no view' return nil, ret.why end
   local dot = (ex * cam.fx + ey * cam.fy + ez * cam.fz) / (r * fl)
   if dot < 0.7071 then ret.why = string.format('%.0f deg off the view', math.deg(math.acos(math.max(-1, math.min(1, dot))))) return nil, ret.why end
-  -- the lead: the point's own velocity, from the last frame it moved
+  -- the lead: the point's own motion, from the last frame it moved — as a direction from the camera, not a point
+  -- (2.5.11, luka: the crosshair "teleports to the centre even dragged slowly": the point jumps in depth whenever
+  -- the aim crosses from a near surface to a far one or the sky, 30 m to 1000 m in a frame, and a lead along
+  -- *that* motion put the point 2 km behind the camera for a frame — off the screen. Its direction barely moves
+  -- in such a jump; led in direction, the point keeps its own distance)
   local now = chef.time()
-  if ret.lt and (ax ~= ret.lx or ay ~= ret.ly or az ~= ret.lz) then
+  local ux, uy, uz = ex / r, ey / r, ez / r
+  if ret.lt and (ux ~= ret.lx or uy ~= ret.ly or uz ~= ret.lz) then
     local dt = now - ret.lt
-    if dt > 1e-4 and dt < 0.5 then ret.vx, ret.vy, ret.vz = (ax - ret.lx) / dt, (ay - ret.ly) / dt, (az - ret.lz) / dt end
+    if dt > 1e-4 and dt < 0.5 then ret.vx, ret.vy, ret.vz = (ux - ret.lx) / dt, (uy - ret.ly) / dt, (uz - ret.lz) / dt end
   end
-  if not ret.lt or ax ~= ret.lx or ay ~= ret.ly or az ~= ret.lz then ret.lx, ret.ly, ret.lz, ret.lt = ax, ay, az, now end
+  if not ret.lt or ux ~= ret.lx or uy ~= ret.ly or uz ~= ret.lz then ret.lx, ret.ly, ret.lz, ret.lt = ux, uy, uz, now end
   if now - ret.lt > 0.1 then ret.vx, ret.vy, ret.vz = 0, 0, 0 end
   local lead = (cfg.line_lead or LEAD) * (N.dt or 1 / 60)   -- (cfg.line_lead: the tests' knob, no F9 row)
   if lead > 0.1 then lead = 0.1 end
-  ret.x, ret.y, ret.z, ret.ok, ret.why = ax + ret.vx * lead, ay + ret.vy * lead, az + ret.vz * lead, true, nil
+  local dx, dy, dz = ux + ret.vx * lead, uy + ret.vy * lead, uz + ret.vz * lead
+  local dl = math.sqrt(dx * dx + dy * dy + dz * dz)
+  if dl < 1e-6 then dx, dy, dz, dl = ux, uy, uz, 1 end
+  ret.x, ret.y, ret.z, ret.ok, ret.why = cam.x + dx / dl * r, cam.y + dy / dl * r, cam.z + dz / dl * r, true, nil
   return ret
 end
 -- (research: when the line falls back to the view and why, at most once a second; and the first use)

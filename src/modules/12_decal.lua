@@ -176,6 +176,14 @@ local function mark_painted(key, x, y, z, conf, color, px, py, blast)
       -- (the screen's y runs up from the bottom, as the HUD's parts are placed: the icon's bottom a little over the pin;
       -- 2.4.9 subtracted and drew it under the pin, luka's screenshot)
       local ok = N.icon_texture('chevron', math.floor(sx - S / 2 + 0.5), math.floor(sy + S * 0.15 + 0.5), S, cc, sure and 0.95 or 0.5, N.L0 + 905)
+      -- (2.5.3, luka) the metres to the landing, the stim counter's size, pinned right of the chevron, on its middle
+      local dm = px and math.sqrt((x - px) ^ 2 + (y - py) ^ 2) or nil
+      N.range_m, N.range_frame = dm, N.frame      -- (the Range part reads it next frame: the parts draw before the lines)
+      if dm and cfg.mark_range ~= false and N.txt then
+        local hk = N.hatch_k or 1
+        local small = math.max(7, math.floor(16 * hk + 0.5))
+        N.txt(math.floor(sx + S / 2 + 4 * hk + 0.5), math.floor(sy + S * 0.15 + (S - small) / 2 + 0.5), string.format('%d m', math.floor(dm + 0.5)), small, N.col(cc, sure and 220 or 120), N.L0 + 905)
+      end
       if not ok and chef.line then
         -- (no texture: the old standing V in lines)
         local dx, dy = px and (x - px) or 1, py and (y - py) or 0

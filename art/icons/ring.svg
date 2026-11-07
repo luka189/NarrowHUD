@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NarrowHUD's centre ring (2.5.1): the reticle's ring without the dot, thinner (0.37 of 2.2 against the reticle's
+     0.6), drawn 1.6 times the reticle's size at the screen's middle, so the ring-and-dot crosshair that follows the
+     game's aim comes to rest inside it; white on transparent for tools/make_textures.py (tinted in game) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="4.4mm" height="4.4mm" viewBox="0 0 4.4 4.4" version="1.1">
+  <path fill="#ffffff" fill-rule="evenodd"
+        d="M 2.2,0 A 2.2,2.2 0 1 0 2.2,4.4 A 2.2,2.2 0 1 0 2.2,0 Z M 2.2,0.37 A 1.83,1.83 0 1 1 2.2,4.03 A 1.83,1.83 0 1 1 2.2,0.37 Z"/>
+</svg>

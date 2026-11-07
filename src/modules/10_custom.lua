@@ -23,7 +23,7 @@ local ALIGNS = { bottom_left = { 0, 0 }, bottom = { 0.5, 0 }, bottom_right = { 1
 -- the elements in drawing order, each field: { kind, default, min / choices, max }
 -- after: right after another part (drawn before it), gap pixels (at 1440p, Medium) from its right edge, its x then
 -- not used: a count that grows ("100%") pushes the magazines along instead of running over them
-local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, rpm = 1, stims = 1, grenades = 1, pack = 1,
+local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, rpm = 1, stims = 1, grenades = 1, range = 1, pack = 1,
   health = 1, stamina = 1, stim = 1, mode1 = 1, mode2 = 1, icon1 = 1, icon2 = 1, zoom = 1, zoomicon = 1 }
 -- (1.5.53) pin: how a part sits against the one it's after — none: the old way (its x from that part's right edge
 -- plus the gap, its y its own); right / left / above / below: its whole place from that part's box (the gap between
@@ -86,6 +86,9 @@ local ELEMENTS = {
   { id = 'rpm', fields = {} },
   { id = 'stims', fields = {} },
   { id = 'grenades', fields = {} },
+  -- (2.5.3, luka) the range: the metres to the landing chevron while a line is up, else to where the game's reticle
+  -- points, for any weapon; "-" with nothing to measure (the sky: the reticle point 1 km out)
+  { id = 'range', fields = {} },
   { id = 'pack', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
       length = { 'number', 120, 10, 2000 }, thickness = { 'number', 7, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   -- (1.1.0) your health and stamina: shown when F9's Health bar / Stamina bar say so (off by default)
@@ -112,6 +115,7 @@ local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   rpm = { anchor = 'center', x = 0, y = 0, align = 'bottom_left', after = 'count', pin = 'below', gap = 6 },
   stims = { anchor = 'center', x = -9, y = -9.6, align = 'top_left' },
   grenades = { anchor = 'center', x = 0, y = 0, align = 'top_left', after = 'stims', pin = 'right', gap = 8 },
+  range = { anchor = 'center', x = 0, y = 0, align = 'top_left', after = 'grenades', pin = 'right', gap = 10 },
   pack = { anchor = 'center', x = -0.4, y = -10.6, align = 'left', length = 135 },
   -- (over the charge meter, as Under draws them)
   health = { anchor = 'center', x = 0, y = -7.33, align = 'bottom', hold = true },
@@ -141,6 +145,7 @@ local VERTICAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
   stims = { on = true, anchor = 'center', x = -1, y = -8.1, align = 'top_right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
   grenades = { on = true, anchor = 'center', x = 1, y = -8.1, align = 'top_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
+  range = { on = true, anchor = 'center', x = 0, y = -11.6, align = 'center', size = 1, opacity = 100, after = 'none', gap = -67, pin = 'none', side = 'auto', hold = false },   -- (2.5.24, luka)
   health = { on = true, anchor = 'center', x = -7.6, y = 0, align = 'right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'vertical', length = 190, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
   stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'right', side = 'auto', hold = false, style = 'vertical', length = 190, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
   stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'health', gap = 20, pin = 'right', side = 'auto', hold = false, style = 'vertical', length = 80, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' } } }
@@ -161,6 +166,7 @@ local ARCS_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   rpm = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = -15, pin = 'right', side = 'auto', hold = false },
   stims = { on = true, anchor = 'center', x = -1.35, y = -6.45, align = 'center', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'stims', gap = 10, pin = 'right', side = 'none', hold = false },
+  range = { on = true, anchor = 'center', x = 0, y = -8.6, align = 'center', size = 1, opacity = 100, after = 'none', gap = 13, pin = 'none', side = 'auto', hold = false },   -- (2.5.24, luka)
   pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_right', length = 75, thickness = 5, radius = 92, edge = 'auto', shade = 'auto' },
   health = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'curved_left', length = 225, thickness = 7, radius = 120, edge = 'auto', shade = 'auto' },
   stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_left', length = 200, thickness = 4, radius = 106.5, edge = 'auto', shade = 'auto' },
@@ -182,6 +188,7 @@ local HORIZONTAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 2, pin = 'below', side = 'auto' },
   stims = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto' },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
+  range = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'stamina', gap = 10, pin = 'above', side = 'auto', hold = false },   -- (2.5.24, luka)
   pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 126, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
   health = { on = true, anchor = 'center', x = 0, y = -10, align = 'bottom', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'down', style = 'horizontal', length = 260, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
   stamina = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'above', side = 'auto', style = 'horizontal', length = 260, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
@@ -202,6 +209,7 @@ local BLOCK_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   rpm = { on = true, anchor = 'center', x = 1, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -7, pin = 'above', side = 'auto' },
   stims = { on = true, anchor = 'center', x = 0.4, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'below', side = 'auto' },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
+  range = { on = true, anchor = 'center', x = 0.2, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'pack', gap = 7, pin = 'below', side = 'auto', hold = false },   -- (2.5.24, luka)
   stamina = { on = true, anchor = 'center', x = -0.83, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 128, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
   health = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'stamina', gap = 8, pin = 'below', side = 'auto', hold = true, style = 'horizontal', length = 128, thickness = 7, radius = 150, edge = 'auto', shade = 'auto' },
   pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 60, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
@@ -269,6 +277,7 @@ local function load_layout(why)
   -- placed in the editor without anyone noticing)
   layout.offsets = t.use_offsets == true
   if t.use_offsets ~= nil and type(t.use_offsets) ~= 'boolean' then dropped = dropped + 1 end
+  if N.struct_parts_set then N.struct_parts_set(t.struct_parts) end   -- (2.5.15: the structures' parts, if the file has them)
   local v = tonumber(t._v) or 0
   log('layout file: read (%s)%s%s', why, dropped > 0 and string.format(', %d values that didn\'t fit left at their defaults', dropped) or '',
     v > LAYOUT_VERSION and string.format(', from a newer NarrowHUD (version %d): read what fits', v) or '')
@@ -835,6 +844,38 @@ local function icons_part(fire)
   end
 end
 EL_DRAW.icon1, EL_DRAW.icon2 = icons_part(false), icons_part(true)
+-- (2.5.3) the range as a part: the chevron's distance this frame (12_decal sets N.range_m), else the reticle point's
+-- from your Helldiver (12_drop's reticle_point, any weapon); over RANGE_MOST or none: "-" (the sky puts the game's
+-- point about 1 km from the camera, so 997–1003 m from you: 900 keeps it out whichever way it rounds)
+local RANGE_MOST = 900
+local range_at = { frame = nil, str = '-' }
+local function range_str()
+  if range_at.frame == N.frame then return range_at.str end
+  range_at.frame = N.frame
+  local d = (N.range_frame and N.range_frame >= N.frame - 1) and N.range_m or nil   -- (the chevron's, a frame old)
+  if not d and N.reticle_point and chef.camera then
+    local cam = chef.camera()
+    local rp = cam and N.reticle_point(cam, true)
+    local u = rp and N.my_unit and N.my_unit()
+    if u and chef.unit_position then
+      local px, py = chef.unit_position(u)
+      if px then d = math.sqrt((rp.x - px) ^ 2 + (rp.y - py) ^ 2) end
+    end
+  end
+  range_at.str = (d and d <= RANGE_MOST) and string.format('%d m', math.floor(d + 0.5)) or '-'
+  return range_at.str
+end
+function EL_DRAW.range(e, k, d, x, y, dry)
+  if not cfg.show_range then return nil end
+  -- (2.5.5) "Not by the chevron": hidden while the chevron carries the number itself
+  -- (2.5.24, luka: the rule for all: the field is never shown while the chevron carries the number — "Distance by
+  -- the chevron" off, the field carries it with a drop-arc weapon)
+  if cfg.mark_range ~= false and N.range_frame and N.range_frame >= N.frame - 1 and N.range_m then return nil end
+  local small = math.max(7, math.floor(16 * k + 0.5))
+  local str = range_str()
+  if not dry then txt(x, y, str, small, col(CREAM, 220), L_CUSTOM) end
+  return txt_width(str, small), small
+end
 function EL_DRAW.stims(e, k, d, x, y, dry, items)
   if not items or not cfg.show_stims then return nil end
   return icon_el(N.STIM, items.s, k, x, y, dry)

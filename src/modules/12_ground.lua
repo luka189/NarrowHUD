@@ -364,6 +364,22 @@ end
 N.look_point = function() local l = lk.last return (l and chef.time() - l.at < 0.5) and l or nil end
 ------------------------------------------------------------------------------------------ the walk
 local kind_cache = setmetatable({}, { __mode = 'k' })  -- unit handle -> kind id (false: unreadable)
+-- (2.5.3, the frame time on busy maps: the "items" lap ran 0.12–0.17 ms with 14,000 units in the world against 0.05
+-- on small maps, and the walk's three engine calls a unit were it) a unit's position from the last walk, and the
+-- kinds that move. The map's props don't move: from the fourth walk on, a unit of a kind that stood still between
+-- the second and third walks is sampled from its cached position without an engine call; a kind with any unit
+-- that moved, a character or vehicle by name, a structure (destroyed ones must drop out) and a unit not seen
+-- before are read as always. The ground learning sees the same samples either way
+local pos_cache = setmetatable({}, { __mode = 'k' })   -- unit handle -> { x, y, z }
+local moving = {}                                       -- kind id -> true: its units move
+local function moving_kind(k)
+  local v = moving[k]
+  if v ~= nil then return v end
+  local name = UNIT_NAMES[k]
+  v = name and (string.find(name, 'fac_', 1, true) or string.find(name, '/vehicles/', 1, true) or string.find(name, '/cha_', 1, true)) and true or false
+  moving[k] = v
+  return v
+end
 local wk = { units = nil, i = 0, counts = nil, started = nil, spent = 0, fails = 0, dead = false, at = -100,
              stats = nil, nowhere = nil, cells = nil, gn = 0 }
 local function vec_xyz(v)
@@ -380,6 +396,8 @@ local function skip_kind(k, count)
     if string.find(name, 'fac_helldivers/', 1, true) or string.find(name, '/equipment/', 1, true) or string.find(name, '/weapons/', 1, true) then return true end
     return false
   end
+  -- (2.5.6: an unnamed structure kind — the warp ship, by hash — is never skipped, whatever its count)
+  if N.struct_kind and N.struct_kind(k) then return false end
   return (count or 0) < 10
 end
 -- one frame's share of the walk
@@ -395,7 +413,7 @@ local function walk(now)
       return
     end
     wk.units, wk.i, wk.counts, wk.started, wk.spent, wk.fails = units, 0, {}, now, 0, 0
-    wk.stats, wk.nowhere, wk.gn, wk.structs = {}, 0, 0, {}
+    wk.stats, wk.nowhere, wk.gn, wk.structs, wk.unnamed, wk.still = {}, 0, 0, {}, {}, 0
     -- (the kinds' counts, for the 10-unit rule: from the last walk; the first walk counts as it goes and asks
     -- the unnamed kinds only from the second on)
     return
@@ -419,11 +437,31 @@ local function walk(now)
     end
     if k then
       counts[k] = (counts[k] or 0) + 1
-      if not first and not skip_kind(k, gr.counts and gr.counts[k]) and call('ground.alive', 'Unit.alive', u) == true then
-        local x, y, z = vec_xyz(call('ground.pos.' .. k, 'Unit.world_position', u, 1))
+      local pc = pos_cache[u]
+      local struct = N.struct_kind and N.struct_kind(k)
+      -- (2.5.3) a unit of a kind that doesn't move, seen before: its last position, no engine call
+      local still = pc and gr.walks >= 3 and not struct and not moving_kind(k)
+      if not first and not skip_kind(k, gr.counts and gr.counts[k]) and (still or call('ground.alive', 'Unit.alive', u) == true) then
+        local x, y, z
+        if still then
+          x, y, z = pc[1], pc[2], pc[3]
+          wk.still = (wk.still or 0) + 1
+        else
+          x, y, z = vec_xyz(call('ground.pos.' .. k, 'Unit.world_position', u, 1))
+        end
         if x and x == x and y == y and z == z and math.abs(x) < 1e5 and math.abs(y) < 1e5 and math.abs(z) < 1e5 then
+          if not still then
+            if pc then
+              -- (the third walk compares with the second: a unit that moved makes its kind a moving one)
+              if gr.walks == 2 and not moving[k] and (x - pc[1]) ^ 2 + (y - pc[2]) ^ 2 + (z - pc[3]) ^ 2 > 0.0025 then moving[k] = true end
+              pc[1], pc[2], pc[3] = x, y, z
+            else
+              pos_cache[u] = { x, y, z }
+            end
+          end
           unit_sample(k, x, y, z)
-          if N.struct_kind and N.struct_kind(k) then N.struct_seen(wk.structs, u, k, x, y, z) end
+          if struct then N.struct_seen(wk.structs, u, k, x, y, z) end
+          if cfg.research and not UNIT_NAMES[k] and #wk.unnamed < 4000 then wk.unnamed[#wk.unnamed + 1] = { k, x, y, z } end
           local st = wk.stats[k]
           if not st then st = { n = 0, nc = 0, cells = {} } wk.stats[k] = st end
           st.n = st.n + 1
@@ -431,6 +469,25 @@ local function walk(now)
           if not st.cells[ck] then st.cells[ck] = true st.nc = st.nc + 1 end
         elseif x then
           wk.nowhere = wk.nowhere + 1
+        end
+      elseif not first and cfg.research and not UNIT_NAMES[k] and k ~= RUNTIME and k ~= AVATAR_RESOURCE and #wk.unnamed < 4000 then
+        -- (2.5.2, research only) the rare unnamed kinds the walk skips (under 10 units), their positions for
+        -- 12_struct's neighbours line: a structure whose named unit is only an anchor (the spore spewer's objective
+        -- unit, a 0.3 m box) has its mesh in a kind filediver has no name for, and a warp ship may be one
+        -- (2.5.3: from the cache too once the kind has stood still)
+        if still then
+          wk.unnamed[#wk.unnamed + 1] = { k, pc[1], pc[2], pc[3] }
+        elseif call('ground.alive', 'Unit.alive', u) == true then
+          local x, y, z = vec_xyz(call('ground.pos.' .. k, 'Unit.world_position', u, 1))
+          if x and x == x and y == y and z == z and math.abs(x) < 1e5 and math.abs(y) < 1e5 and math.abs(z) < 1e5 then
+            if pc then
+              if gr.walks == 2 and not moving[k] and (x - pc[1]) ^ 2 + (y - pc[2]) ^ 2 + (z - pc[3]) ^ 2 > 0.0025 then moving[k] = true end
+              pc[1], pc[2], pc[3] = x, y, z
+            else
+              pos_cache[u] = { x, y, z }
+            end
+            wk.unnamed[#wk.unnamed + 1] = { k, x, y, z }
+          end
         end
       end
     else
@@ -443,16 +500,18 @@ local function walk(now)
   -- the walk is done
   gr.walks = gr.walks + 1
   gr.counts = counts
-  if not first and N.struct_listed then N.struct_listed(wk.structs) end   -- (2.0.16: the structures the lines test)
+  if not first and N.struct_listed then N.struct_listed(wk.structs, wk.unnamed) end   -- (2.0.16: the structures the lines test)
   if cfg.research then
     local kinds, trusted, named = 0, 0, 0
     for k in pairs(counts) do kinds = kinds + 1 if UNIT_NAMES[k] then named = named + 1 end end
     for k, st in pairs(gr.kinds) do if kind_offset(st) then trusted = trusted + 1 end end
     local feet, props = 0, 0
     for _, c in pairs(gr.cells) do if c.fn >= 2 then feet = feet + 1 elseif c.us then props = props + 1 end end
-    log('research: ground walk %d: %d units of %d kinds (%d named, %d unreadable, %d nowhere), %.1f ms over %d frames; %d trusted kinds; the grid %d cells: %d feet, %d props',
-      gr.walks, #wk.units, kinds, named, wk.fails, wk.nowhere, wk.spent * 1000, math.ceil(#wk.units / per), trusted, gr.n, feet, props)
-    if gr.walks == 2 or gr.walks % 5 == 0 then
+    local mk = 0
+    for _, v in pairs(moving) do if v then mk = mk + 1 end end
+    log('research: ground walk %d: %d units of %d kinds (%d named, %d unreadable, %d nowhere; %d from the cache, %d moving kinds), %.1f ms over %d frames; %d trusted kinds; the grid %d cells: %d feet, %d props',
+      gr.walks, #wk.units, kinds, named, wk.fails, wk.nowhere, wk.still or 0, mk, wk.spent * 1000, math.ceil(#wk.units / per), trusted, gr.n, feet, props)
+    if cfg.census and (gr.walks == 2 or gr.walks % 5 == 0) then   -- (2.5.4: the census to its own log, with its own row)
       local rows = {}
       for k, st in pairs(wk.stats) do rows[#rows + 1] = { k, st } end
       table.sort(rows, function(a, b) return a[2].n > b[2].n or (a[2].n == b[2].n and a[1] < b[1]) end)
@@ -469,7 +528,7 @@ local function walk(now)
           lines[#lines + 1] = string.format('%s x%d in %d cells%s%s', k, st.n, st.nc, stat, name and (' ' .. string.gsub(name, '^content/', '')) or '')
         end
       end
-      for i = 1, #lines, 4 do log('research: ground kinds: %s', table.concat(lines, '; ', i, math.min(i + 3, #lines))) end
+      for i = 1, #lines, 4 do log('census: ground kinds: %s', table.concat(lines, '; ', i, math.min(i + 3, #lines))) end
     end
   end
   wk.units, wk.counts, wk.stats = nil, nil, nil
@@ -494,6 +553,52 @@ local function ground_update(now)
   end
 end
 N.ground_update = ground_update
+-- (2.5.5, research: the warp ship hunt) the units within r metres of a point, from the walk's caches (every unit
+-- walked, named or not), as "<name or kind> xN at d m" — for the MARK line: what stands where the reticle points
+-- (2.5.12: within 40 m and 40 rows, not 15 m and 12 — the warp ship's hull never made the list: its furniture
+-- filled the 12 rows within 12 m; and each kind's count on the whole map, and the nearest unit's height over the
+-- point — a hull is one per ship, as many as the ships, its root maybe high up)
+function N.units_near(x, y, r, z, rows_max)
+  local by = {}
+  for u, pc in pairs(pos_cache) do
+    local dx, dy = pc[1] - x, pc[2] - y
+    local d2 = dx * dx + dy * dy
+    if d2 <= r * r then
+      local k = kind_cache[u] or '?'
+      local e = by[k]
+      if not e then e = { n = 0, d = 1e9, dz = 0 } by[k] = e end
+      e.n = e.n + 1
+      if d2 < e.d then e.d, e.dz = d2, z and (pc[3] - z) or 0 end
+    end
+  end
+  local rows = {}
+  for k, e in pairs(by) do rows[#rows + 1] = { k = k, n = e.n, d = math.sqrt(e.d), dz = e.dz, all = gr.counts and gr.counts[k] or wk.counts and wk.counts[k] } end
+  table.sort(rows, function(a, b) return a.d < b.d end)
+  local out = {}
+  for i = 1, math.min(#rows, rows_max or 40) do
+    local r_ = rows[i]
+    out[#out + 1] = string.format('%s x%d at %.1f m%s%s', string.gsub(UNIT_NAMES[r_.k] or (N.STRUCT_BY_ID and N.STRUCT_BY_ID[r_.k]) or (N.KIND_NAMES and N.KIND_NAMES[r_.k]) or r_.k, '^content/', ''), r_.n, r_.d,
+      math.abs(r_.dz) >= 1 and string.format(' (%+.0f m up)', r_.dz) or '', r_.all and string.format(' [%d on the map]', r_.all) or '')
+  end
+  return out
+end
+-- (2.5.14) the nearest unit of each kind within r metres of a point, nearest kinds first: { k, u, d }
+function N.units_near_handles(x, y, r)
+  local by = {}
+  for u, pc in pairs(pos_cache) do
+    local dx, dy = pc[1] - x, pc[2] - y
+    local d2 = dx * dx + dy * dy
+    if d2 <= r * r then
+      local k = kind_cache[u] or '?'
+      local e = by[k]
+      if not e or d2 < e.d2 then by[k] = { k = k, u = u, d2 = d2 } end
+    end
+  end
+  local rows = {}
+  for _, e in pairs(by) do rows[#rows + 1] = { k = e.k, u = e.u, d = math.sqrt(e.d2) } end
+  table.sort(rows, function(a, b) return a.d < b.d end)
+  return rows
+end
 -- a new world: the grid starts over; the kinds' offsets stay (they're the map's assets, not the map)
 local function ground_reset()
   gr.cells, gr.n, gr.samples, gr.skipped, gr.last, gr.full, gr.walks, gr.counts = {}, 0, 0, 0, {}, false, 0, nil
@@ -502,6 +607,7 @@ local function ground_reset()
   for _, st in pairs(gr.kinds) do st.seen = {} end
   wk.units, wk.counts, wk.stats, wk.at = nil, nil, nil, -100
   kind_cache = setmetatable({}, { __mode = 'k' })
+  pos_cache, moving = setmetatable({}, { __mode = 'k' }), {}   -- (2.5.3: a new world's units and kinds)
   if N.struct_reset then N.struct_reset() end
 end
 N.ground_reset = ground_reset

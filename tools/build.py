@@ -94,6 +94,7 @@ def source():
     wunits = (ROOT / 'src' / 'weapon_units_generated.lua').read_text(encoding='utf-8')
     gseed = (ROOT / 'src' / 'ground_seed.lua').read_text(encoding='utf-8')
     blast = (ROOT / 'src' / 'blast_generated.lua').read_text(encoding='utf-8')   # (2.4.8: tools/make_blast.py)
+    shapes = (ROOT / 'src' / 'struct_parts_generated.lua').read_text(encoding='utf-8')   # (2.5.18: tools/make_shapes.py)
     # the modules (src/modules/NN_name.lua, in order), each in a function of its own (each gets Lua's 200 locals),
     # sharing through N; the head (src/narrowhud.lua) first, return M last
     rest = rest.replace('-- the modules (src/modules, in order) go here, then: return M\n', '')
@@ -104,6 +105,7 @@ def source():
             f'local UNIT_NAMES = (function()\n{unames}\nend)()\n'
             f'local WEAPON_UNITS = (function()\n{wunits}\nend)()\n'
             f'local BLAST = (function()\n{blast}\nend)()\n'
+            f'local STRUCT_PARTS = (function()\n{shapes}\nend)()\n'
             f'SEED.ground = (function()\n{gseed}\nend)()\n'
             f'{rest}local N = {{}}\n{body}return M\n')
 

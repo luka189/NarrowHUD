@@ -352,7 +352,7 @@ const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right'];
 const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
   y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
   opacity: ['number', 100, 0, 100],
-  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'rpm', 'stims', 'grenades', 'pack', 'health', 'stamina', 'stim', 'mode1', 'mode2', 'icon1', 'icon2', 'zoom', 'zoomicon']],
+  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'rpm', 'stims', 'grenades', 'range', 'pack', 'health', 'stamina', 'stim', 'mode1', 'mode2', 'icon1', 'icon2', 'zoom', 'zoomicon']],
   gap: ['number', 8, -500, 500],
   // (1.5.53) pin: how a part sits against the one it's after: none the old way (x from that part's right edge, y its
   // own), else its whole place from that part's box, on that side; side: left or right of the crosshair, for F9's Spread
@@ -381,6 +381,8 @@ const ELEMENTS = [
   { id: 'rpm', name: 'Rate of fire', fields: {} },
   { id: 'stims', name: 'Stims', fields: {} },
   { id: 'grenades', name: 'Grenades', fields: {} },
+  // (2.5.3) the range: the metres to the landing chevron, else to where the reticle points ("-" on the sky); off unless F9's Range rule is on
+  { id: 'range', name: 'Range', fields: {} },
   { id: 'pack', name: 'Backpack bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 120, 10, 2000],
       thickness: ['number', 7, 1, 200], radius: ['number', 150, 10, 2000], edge: BAR_LOOK.edge, shade: BAR_LOOK.shade } },
   { id: 'health', name: 'Health bar', vitals: true, fields: { style: ['choice', 'horizontal', BAR_STYLES], length: ['number', 260, 10, 2000],
@@ -405,6 +407,7 @@ const UNDER = { _v: 1, elements: {
   rpm: { anchor: 'center', x: 0, y: 0, align: 'bottom_left', after: 'count', pin: 'below', gap: 6 },
   stims: { anchor: 'center', x: -9, y: -9.6, align: 'top_left' },
   grenades: { anchor: 'center', x: 0, y: 0, align: 'top_left', after: 'stims', pin: 'right', gap: 8 },
+  range: { anchor: 'center', x: 0, y: 0, align: 'top_left', after: 'grenades', pin: 'right', gap: 10 },
   pack: { anchor: 'center', x: -0.4, y: -10.6, align: 'left', length: 135 },
   health: { anchor: 'center', x: 0, y: -7.33, align: 'bottom', hold: true },
   stamina: { anchor: 'center', x: 0, y: -6.78, align: 'bottom', hold: true },
@@ -425,6 +428,7 @@ const PRESETS = [
   rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 2, pin: 'below', side: 'auto' },
   stims: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto' },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
+  range: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'stamina', gap: 10, pin: 'above', side: 'auto', hold: false },
   pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 126, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
   health: { on: true, anchor: 'center', x: 0, y: -10, align: 'bottom', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'down', style: 'horizontal', length: 260, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
   stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'above', side: 'auto', style: 'horizontal', length: 260, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
@@ -443,6 +447,7 @@ const PRESETS = [
   rpm: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: -15, pin: 'right', side: 'auto', hold: false },
   stims: { on: true, anchor: 'center', x: -1.35, y: -6.45, align: 'center', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'stims', gap: 10, pin: 'right', side: 'none', hold: false },
+  range: { on: true, anchor: 'center', x: 0, y: -8.6, align: 'center', size: 1, opacity: 100, after: 'none', gap: 13, pin: 'none', side: 'auto', hold: false },
   pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_right', length: 75, thickness: 5, radius: 92, edge: 'auto', shade: 'auto' },
   health: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'curved_left', length: 225, thickness: 7, radius: 120, edge: 'auto', shade: 'auto' },
   stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_left', length: 200, thickness: 4, radius: 106.5, edge: 'auto', shade: 'auto' },
@@ -462,6 +467,7 @@ const PRESETS = [
   zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
   stims: { on: true, anchor: 'center', x: -1, y: -8.1, align: 'top_right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
   grenades: { on: true, anchor: 'center', x: 1, y: -8.1, align: 'top_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
+  range: { on: true, anchor: 'center', x: 0, y: -11.6, align: 'center', size: 1, opacity: 100, after: 'none', gap: -67, pin: 'none', side: 'auto', hold: false },
   health: { on: true, anchor: 'center', x: -7.6, y: 0, align: 'right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'vertical', length: 190, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
   stamina: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'right', side: 'auto', hold: false, style: 'vertical', length: 190, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
   stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'health', gap: 20, pin: 'right', side: 'auto', hold: false, style: 'vertical', length: 80, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' } } } },
@@ -479,6 +485,7 @@ const PRESETS = [
   rpm: { on: true, anchor: 'center', x: 1, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -7, pin: 'above', side: 'auto' },
   stims: { on: true, anchor: 'center', x: 0.4, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'below', side: 'auto' },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
+  range: { on: true, anchor: 'center', x: 0.2, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'pack', gap: 7, pin: 'below', side: 'auto', hold: false },
   stamina: { on: true, anchor: 'center', x: -0.83, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 128, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
   health: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'stamina', gap: 8, pin: 'below', side: 'auto', hold: true, style: 'horizontal', length: 128, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
   pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 60, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
@@ -1072,6 +1079,11 @@ const EL_DRAW = {
   },
   stims(e, k, d, x, y, dry, items) { return items ? iconEl(STIM, items.s, k, x, y, dry) : null; },
   grenades(e, k, d, x, y, dry, items) { return items ? iconEl(GRENADE, items.g, k, x, y, dry) : null; },
+  range(e, k, d, x, y, dry) {
+    const small = Math.max(7, fl(16 * k + 0.5)), s = '42 M';
+    if (!dry) txt(x, y, s, small, col(P.CREAM, 220));
+    return [txtWidth(s, small), small];
+  },
   pack(e, k, d, x, y, dry, items) {
     const st = items && packState(items, d);
     if (!st) return null;

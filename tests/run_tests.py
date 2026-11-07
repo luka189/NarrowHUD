@@ -75,7 +75,7 @@ HAS14 = nil                  -- Chef 1.4 (the players event); ONS: the event lis
 ONS = {}
 GUIS = 0
 SPECS = {}                   -- the option rows registered, in order (the menu tests)
-OPTS, CHANGE, BINDS = { research = true, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1, drop_from = 0, line_look = 1, mark_look = 1 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100; 2.4.8: the Classic line and mark, as they were written for)
+OPTS, CHANGE, BINDS = { research = true, census = true, vis_range = 1, mode_icon = false, read_level = 1, tone_fix = false, layout = 5, landing_mark = false, world_tone = false, line_alpha = 130, mark_size = 1, drop_from = 0, line_look = 1, mark_look = 1 }, {}, {}   -- (line_alpha 130: the lines at 170 and the mark at 200, as the tests were written; the row's own range is 20-100; 2.4.8: the Classic line and mark, as they were written for)
 LAYOUT = { _v = 1, elements = {} }   -- (2.0: the tests run on Layout: Custom with an empty file — Under's look through the defaults, as the old Under position drew)   -- the F9 menu's values (the tests run with the research log on; the mode icons off unless a test turns them on; the host's objects read, as before 1.5.38, since many tests put the host's objects in; the tone correction off (1.5.62: on by default in the game) so the colours checked are the ones asked for)
 OBJINFO = nil           -- Network.object_info, when a test gives one
 PAD, PADY, BLOCKED = false, false, false   -- fire on a controller; its Y pressed; Chef 1.1 refusing the reads
@@ -123,14 +123,28 @@ chef = {
   end,
   has = function(x) return x == 'menu' or x == 'bind' or x == 'ray_box' or (HAS14 == true and (x == 'players_event' or x == 'option_headings')) end, title = function() end,
   -- (2.0.16) a ray against a unit's box (axis-aligned here: UNITS entries with box = { hx, hy, hz } at their position)
-  ray_box = function(from, dir, u)
+  -- (2.5.17) a unit's facing: UNITS entry yaw (radians, 0 = +y), as Chef's unit_rotation gives it; nil without one
+  unit_rotation = function(u) for _, e in ipairs(UNITS or {}) do if e[1] == u and e.yaw then return math.sin(e.yaw), math.cos(e.yaw), 0, e.yaw end end return nil end,
+  ray_box = function(from, dir, u, ext)
     RAYS = (RAYS or 0) + 1
-    for _, e in ipairs(UNITS or {}) do
-      if e[1] == u and e.box and e.dead ~= true then
+    -- (2.5.7: Chef's ray_box asks Unit.box of the unit every call, and Unit.box of a destroyed unit ends the game)
+    for _, e in ipairs(UNITS or {}) do if e[1] == u and e.dead then error('Unit.box of a destroyed unit (ends the game), from chef.ray_box') end end
+    -- (2.5.8: a box of the mod's own: its middle { x, y, z, yaw } and extents { hx, hy, hz }; no unit asked)
+    local boxes = {}
+    if type(u) == 'table' and ext then boxes[1] = { 'own', '', u.x, u.y, u.z, box = ext, yaw = u.yaw }
+    else for _, e in ipairs(UNITS or {}) do if e[1] == u then boxes[1] = e end end end
+    for _, e in ipairs(boxes) do
+      if e.box and e.dead ~= true then
         local l = math.sqrt(dir[1] ^ 2 + dir[2] ^ 2 + dir[3] ^ 2)
         local tmin, tmax = -1e9, 1e9
+        -- (2.5.20) the box's yaw, as Chef's own-box path turns the ray into the box's frame (0 = facing +y)
+        local yaw = e.yaw or 0
+        local cs, sn = math.cos(yaw), math.sin(yaw)
+        local px, py = from[1] - e[3], from[2] - e[4]
+        local fr = { e[3] + px * cs - py * sn, e[4] + px * sn + py * cs, from[3] }
+        local dr = { dir[1] * cs - dir[2] * sn, dir[1] * sn + dir[2] * cs, dir[3] }
         for i = 1, 3 do
-          local d, f, c, h = dir[i] / l, from[i], e[2 + i], e.box[i]
+          local d, f, c, h = dr[i] / l, fr[i], e[2 + i], e.box[i]
           if math.abs(d) < 1e-9 then
             if f < c - h or f > c + h then return nil end
           else
@@ -181,9 +195,9 @@ chef = {
   -- (2.4.8) the ground pictures: a spawned decal unit 'D1', 'D2' ...; DECALS[u] its place, scale, picture and opacity
   -- (NOSPAWN: chef.spawn refuses)
   spawn = function(id, x, y, z) if NOSPAWN then return nil, 'not loaded' end SPAWNED = (SPAWNED or 0) + 1 local u = 'D' .. SPAWNED DECALS = DECALS or {} DECALS[u] = { id = id, pos = { x, y, z } } return u end,
-  unit_position = function(u, node) if WPOS and WPOS[u] == false then return nil end if WPOS and WPOS[u] then local hz = (HAND_UP and node == 42) and 1.3 or 0 return WPOS[u][1], WPOS[u][2], WPOS[u][3] + hz end return 100, 200, 10 end,
+  unit_position = function(u, node) for _, e in ipairs(UNITS or {}) do if e[1] == u and e.dead then return nil end end if WPOS and WPOS[u] == false then return nil end if WPOS and WPOS[u] then local hz = (HAND_UP and node == 42) and 1.3 or 0 return WPOS[u][1], WPOS[u][2], WPOS[u][3] + hz end for _, e in ipairs(UNITS or {}) do if e[1] == u and e[3] then return e[3], e[4], e[5] end end return 100, 200, 10 end,   -- (2.5.20: a UNITS entry's position, live)
   unit_kind = function(u) return u == 'U' and 'a57ae2a703c02899' or (u == 'B' and '16f397ca5f51f271' or (u == 'G' and (GKIND or 'ee4c107b941ab7f4') or 'wkind')) end,
-  unit_node = function(u, name) if u == 'U' and name == 'attach_hand_r' then return 42 end return nil end,
+  unit_node = function(u, name) for _, e in ipairs(UNITS or {}) do if e[1] == u and e.dead then return nil end end if u == 'U' and name == 'attach_hand_r' then return 42 end return nil end,
   call_kind = function(name, kind, s, a, b, c, d, e, f)
     if name == 'Network.game_session' then return 'S' end
     if name == 'Network.peer_id' then return '0b99cf5492296d6e' end
@@ -269,10 +283,23 @@ chef = {
     if name == 'Gui.bitmap_uv' then rec({ 'bitmap', d[1], d[2], e[1], e[2], 0, 0, 0, 0, tex = a, uv = true, own = true }) return true end
     -- (2.0.4) the ground census: every unit in the world and its kind; UNITS = { { 'U', '4d1c334d294dfa97' }, ... }
     if name == 'World.units' then if UNITS == nil then return nil, 'none' end local l = {} for _, u in ipairs(UNITS) do l[#l + 1] = u[1] end return l end
+    -- (2.5.8) Chef asks Unit.alive before every Unit call and answers nil for a dead unit (loader 1.5: unit_ask); but a
+    -- unit dying this very frame still reads alive, and Unit.box of one ended the game in 2.4.1 while position reads
+    -- of exploding grenades never have — so here a position or name read of a dead unit answers nil as Chef's would,
+    -- and the mesh-side calls (Unit.box, Unit.mesh, the Material ones) on a dead unit error: the mod must never make them
+    if string.sub(name, 1, 5) == 'Unit.' and name ~= 'Unit.alive' then
+      for _, u in ipairs(UNITS or {}) do
+        if u[1] == s and u.dead then
+          if name == 'Unit.box' or name == 'Unit.mesh' or string.find(name, 'Material', 1, true) then error(name .. ' of a destroyed unit (ends the game)') end
+          return nil
+        end
+      end
+    end
+    if name == 'Matrix4x4.translation' then if s == 'POSE' then return nil, 'no translation of the mock pose' end if type(s) == 'table' and s.boxc then return s.boxc end return nil end
     if name == 'Unit.debug_name' then for _, u in ipairs(UNITS or {}) do if u[1] == s then return '#ID[' .. u[2] .. ']' end end return nil end
-    if name == 'Unit.world_position' then if a ~= 1 then error('Unit.world_position without the node index (2.0.11)') end for _, u in ipairs(UNITS or {}) do if u[1] == s and u[3] then return { u[3], u[4], u[5] } end end return nil end
+    if name == 'Unit.world_position' then if a ~= 1 then error('Unit.world_position without the node index (2.0.11)') end POSREADS = POSREADS or {} POSREADS[s] = (POSREADS[s] or 0) + 1 for _, u in ipairs(UNITS or {}) do if u[1] == s and u[3] then return { u[3], u[4], u[5] } end end return nil end
     if name == 'Unit.alive' and UNITS then for _, u in ipairs(UNITS) do if u[1] == s then return u.dead ~= true end end return false end
-    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s then if u.dead then error('Unit.box of a destroyed unit (ends the game)') end if u.box then return 'POSE', { u.box[1], u.box[2], u.box[3] } end end end return nil end
+    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s then if u.dead then error('Unit.box of a destroyed unit (ends the game)') end if u.box then return (u.boxc and { boxc = u.boxc } or 'POSE'), { u.box[1], u.box[2], u.box[3] } end end end return nil end   -- (2.5.17: boxc = the box's middle in the world, read through Matrix4x4.translation)
     if name == 'Vector3.to_elements' and type(s) == 'table' and #s == 3 then return s[1], s[2], s[3] end
     error('unexpected call ' .. name)
   end,
@@ -1687,6 +1714,37 @@ def main():
     t5 = r.eval('texts()')
     check('hidden while the stratagem key is held and for an emote, not while aiming (3, 4) [%s / aiming %s / %s / %s / %s / %s; F9 off: %s]' % (t0, t_aim, t1, t2, t3, t4, t5),
           t0.startswith('45') and t_aim.startswith('45') and t1 == '' and t2.startswith('45') and t3 == '' and t4.startswith('45') and t5.startswith('45'))
+    # (2.5.23, luka) the hide key: a toggle — pressed, everything of NarrowHUD's goes (the HUD's text here, the
+    # vitals' bars) and the log says so; pressed again, back
+    r.execute('BINDS.hide_hud = true run(1 / 60) BINDS.hide_hud = false run(0.5)')
+    t6 = r.eval('texts()')
+    vb = [d for d in r.eval('draws').values() if d[1] == 'rect']
+    hk = [l for l in r.eval('logs').values() if l.startswith('the HUD hidden (the hide key)')]
+    r.execute('BINDS.hide_hud = true run(1 / 60) BINDS.hide_hud = false run(0.5)')
+    t7 = r.eval('texts()')
+    hk2 = [l for l in r.eval('logs').values() if l.startswith('the HUD back (the hide key)')]
+    check('the hide key: pressed, nothing drawn (%s, %d rects) and said (%d); pressed again, back (%s, %d)' % (t6, len(vb), len(hk), t7, len(hk2)),
+          t6 == '' and len(vb) == 0 and len(hk) == 1 and t7.startswith('45') and len(hk2) == 1)
+    # (2.5.24, luka's nine seats) in a vehicle: the flags block's word 2 bit 50 (seated) with word 1's ninth digit
+    # the role — 2 the driver: hidden; 1 a passenger: shown; 8 the exosuit's pilot: hidden; the F9 row off: shown
+    r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400ac2000060a', '0004000000000000', '0000000000000000' } run(0.5)""")
+    v_drv = r.eval('texts()')
+    role_said = [l for l in r.eval('logs').values() if l.startswith('research: seat role')]
+    r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400ac1000060a', '0004000000000000', '0000000000000000' } run(0.5)""")
+    v_pas = r.eval('texts()')
+    r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400a08000020a', '0004000000000000', '0000000000000000' } run(0.5)""")
+    v_exo = r.eval('texts()')
+    # (2.5.25) a gunner (4) with the GL shown: the FRV's open turret case — shown; with the Maelstrom's enclosed gun
+    # 9df87863 shown it would hide (the type set; the GL here is not in it)
+    r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400ac4000060a', '0004000000000000', '0000000000000000' } run(0.5)""")
+    v_gun = r.eval('texts()')
+    r.execute("""CHANGE.hide_vehicle(false) run(0.5)""")
+    v_off = r.eval('texts()')
+    r.execute("""CHANGE.hide_vehicle(true) OBJ[2].fields['gz3n3yj'] = { '000400000000060a', '0000000000000000', '0000000000000000' } run(0.5)""")
+    v_out = r.eval('texts()')
+    check('in a vehicle: the driver hidden (%s; role said %d), a passenger shown (%s), the exosuit\'s pilot hidden (%s), a gunner with an open gun shown (%s), the row off: shown (%s), out again: shown (%s)' % (
+          v_drv, len(role_said), v_pas, v_exo, v_gun, v_off, v_out),
+          v_drv == '' and len(role_said) >= 1 and v_pas.startswith('45') and v_exo == '' and v_gun.startswith('45') and v_off.startswith('45') and v_out.startswith('45'))
     # (2.1.1) the weapon settings wheel: the flags block's word 2 bit 22 (luka's log, six opens), its own row
     r.execute("""OBJ[2].fields['gz3n3yj'] = { '000400000000060a', '0000000000400000', '0000000000000000' } run(0.5)""")
     w1, r1 = r.eval('texts()'), r.eval('count("rect")')
@@ -1697,7 +1755,7 @@ def main():
     w3 = r.eval('texts()')
     r.execute("""CHANGE.hide_wheel(true) OBJ[2].fields['gz3n3yj'] = nil run(0.3)""")
     check('hidden while the weapon settings wheel is open (word 2 bit 22) [%s / %s], the vitals too (%d rects), not with its row off [%s]; logged %s' % (w1, w2, r1, w3, wl[:2]),
-          w1 == '' and r1 == 0 and w2.startswith('45') and w3.startswith('45') and len(wl) == 2 and '> 1' in wl[0] and '1 > 0' in wl[1])
+          w1 == '' and r1 == 0 and w2.startswith('45') and w3.startswith('45') and len(wl) >= 2 and '> 1' in wl[-2] and '1 > 0' in wl[-1])   # (2.5.24: the vehicle test before it logs the bit's first read too)
     # the stim timer: a stim used (the count down) shows a green line shrinking over 4 s; 6 s with an armour that has
     # the Med-Kit passive (the CM-09 Bonesnapper, 1c6c05fa, from HD2Runtime's armour catalog)
     r = lua51.LuaRuntime()
@@ -1988,6 +2046,14 @@ def main():
           2.5 < xf < 4.5 and 3.6 < xm < 4.4 and 2.6 < xs_ < 3.4)
     r.execute('OPTS.line_lead = 0 run(0.2)')
     check('lead 0: the point itself (x %.1f)' % line_x_at(20), 2.6 < line_x_at(20) < 3.4)
+    # (2.5.11, luka: the crosshair "teleports to the centre even dragged slowly") the point jumping in depth — the sky
+    # 1000 m out, then a wall 20 m out, half a metre right, the next frame — is led in direction, not along the jump:
+    # the line still runs forward to it (a lead along the jump put the point 2 km behind the camera)
+    r.execute('OPTS.line_lead = nil OBJ[2].fields.npqf7xc = { 0, 1000, 1 } run(0.5) OBJ[2].fields.npqf7xc = { 0.5, 20, 1 } run(1 / 60)')
+    jpts = sorted((l[3], l[2]) for l in r.eval('lines()').values() if l[7] == 236 and l[10] == 170)
+    xj = line_x_at(20)
+    check('the point from the sky (1000 m) to a wall 20 m out in one frame: the line runs forward (to y %.0f), x %.1f at 20 m (the point at 0.5, led a little)' % (jpts[-1][0] if jpts else 0, xj),
+          jpts and jpts[-1][0] > 15 and 0.2 < xj < 2.5)
     r.execute('OPTS.line_lead = nil OBJ[2].fields.npqf7xc = nil run(0.5)')
     check('the line aimed at the reticle: x %.1f at 20 m toward a point 3.5 m right; the view\'s aim with the point 60 deg off (%.1f), 1 m out (%.1f) or gone (%.1f); said: %s' % (
           xr, xo, xn, xv, [l[33:] for l in said]),
@@ -2409,7 +2475,7 @@ def main():
     # (1.5.82) on a Chef before 1.4 (no headings): the labels keep their group's word in front
     sp0 = {x.id: x for x in r.eval('SPECS').values()}
     check('an older Chef: no headings, the group word in front (%s, %s)' % (sp0['vis_bar'].label, sp0['research'].label),
-          sp0['vis_bar'].label == 'Visibility: Ammo / heat bar' and sp0['research'].label == 'Testing: Research log' and not any(x.heading for x in sp0.values()) and sp0['layout'].label == 'Layout')
+          sp0['vis_bar'].label == 'Parts: Ammo / heat bar' and sp0['research'].label == 'Testing: Research log' and not any(x.heading for x in sp0.values()) and sp0['layout'].label == 'Layout')
     # (1.5.31) on Chef 1.4 (its players event is the mark): textures through the plain bitmap call (the uv call was the
     # 1.3 strobe workaround), no line of nothing after the drop line, the players event logged, the count in the end line
     r = lua51.LuaRuntime()
@@ -2429,14 +2495,20 @@ def main():
     labels = {x.id: x.label for x in sp}
     order = [x.id for x in sp]
     check('Chef 1.4 menu: the headings %s' % [h[0] for h in heads],
-          [h[0] for h in heads] == ['Layout', 'Visibility', 'Look', 'World', 'Keys', 'Testing'] and heads[0][1] is False and all(h[1] is None for h in heads[1:]))
+          [h[0] for h in heads] == ['Layout', 'Motion', 'Parts', 'Visibility', 'Look', 'Crosshairs', 'Lines and marks', 'Keys', 'Testing'] and heads[0][1] is False and all(h[1] is None for h in heads[1:]))   # (2.5.23: nine)
     check('Chef 1.4 menu: labels without the group word (%s, %s, %s)' % (labels.get('vis_bar'), labels.get('fire'), labels.get('research')),
           labels.get('vis_bar') == 'Ammo / heat bar' and labels.get('fire') == 'Fire button' and labels.get('research') == 'Research log' and labels.get('swap_primary') == 'Swap to primary')
     long = [(x.id, len(x.hint)) for x in sp if x.hint and len(x.hint) > 200]
     check('Chef 1.4 menu: every hint within Chef\'s 200 characters (2.0.0 lost five rows to longer ones) %s' % long, not long and all(x.id in labels for x in sp) and all(k in labels for k in ('vis_bar', 'vis_count', 'vis_mags', 'vis_charge', 'vis_pack')))
-    check('2.0.3 order: aim spread under Spread and Motion in Layout; aim opacity and the extras under Visibility; no UI-layer, tone, swatches or reads rows',
-          order.index('aim_spread') == order.index('spread') + 1 and order.index('motion') < order.index('vis_bar') and [x.heading for x in sp if x.id == 'vis_bar'] == ['Visibility']
-          and order.index('aim_opacity') > order.index('show_rest') and order.index('stim_timer') > order.index('aim_opacity') and order.index('idle') < order.index('mags_empty')
+    # (2.5.23, luka: the motion rows a group of their own; Visibility split into Parts (each part's rule) and
+    # Visibility (the rules for all and the hiding rows, which were after the stratagem key under Keys); the
+    # crosshairs out of World, the rest of it "Lines and marks")
+    check('2.5.23 order: aim spread under Spread in Layout; Motion\'s heading on the motion row with the shell flash, stim timer, warning, trail and reload line; Parts\' on the bar; Visibility\'s on "A change lasts" with the hiding rows; Crosshairs\' on the reticle; Lines and marks\' on the map pin; no UI-layer, tone, swatches or reads rows',
+          order.index('aim_spread') == order.index('spread') + 1 and [x.heading for x in sp if x.id == 'motion'] == ['Motion']
+          and all(order.index('motion') < order.index(k) < order.index('vis_bar') for k in ('shell_flash', 'stim_timer', 'warn', 'trail', 'reload_line'))
+          and [x.heading for x in sp if x.id == 'vis_bar'] == ['Parts'] and [x.heading for x in sp if x.id == 'show_secs'] == ['Visibility']
+          and all(order.index('show_secs') < order.index(k) < order.index('mags_empty') for k in ('aim_opacity', 'idle', 'hide_strat', 'hide_emote', 'hide_wheel', 'hide_terminal'))
+          and [x.heading for x in sp if x.id == 'reticle'] == ['Crosshairs'] and [x.heading for x in sp if x.id == 'map_pin'] == ['Lines and marks']
           and not any(k in labels for k in ('top_world', 'tone_fix', 'swatches', 'read_level', 'icon_tex')))
     check('Chef 1.4 menu: hints on the Show rows, the Keys heading on the fire button, Testing before the forget keys',
           all(x.hint for x in sp if x.id.startswith('vis_')) and [x.heading for x in sp if x.id == 'fire'] == ['Keys'] and [x.heading for x in sp if x.id == 'research'] == ['Testing']
@@ -2460,7 +2532,24 @@ def main():
           main and res and not any(l.startswith(('research', 'fields ', 'time a f')) for l in main)
           and all(l.startswith(('research', 'fields ', 'time a f', '==== MAR')) for l in res)
           and any(l.startswith('NarrowHUD') for l in main))
-    r.execute('LOG_BY = nil')
+    # (2.5.4) a third: the ground census to narrowhud_ground.log, with the MARK; nothing else there, and none of
+    # its lines elsewhere; and none at all with the Ground census row off
+    r.execute('UNITS = { { "U", "4d1c334d294dfa97" } } for i = 1, 12 do UNITS[#UNITS + 1] = { "K" .. i, "eeeeeeeeeeeeeeee", 60 + i * 6, 60, 12 } end logs = {} LOG_BY = {} M = (function(...) ' + SRC + ' end)(chef) run(5) BINDS.log_mark = true run(1 / 60) BINDS.log_mark = false run(1)')
+    pairs_ = list(zip(r.eval('logs').values(), r.eval('LOG_BY').values()))
+    by = {}
+    for text, name in pairs_:
+        by.setdefault(name, []).append(text)
+    grd, res2, main2 = by.get('narrowhud_ground', []), by.get('narrowhud_research', []), by.get('narrowhud', [])
+    check('the ground census in narrowhud_ground.log (%d census lines, a MARK: %s), none of it in the other two (%s)' % (
+          len([l for l in grd if l.startswith('census:')]), any(l.startswith('==== MAR') for l in grd), [l[:30] for l in res2 + main2 if l.startswith('census:')]),
+          grd and all(l.startswith(('census:', '==== MAR')) for l in grd) and any(l.startswith('census: ground kinds:') for l in grd) and any(l.startswith('==== MAR') for l in grd)
+          and not any(l.startswith('census:') for l in res2 + main2))
+    r.execute('OPTS.census = false logs = {} LOG_BY = {} M = (function(...) ' + SRC + ' end)(chef) run(5)')
+    pairs_ = list(zip(r.eval('logs').values(), r.eval('LOG_BY').values()))
+    check('Ground census off: no census lines (%d), the walk line still in the research log (%s)' % (
+          len([t for t, n in pairs_ if t.startswith('census:')]), any(t.startswith('research: ground walk') and n == 'narrowhud_research' for t, n in pairs_)),
+          not any(t.startswith('census:') for t, n in pairs_) and any(t.startswith('research: ground walk') and n == 'narrowhud_research' for t, n in pairs_))
+    r.execute('OPTS.census = true LOG_BY = nil UNITS = nil')
     # (1.5.43) the sniper rifles' crosshair: the Apex (a4eff4fa) aimed in third person draws a cross with a gap and
     # a dot at the screen's middle (five bars and their backing); not from the hip, not in first person (the camera
     # at the Helldiver's feet across), not with the row off, not for another rifle
@@ -2480,17 +2569,56 @@ def main():
     r.execute('WPOS = { U = { 0.4, 3, 0.4 } } CHANGE.reticle(false) run(0.3)')
     off = r.eval(mid)
     r.execute('CHANGE.reticle(true) AIM = false run(0.3)')
-    check('sniper crosshair: none from the hip (%d), the reticle texture and its four dark copies aimed (%d), none in first person (%d), none with the row off (%d)' % (hip, ads, fp, off),
-          hip == 0 and ads == 5 and fp == 0 and off == 0)
+    # (2.5.1: the centre ring and its four dark copies as well: 10 bitmaps about the middle)
+    check('sniper crosshair: none from the hip (%d), the reticle texture and its four dark copies aimed, the centre ring and its four (%d), none in first person (%d), none with the row off (%d)' % (hip, ads, fp, off),
+          hip == 0 and ads == 10 and fp == 0 and off == 0)
     r.execute('AIM = true run(0.3)')
-    ret = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and abs(d[2] + d[4] / 2 - 1720) < 40]
+    RET, RING = 'c6ba7791c2215270', 'ee5d9664ae8003f1'
+    ret = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET and abs(d[2] + d[4] / 2 - 1720) < 40]
+    rings = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RING]
+    check('the centre ring: 1.6 times the crosshair (the square %s wide against %s), at the middle (%s), five of it' % (rings and rings[-1][4], ret and ret[-1][4], rings and (rings[-1][2] + rings[-1][4] / 2, rings[-1][3] + rings[-1][5] / 2)),
+          len(rings) == 5 and ret and rings[-1][4] == 30 and abs(rings[-1][2] + rings[-1][4] / 2 - 1720) < 2 and abs(rings[-1][3] + rings[-1][5] / 2 - 720) < 2)
+    # the crosshair on the game's aim: the reticle point 3.5 m right at 20 m projects 175 px right of the middle; the
+    # ring stays; "Crosshair at: The centre": no ring, the crosshair in the middle
+    r.execute('OBJ[2].fields.npqf7xc = { 3.5, 20, 1 } run(0.3)')
+    moved = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    rings2 = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RING]
+    r.execute('CHANGE.reticle_at(1) run(0.3)')
+    centre = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    rings3 = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RING]
+    check('the crosshair follows the reticle point (x %s, 175 px right of the middle), the ring at the middle (%s); Crosshair at The centre: the crosshair in the middle (x %s), no ring (%d)' % (
+          moved and moved[-1][2] + moved[-1][4] / 2, rings2 and rings2[-1][2] + rings2[-1][4] / 2, centre and centre[-1][2] + centre[-1][4] / 2, len(rings3)),
+          moved and abs(moved[-1][2] + moved[-1][4] / 2 - 1895) < 2 and rings2 and abs(rings2[-1][2] + rings2[-1][4] / 2 - 1720) < 2
+          and centre and abs(centre[-1][2] + centre[-1][4] / 2 - 1720) < 2 and len(rings3) == 0)
+    # (2.5.9, luka: it "teleports to the centre too often") the hand-over eased: the point gone, the crosshair is
+    # still on its way after a frame, at the centre after 0.3 s; the point back, on its way again
+    r.execute('CHANGE.reticle_at(2) OBJ[2].fields.npqf7xc = { 3.5, 20, 1 } run(0.5) OBJ[2].fields.npqf7xc = nil run(2 / 60)')
+    g_mid = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    r.execute('run(0.3)')
+    end_ = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    r.execute('OBJ[2].fields.npqf7xc = { 3.5, 20, 1 } run(2 / 60)')
+    back = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    xm, xe, xb = (g_mid[-1][2] + g_mid[-1][4] / 2) if g_mid else 0, (end_[-1][2] + end_[-1][4] / 2) if end_ else 0, (back[-1][2] + back[-1][4] / 2) if back else 0
+    check('the crosshair glides between the reticle and the centre: two frames after the point went, x %.0f (between 1895 and 1720); 0.3 s later %.0f; two frames after it came back, %.0f' % (xm, xe, xb),
+          1730 < xm < 1890 and abs(xe - 1720) < 2 and 1730 < xb < 1890)
+    # (2.5.11) the point jumping in depth (the sky to a wall 20 m out, 0.5 m right): the crosshair stays on it, no
+    # fall to the centre (the lead along the jump put it behind the camera: "off the screen" twenty times a minute)
+    r.execute('OBJ[2].fields.npqf7xc = { 0, 1000, 1 } run(0.5)')
+    n_off = len([l for l in r.eval('logs').values() if l.startswith('research: the crosshair on the centre')])
+    r.execute('OBJ[2].fields.npqf7xc = { 0.5, 20, 1 } run(2 / 60)')
+    jmp = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    n_off2 = len([l for l in r.eval('logs').values() if l.startswith('research: the crosshair on the centre')])
+    xj = (jmp[-1][2] + jmp[-1][4] / 2) if jmp else 0
+    check('the point from the sky to a wall 20 m out, 0.5 m right, in one frame: the crosshair on it (x %.0f, 1745 led a little), no fall to the centre (%d)' % (xj, n_off2 - n_off),
+          1735 < xj < 1800 and n_off2 == n_off)
+    r.execute('OBJ[2].fields.npqf7xc = nil run(0.5)')
     check('the reticle: 17 px across at 1440p, the game\'s (the square %s wide, the icon 14/16 of it), cream over black, not scaled by Size' % (ret and ret[-1][4],),
           ret and ret[-1][4] == 19 and ret[-1][6] == 236 and ret[0][6] == 0)
     r.execute('CHANGE.size(4) run(0.3)')
-    ret2 = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and abs(d[2] + d[4] / 2 - 1720) < 40]
+    ret2 = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET and abs(d[2] + d[4] / 2 - 1720) < 40]
     check('Size Huge: the reticle the same (%s)' % (ret2 and ret2[-1][4],), ret2 and ret2[-1][4] == ret[-1][4])
     r.execute('CHANGE.size(2) CHANGE.reticle_px(48) run(0.3)')
-    ret3 = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and abs(d[2] + d[4] / 2 - 1720) < 40]
+    ret3 = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET and abs(d[2] + d[4] / 2 - 1720) < 40]
     check('crosshair size 48: the square 55 wide (%s)' % (ret3 and ret3[-1][4],), ret3 and ret3[-1][4] == 55)
     r.execute('CHANGE.reticle_px(17) BITMAP = false run(0.3)')
     cross = r.eval(mid)
@@ -2502,7 +2630,7 @@ def main():
     r.execute('WPOS = { U = { 0.1, 0.2, 0 } } run(0.3)')
     always_fp = r.eval(mid)
     r.execute('WPOS = { U = { 0.4, 3, 0.4 } } CHANGE.reticle_when(1) run(0.3)')
-    check('Sniper crosshair, Always: from the hip (%d), still none in first person (%d)' % (always_hip, always_fp), always_hip == 5 and always_fp == 0)
+    check('Sniper crosshair, Always: from the hip (%d), still none in first person (%d)' % (always_hip, always_fp), always_hip == 10 and always_fp == 0)
     # (2.0.1) the game's own bits decide where they read: the Helldiver's flags block 6ff0e58a (stand-in name gz3n3yj;
     # word 2 bit 18 = aiming as a state (a toggled aim, the button up: the ring shows), word 1 bit 48 =
     # first person (the ring goes, whatever the camera says); and the research lines on each flip
@@ -2514,7 +2642,7 @@ def main():
     bit_off = r.eval(mid)
     logs = list(r.eval('logs').values())
     check('the aim bit set, the button up: the ring (%d); the view bit set, the camera behind you: none (%d); the aim bit clear, the button held: none (%d)' % (bit_ads, bit_fp, bit_off),
-          bit_ads == 5 and bit_fp == 0 and bit_off == 0)
+          bit_ads == 10 and bit_fp == 0 and bit_off == 0)
     check('research lines on the bits', any('aim bit (6ff0e58a word 2, bit 18) nil > 1' in l for l in logs) and any('view bit (6ff0e58a word 1, bit 48) 0 > 1' in l for l in logs))
     r.execute('''OBJ[2].fields['gz3n3yj'] = nil AIM = false run(0.3)''')
     # (2.0.1) the Maxigun (b3246bb7): the ring and dot in first person, where the game draws none; not in third
@@ -2532,7 +2660,7 @@ def main():
     r.execute('CHANGE.reticle_fp(false) run(0.3)')
     mx_off = r.eval(mid)
     check('the Maxigun: no crosshair in third person (%d, aimed %d), the ring and dot in first person (%d), none with its row off (%d)' % (mx_third, mx_third_aim, mx_first, mx_off),
-          mx_third == 0 and mx_third_aim == 0 and mx_first == 5 and mx_off == 0)
+          mx_third == 0 and mx_third_aim == 0 and mx_first == 10 and mx_off == 0)
     # (2.0.11) the flamethrowers (luka's five marks: 15f1a9f0 the Cremator, def25ee4, 2ddd091d, 104184f7, 0fe87029): the
     # same, under their own row; the Maxigun's row off doesn't touch them
     r = lua51.LuaRuntime()
@@ -2548,7 +2676,7 @@ def main():
     r.execute('CHANGE.reticle_flame(true) WPOS = { U = { 0.4, 3, 0.4 } } AIM = true run(0.3)')
     fl_third = r.eval(mid)
     check('a flamethrower: none by default (%d); its row on: the ring in first person with the Maxigun row off (%d), none with its own row off (%d), none in third person aimed (%d)' % (fl_default, fl_first, fl_off, fl_third),
-          fl_default == 0 and fl_first == 5 and fl_off == 0 and fl_third == 0)
+          fl_default == 0 and fl_first == 10 and fl_off == 0 and fl_third == 0)
     # (1.5.47) a scope's zeroing step: the Apex (seeded) shows the game's low / medium / high icon by its options
     # bits 16 / 32; a rifle not seeded learns it when those bits move on their own, and not when the fire mode moves
     r = lua51.LuaRuntime()
@@ -2729,7 +2857,7 @@ def main():
     r.execute('run(45)')
     L = list(r.eval('logs').values())
     walks = [l for l in L if l.startswith('research: ground walk')]
-    kinds = [l for l in L if l.startswith('research: ground kinds:')]
+    kinds = [l for l in L if l.startswith('census: ground kinds:')]   # (2.5.4: the census lines, to narrowhud_ground.log)
     off = r.eval("M.debug_ground_kind('eeeeeeeeeeeeeeee')")
     _, _, _, h_rock, conf_rock = r.eval('M.debug_ground(90, 60)')
     _, _, _, h_x, conf_x = r.eval('M.debug_ground(40, 40)')
@@ -2739,6 +2867,20 @@ def main():
           off is not None and abs(off - 2.0) < 0.05 and any('1a7fcdff98c664b0 x2 in 2 cells' in l and 'cha_charger' in l for l in kinds))
     check('the ground out on the map from the trusted rocks: 12 - 2 = 10 m (%s, %s); the rare unknown kind never asked: nothing there (%s, %s)' % (h_rock, conf_rock, h_x, conf_x),
           h_rock is not None and abs(h_rock - 10) < 0.05 and conf_rock == 'props' and h_x is None and conf_x is None)
+    # (2.5.3) from the fourth walk on, the rocks (a kind that stood still between the second and third walks) are
+    # sampled from the cache without a position read; the Chargers (fac_, a moving kind by name) are read every walk;
+    # a rock that moves between the second and third walks makes its kind a moving one
+    r.execute('POSREADS = {} run(20)')
+    reads4 = dict(r.eval('POSREADS'))
+    walks4 = [l for l in r.eval('logs').values() if l.startswith('research: ground walk')]
+    check('the fourth walk: the rocks from the cache, not read (%s), the Chargers read (%s); the walk line says so (%s)' % (
+          {k: v for k, v in reads4.items() if k.startswith('K')}, {k: v for k, v in reads4.items() if k.startswith('E')}, walks4[-1][walks4[-1].find(';') + 1:walks4[-1].find('moving kinds') + 12] if walks4 else None),
+          not any(k.startswith('K') and k != 'KN' for k in reads4) and reads4.get('E1', 0) >= 1 and reads4.get('E2', 0) >= 1 and walks4 and '15 from the cache' in walks4[-1])
+    # a rock that moves (pushed) between two walks: its kind read again from then on
+    r.execute('UNITS[8][3] = 70 POSREADS = {} run(20)')   # (K1 at 66 -> 70 m; the fifth walk sees it against the fourth's cache? no: the compare is only at the third walk)
+    reads5 = dict(r.eval('POSREADS'))
+    check('a rock moved after the third walk stays cached (the compare is the third walk\'s only): no rock reads (%s)' % {k: v for k, v in reads5.items() if k.startswith('K')},
+          not any(k.startswith('K') and k != 'KN' for k in reads5))   # (KN, nowhere, is read each walk: never cached)
     check('never asked: the runtime-built kind, the Helldivers, the dead unit, the rare unknown kind; the nowhere rock counted (%s)' % walks[1:2],
           walks[1:2] and '1 unreadable, 1 nowhere' in walks[1] and not any('4d1c334d294dfa97' in l or '46cab355bd8d4d37' in l for l in kinds))
     check('the offset in the learned file (ground.eeeeeeeeeeeeeeee = "sum,sumsq,n")', r.eval('M.debug_learned("ground", "eeeeeeeeeeeeeeee")') == '6.00,12.00,3')
@@ -2828,6 +2970,61 @@ def main():
     rn.execute('CAM_FZ = -0.005 run(0.5)')
     gchev = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
     check('on known ground: the chevron bright again (alpha %s)' % (gchev and gchev[0][9]), len(gchev) == 1 and gchev[0][9] == 209)
+    # (2.5.3, luka) the metres to the landing right of the chevron, the stim counter's size (16 px at size 1), on
+    # its middle; off with its F9 row; and the Range part: the chevron's distance while the line is up
+    def dist_texts(rt_):
+        return [(d[4], d[2], d[3], d[5], d[9]) for d in rt_.eval('draws').values() if d[1] == 'text' and str(d[4]).lower().endswith(' m')]
+    dt = dist_texts(rn)
+    chev = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
+    cx, cy, cs = (chev[0][2], chev[0][3], chev[0][4]) if chev else (0, 0, 0)
+    check('the landing distance by the chevron: "%s" at x %s (the chevron\'s right edge %s + 4k), y %s (the chevron %s..%s), 16k px (%s), alpha %s' % (
+          dt[0][0] if dt else None, dt[0][1] if dt else None, cx + cs, dt[0][2] if dt else None, cy, cy + cs, dt[0][3] if dt else None, dt[0][4] if dt else None),
+          len(dt) == 1 and dt[0][0][:-2].isdigit() and 10 < int(dt[0][0][:-2]) < 100 and cx + cs + 3 <= dt[0][1] <= cx + cs + 8
+          and cy < dt[0][2] < cy + cs and 1.4 < dt[0][3] < 2.4 and dt[0][4] > 150)
+    # (2.5.24, luka: "Not by the chevron" is the rule for all, the choice gone — Off / While aiming / Always) the
+    # Range part on (Always, 3): never beside the chevron's number — one number while the chevron carries it, the
+    # part's own once "Distance by the chevron" is off; both off: none; a saved 4 (the old While aiming) reads as aiming
+    rn.execute('CHANGE.vis_range(3) run(0.3)')
+    one = dist_texts(rn)
+    rn.execute('CHANGE.mark_range(false) run(0.3)')
+    part_only = dist_texts(rn)
+    check('Range on: one number with the chevron\'s on (%s), the part\'s own once the chevron\'s is off (%s)' % ([t[0] for t in one], [t[0] for t in part_only]),
+          len(one) == 1 and len(part_only) == 1 and part_only[0][1] != one[0][1] and part_only[0][0] == one[0][0])
+    rn.execute('CHANGE.vis_range(1) run(0.3)')
+    check('both rows off: no distance text (%s)' % dist_texts(rn), not dist_texts(rn))
+    rn.execute('CHANGE.vis_range(4) run(0.3)')
+    check('a saved 4 reads as While aiming (vis.range %s)' % rn.eval('M.debug_vis().range'), rn.eval('M.debug_vis().range') == 5)
+    rn.execute('CHANGE.mark_range(true) CHANGE.vis_range(1) run(0.3)')
+    # (2.5.5, research) a MARK says what stands where the reticle points: a bug hole's kind 2 m from the aim point
+    # (2.5.12: within 40 m, with each kind's count on the map and the nearest unit's height — twelve rows of furniture
+    # within 12 m hid the warp ship's hull; here an unnamed kind 30 m off and 15 m up, ten of it on the map, shows)
+    rn.execute('OBJ[2].fields.npqf7xc = { 0.4, 30, 0.4 } UNITS = { { "U", "4d1c334d294dfa97" }, { "H", "2e454bd4d24eb04a", 2, 30, 0.4, box = { 1.5, 1.5, 1.5 } } } for i = 1, 10 do UNITS[#UNITS + 1] = { "S" .. i, "abcdefabcdefabcd", (i - 1) * 60 + 30, 30, 15.4 } end run(70) BINDS.log_mark = true run(1 / 60) BINDS.log_mark = false run(0.2)')
+    at = [l for l in rn.eval('logs').values() if l.startswith("research: at the MARK's aim point")]
+    check('a MARK lists the units at the aim point (%s)' % at[-1:], at and 'bug_spawner_small_01 x1 at 1.6 m [1 on the map]' in at[-1] and 'the reticle' in at[-1]
+          and 'abcdefabcdefabcd x1 at 29.6 m (+15 m up) [10 on the map]' in at[-1])
+    # (2.5.14) the MARK asks the box of the nearest unit of each unnamed kind within 15 m, once per kind: an unnamed
+    # kind 6 m off with an 18 x 16 x 14 box is logged; one destroyed since the walk cached it says gone (no error:
+    # Unit.box of a dead unit ends the game); the named hole isn't asked; a second MARK asks nothing again
+    rn.execute('UNITS[#UNITS + 1] = { "Z", "0123456789abcdef", 6, 30, 0.4, box = { 9, 8, 7 } } UNITS[#UNITS + 1] = { "Y", "fedcba9876543210", 8, 30, 0.4, box = { 1, 1, 1 } } run(45) UNITS[#UNITS].dead = true BINDS.log_mark = true run(1 / 60) BINDS.log_mark = false run(0.2)')
+    bx = [l for l in rn.eval('logs').values() if l.startswith('research: at the MARK, the boxes:')]
+    rn.execute('BINDS.log_mark = true run(1 / 60) BINDS.log_mark = false run(0.2)')
+    bx2 = [l for l in rn.eval('logs').values() if l.startswith('research: at the MARK, the boxes:')]
+    check('the MARK asks the boxes of the unnamed kinds within 15 m (%s); the dead one skipped, the named hole not asked; not again at the next MARK (%d)' % (bx[-1:], len(bx2)),
+          len(bx) == 1 and '0123456789abcdef: 18.0 x 16.0 x 14.0 m' in bx[0] and 'fedcba9876543210: gone' in bx[0] and 'spawner' not in bx[0] and len(bx2) == 1)
+    rn.execute('OBJ[2].fields.npqf7xc = nil UNITS = nil')
+    # the Range part with no line (a rifle): the reticle point's distance from your Helldiver; the sky (1 km out) or
+    # no point: "-"
+    rr = lua51.LuaRuntime()
+    setup(rr)
+    rr.execute('''WPOS = { U = { 0.4, 3, 0.4 } } M = (function(...) ''' + SRC + ''' end)(chef) CHANGE.vis_range(2) run(2)
+      OBJ[2].fields.npqf7xc = { 3.5, 20, 1 } run(0.3)''')
+    near = dist_texts(rr)
+    rr.execute('OBJ[2].fields.npqf7xc = { 0, 1000, 1 } run(0.3)')
+    sky = [d[4] for d in rr.eval('draws').values() if d[1] == 'text' and d[4] == '-']
+    rr.execute('OBJ[2].fields.npqf7xc = nil run(0.3)')
+    none = [d[4] for d in rr.eval('draws').values() if d[1] == 'text' and d[4] == '-']
+    check('the Range part without a line: the reticle point 17 m from you (%s); on the sky "-" (%d); no point "-" (%d)' % ([t[0] for t in near], len(sky), len(none)),
+          len(near) == 1 and near[0][0] == '17 m' and len(sky) == 1 and len(none) == 1)
     rt3 = newlook('OPTS.drop_thick = 3 OPTS.line_look = 2')
     ls3 = [d for d in rt3.eval('draws').values() if d[1] == 'line' and d[7] == 236 and d[8] == 229]
     # (gaps: a piece's end to the next piece's start, the strands' sideways offsets allowed)
@@ -2874,7 +3071,7 @@ def main():
     listed = [l for l in r.eval('logs').values() if l.startswith('research: structures:')]
     boxes = [l for l in r.eval('logs').values() if l.startswith('research: structure box:')]
     check('a bug hole in the shot\'s path: the mark red at the hit (%d red lines at y %.1f), no landing ring (%d); the hole listed, its marker kind not (%s); its box asked once (%s); %s rays a frame' % (len(red), red[0][3] if red else 0, len(level), listed[:1], boxes, rays),
-          len(red) == 21 and red and 27 < red[0][3] < 30 and not level and len(listed) == 1 and 'bug_spawner_small_01 x1' in listed[0] and '_marker' not in listed[0] and len(boxes) == 1 and 'half 1.5 x 1.5 x 1.5' in boxes[0] and 1 <= rays <= 3)
+          len(red) == 21 and red and 27 < red[0][3] < 32 and not level and len(listed) == 1 and 'bug_spawner_small_01 x1' in listed[0] and '_marker' not in listed[0] and len(boxes) == 1 and 'half 1.5 x 1.5 x 1.5' in boxes[0] and 1 <= rays <= 6)   # (2.5.18: two parts, a ray each)
     # (2.4.1) a shrieker (fac_bugs/cha_shrieker/cha_shrieker, 64090088502435dd) is no structure: never listed, so its
     # box is never asked; and a structure destroyed since the walk listed it (dead) isn't asked either — Unit.box on a
     # destroyed unit ends the game (two players' crashes with the stratagem list open, 2026-11-05)
@@ -2894,6 +3091,182 @@ def main():
     boxes = [l for l in rs.eval('logs').values() if l.startswith('research: structure box:')]
     check('a shrieker is no structure (%s); a bug hole destroyed after the listing: its box not asked (%s), no error (%s)' % (listed[:1], boxes, err or 'none'),
           len(listed) == 1 and 'shrieker' not in listed[0] and 'bug_spawner_small_01 x1' in listed[0] and err is None and not boxes)
+    # (2.5.7) a hole whose box was asked and cached, then destroyed while the line still crosses it: no ray on it
+    # (Chef's ray_box asks Unit.box every call), no error; the line runs on to the ground
+    rd = lua51.LuaRuntime()
+    setup(rd)
+    rd.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '2e454bd4d24eb04a', 0.4, 30, 0.4, box = { 1.5, 1.5, 1.5 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 0 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(1)''')
+    red_before = len([d for d in lines_all_of(rd) if d[7] == 210 and d[8] == 80])
+    try:
+        rd.execute('UNITS[2].dead = true RAYS = 0 run(1)')
+        err = None
+    except Exception as e:
+        err = str(e)
+    red_after = len([d for d in lines_all_of(rd) if d[7] == 210 and d[8] == 80])
+    check('a hole destroyed after its box was cached: the mark was red (%d lines), then no ray (%s), no error (%s), the mark cream again (%d red)' % (
+          red_before, rd.eval('RAYS'), err or 'none', red_after),
+          red_before > 0 and err is None and rd.eval('RAYS') == 0 and red_after == 0)
+    # (2.5.9) a spore spewer is env_bugs/assets/gameplay/bug_fog_generator (luka's MARKs): a structure; the hive's
+    # spore lights (spore_light_01, 94 on a map) and spore clusters are none; the unnamed kind 4 m from the spewer is
+    # named as its neighbour (for the record), the lights never (a kind by the dozen is scenery)
+    rp_ = lua51.LuaRuntime()
+    setup(rp_)
+    rp_.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'F', 'aa28caf964d05500', 0.4, 30, 0.4, box = { 9.7, 9.7, 9.3 }, boxc = { 0.4, 30, 9.3 } }, { 'X', '0ece3110ecf9d1a8', 3.4, 33, 0.4 }, { 'C', '1d36c90ab1900636', 8, 30, 0.4, box = { 2, 2, 2 } } }
+      for i = 1, 25 do UNITS[#UNITS + 1] = { 'L' .. i, '5f54769c76117d8d', 20 + i, 30, 0.4, box = { 1, 1, 1 } } end
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 0 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = 0.12 GRIP = 51 run(1)''')   # (2.5.18: the spewer at full size, its root at the base; the line 4-5 m up its trunk)
+    listed = [l for l in rp_.eval('logs').values() if l.startswith('research: structures:')]
+    nb = [l for l in rp_.eval('logs').values() if l.startswith('research: structure neighbours:')]
+    red = [d for d in lines_all_of(rp_) if d[7] == 210 and d[8] == 80]
+    check('a spore spewer (bug_fog_generator) listed, the spore lights and clusters not (%s); the mark red (%d red lines); its neighbour named (%s)' % (
+          listed[-1:], len(red), nb),
+          listed and 'bug_fog_generator x1' in listed[-1] and 'spore_light' not in listed[-1] and 'spore_cluster' not in listed[-1] and len(red) > 0
+          and len(nb) == 1 and '0ece3110ecf9d1a8' in nb[0] and 'bug_fog_generator has' in nb[0])
+    # (2.5.11, luka: the mark went red in the air under the spewer's cap — its box is the whole mushroom) the shot
+    # hits only its parts: the stalk (0.3 of the box across, so 1.2 m half here) and the cap (the top 45 %: from
+    # 1.6 m up with this box). The hand 3 m to the right: the line passes the stalk under the cap — cream, although
+    # it then lands inside the box's footprint; the view raised: into the cap — red at the entry; the parts logged
+    parts = [l for l in rp_.eval('logs').values() if l.startswith('research: structure parts:')]
+    rp_.execute('WPOS = { U = { 7.4, 3, 0.4 } } CAM_FZ = 0.12 run(1)')   # (the line 5.3 m right of the trunk at 30 m, 3-4 m up it: the root flare is 8 m wide there)
+    red_u = [d for d in lines_all_of(rp_) if d[7] == 210 and d[8] == 80]
+    rp_.execute('CAM_FZ = 0.35 run(1)')
+    red_c = [d for d in lines_all_of(rp_) if d[7] == 210 and d[8] == 80]
+    check('the spewer\'s parts from its mesh (%d bands); the line past the trunk under the cap: no red (%d); raised into the cap: red at the entry (%d, z %.1f)' % (
+          parts[0].count(' m up') if parts else 0, len(red_u), len(red_c), red_c[0][4] if red_c else 0),
+          len(parts) == 1 and parts[0].count(' m up') >= 8 and len(red_u) == 0 and len(red_c) > 0 and red_c[0][4] > 7)
+    rp_.execute('CAM_FZ = -0.005 WPOS = { U = { 0.4, 3, 0.4 } } run(0.5)')
+    # (2.5.13, luka: "render the hitbox with red lines") Testing "Draw structure boxes": the spewer's whole box in
+    # dim red (12 edges, alpha 90) and its two parts in full red (24 edges, alpha 230); off: none
+    rp_.execute('CHANGE.struct_boxes(true) run(1 / 60)')
+    edges = [d for d in rp_.eval('draws').values() if d[1] == 'line' and d[7] == 210 and d[8] == 80]
+    dimE, fullE = [d for d in edges if d[10] == 90], [d for d in edges if d[10] == 230]
+    top = max((max(d[4], d.z2) for d in dimE), default=0)
+    rp_.execute('CHANGE.struct_boxes(false) run(1 / 60)')
+    edges_off = [d for d in rp_.eval('draws').values() if d[1] == 'line' and d[7] == 210 and d[8] == 80 and d[10] in (90, 230)]
+    nparts = parts[0].count(' m up') if parts else 0
+    check('the structure boxes drawn: the spewer\'s box 12 dim edges (%d, top at z %.1f), its %d parts %d full edges (%d); off: none (%d)' % (len(dimE), top, nparts, 12 * nparts, len(fullE), len(edges_off)),
+          len(dimE) == 12 and abs(top - 18.6) < 0.01 and len(fullE) == 12 * nparts and len(edges_off) == 0)
+    # (2.5.15, luka: "we can change the size, shape and position of the box ourselves") the layout file's
+    # struct_parts block overrides a kind's parts on the reload key: the spewer gets one part, a slab 0.25 of the
+    # box across (half 2.4 m) and the full depth, turned 90 deg about z — so it lies across the line's path: the line
+    # 3.9 m right of the middle (past the trunk) now hits it; and its edges drawn turned (x from -9.3 to 10.1, not
+    # -2 to 2.8); a part with a bad number is dropped and said; a part moved 0.5 of the box right (+4.9 m) misses the
+    # line at x 0.4, so the mark is cream, while one moved left meets a line aimed there
+    rp_.execute('''LAYOUT = { _v = 1, elements = {}, struct_parts = { bug_fog_generator = { { 0.25, 1, 0, 1, 0, 0, 0, 0, 90 }, { 0.5, 0.5, 0, 'x' } }, other = 5 } }
+      BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false WPOS = { U = { 3.4, 3, 0.4 } } CHANGE.struct_boxes(true) run(1)''')
+    said = [l for l in rp_.eval('logs').values() if l.startswith('structure parts:')]
+    red_t = [d for d in lines_all_of(rp_) if d[7] == 210 and d[8] == 80 and d[10] not in (90, 230)]
+    fullE2 = [d for d in rp_.eval('draws').values() if d[1] == 'line' and d[7] == 210 and d[8] == 80 and d[10] == 230]
+    xs = [v for d in fullE2 for v in (d[2], d[5])]
+    rp_.execute('''LAYOUT.struct_parts = { bug_fog_generator = { { 0.25, 0.25, 0, 1, 0.5, 0 } } } BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false WPOS = { U = { 0.4, 3, 0.4 } } run(1)''')
+    red_away = [d for d in lines_all_of(rp_) if d[7] == 210 and d[8] == 80 and d[10] not in (90, 230)]
+    rp_.execute('''LAYOUT.struct_parts = { bug_fog_generator = { { 0.25, 0.25, 0, 1, -0.5, 0 } } } BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false WPOS = { U = { -6.2, 3, 0.4 } } run(1)''')
+    red_to = [d for d in lines_all_of(rp_) if d[7] == 210 and d[8] == 80 and d[10] not in (90, 230)]
+    check('struct_parts from the layout file (%s): the part turned 90 deg lies across the line (%d red), its edges from x %.1f to %.1f; a part moved +0.5 right misses the line at the middle (%d red), one moved -0.5 meets a line there (%d red)' % (
+          said[-3:-2] or said[:1], len(red_t), min(xs) if xs else 0, max(xs) if xs else 0, len(red_away), len(red_to)),
+          said and '1 kind(s) from the layout file, dropped: bug_fog_generator, other' in said[0] and len(red_t) > 0 and xs and abs(min(xs) + 9.3) < 0.01 and abs(max(xs) - 10.1) < 0.01
+          and len(red_away) == 0 and len(red_to) > 0)
+    rp_.execute('LAYOUT = { _v = 1, elements = {} } BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false CHANGE.struct_boxes(false) run(0.3)')
+    # (2.5.17, luka: "the box around the nest rotated 180 degrees between one mission and the next") a kind's box
+    # middle sits off the root (3 m forward here); the second nest of the kind, facing the other way (yaw pi), takes
+    # the kind's box: its middle must be 3 m behind in the world (y 27 at a root of 30), not on the root — and the
+    # first's own box has the offset in the research line
+    rk2 = lua51.LuaRuntime()
+    setup(rk2)
+    rk2.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 OPTS.struct_boxes = true WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'N1', '2e454bd4d24eb04a', 0.4, 30, 0.4, box = { 3, 3, 3 }, boxc = { 0.4, 33, 0.4 }, yaw = 0 }, { 'N2', '2e454bd4d24eb04a', 60, 30, 0.4, box = { 3, 3, 3 }, boxc = { 60, 27, 0.4 }, yaw = math.pi } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 0 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(1)''')
+    bl = [l for l in rk2.eval('logs').values() if l.startswith('research: structure box:')]
+    e2 = [d for d in rk2.eval('draws').values() if d[1] == 'line' and d[7] == 210 and d[8] == 80 and d[10] == 90 and 55 < d[2] < 65]   # (2.5.18: the kind's box is the dim one now that the hole has parts)
+    ys = [v for d in e2 for v in (d[3], d[6])]
+    cy2 = sum(ys) / len(ys) if ys else 0
+    check('a kind\'s box middle off its root: the first nest\'s line says so (%s); the second, facing the other way, has its box middle 3 m behind (y %.1f, the root at 30), %d edges' % (
+          bl[0][-90:] if bl else None, cy2, len(e2)),
+          len(bl) == 1 and '0.0 m right, 3.0 m forward, 0.0 m up of the root' in bl[0] and abs(cy2 - 27) < 0.01 and len(e2) == 12)
+    # (2.5.20 / 2.5.21, luka: "the turrets on top, that turn, are the targets; their box rotates about its centre —
+    # no need to read it") an Automaton emplacement's gun (fac_cyborgs/turrets/..., a tank mortar here) is a
+    # structure whose parts from the mesh are squares about the root (no barrel): facing +y or turned 90 deg, the
+    # line at x 0.4 hits it the same, with no reads of the unit between; the base it sits on (cyborg_turret_base)
+    # is terrain, never listed
+    rt2 = lua51.LuaRuntime()
+    setup(rt2)
+    rt2.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'T1', '6293d7ab6e681855', 0.4, 30, 0.4, box = { 1.5, 3, 1 }, yaw = 0 }, { 'T0', '9b6c199030d86085', 0.4, 30, -1, box = { 3, 3, 1 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 0 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(1)''')
+    red_g1 = [d for d in lines_all_of(rt2) if d[7] == 210 and d[8] == 80]
+    listed_g = [l for l in rt2.eval('logs').values() if l.startswith('research: structures:')]
+    parts_g = [l for l in rt2.eval('logs').values() if l.startswith('research: structure parts:')]
+    rt2.execute('UNITS[2].yaw = math.pi / 2 POSREADS = {} run(0.5)')
+    red_g2 = [d for d in lines_all_of(rt2) if d[7] == 210 and d[8] == 80]
+    reads_t1 = rt2.eval('POSREADS and POSREADS.T1 or 0')
+    check('a gun: listed (%s), its parts square about the root (%s); red at x 0.4 facing +y (%d) and turned 90 deg (%d), no position read of it meanwhile (%d)' % (
+          listed_g[-1:], parts_g[0][-80:] if parts_g else None, len(red_g1), len(red_g2), reads_t1),
+          len(red_g1) > 0 and len(red_g2) > 0 and listed_g and 'cyborg_tank_turret_mortar x1' in listed_g[-1] and 'cyborg_turret_base' not in listed_g[-1]
+          and parts_g and 'mortar' in parts_g[0] and reads_t1 == 0)
+    # (2.5.6 / 2.5.16) the Illuminate warp ship's hull, a kind filediver has no name for (f5f3207ca1b3a5d6, luka's MARKs and the box probe): a structure
+    # by its hash — listed although only two of it stand on the map (the walk's under-10 rule would skip an unnamed
+    # kind), named in the listing, the mark red
+    rw_ = lua51.LuaRuntime()
+    setup(rw_)
+    rw_.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'W', 'f5f3207ca1b3a5d6', 0.4, 30, 0.4, box = { 11.6, 16.6, 5.7 } }, { 'W2', 'f5f3207ca1b3a5d6', 80, 80, 0.4, box = { 11.6, 16.6, 5.7 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 0 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(1)''')
+    listed = [l for l in rw_.eval('logs').values() if l.startswith('research: structures:')]
+    red = [d for d in lines_all_of(rw_) if d[7] == 210 and d[8] == 80]
+    rw_.execute('CAM_YAW = 0.78 run(1)')   # (the view swung toward the second ship at 80, 80: its box from the kind, not asked)
+    boxes_w = [l for l in rw_.eval('logs').values() if l.startswith('research: structure box:')]
+    check('the warp ship by its hash: listed and named (%s), the mark red (%d red lines); the kind\'s box asked once for the two ships (%d box lines)' % (listed[-1:], len(red), len(boxes_w)),
+          listed and 'il_encounter_ship_landed (the warp ship' in listed[-1] and 'x2' in listed[-1] and len(red) > 0 and len(boxes_w) == 1 and "the kind's from now on" in boxes_w[0])
+    # (2.5.16) a struct_parts entry for a kind by hash, keyed by its name here or by the hash: a part 0.1 of the
+    # ship across at the middle (half 1.2 m) misses the line 3 m off; the key by hash works the same
+    rw_.execute('''CAM_YAW = 0 LAYOUT = { _v = 1, elements = {}, struct_parts = { il_encounter_ship_landed = { { 0.1, 0.1, 0, 1 } } } } BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false WPOS = { U = { 3.4, 3, 0.4 } } run(1)''')
+    red_p = [d for d in lines_all_of(rw_) if d[7] == 210 and d[8] == 80]
+    rw_.execute('''LAYOUT.struct_parts = { f5f3207ca1b3a5d6 = { { 1, 1, 0, 1 } } } BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false run(1)''')
+    red_h = [d for d in lines_all_of(rw_) if d[7] == 210 and d[8] == 80]
+    check('the ship\'s parts from the file by its name (a thin part: the line 3 m off misses, %d red) and by its hash (the whole box: %d red)' % (len(red_p), len(red_h)),
+          len(red_p) == 0 and len(red_h) > 0)
+    rw_.execute('LAYOUT = { _v = 1, elements = {} } BINDS.reload_layout = true run(1 / 60) BINDS.reload_layout = false run(0.3)')
+    # (2.5.8, luka: "our biggest failure point, two CTDs") every unit in the world destroyed in one frame while
+    # everything that asks units is busy — the line on a hole with its box cached, a ship listed, the walk's cache
+    # full, the Helldiver's hand read, a vehicle watched, a grenade in the hand — and the harness erroring on any
+    # Unit call but Unit.alive on a dead unit: the mod must ask nothing of them. Then the units back: it recovers
+    rm = lua51.LuaRuntime()
+    setup(rm)
+    rm.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '2e454bd4d24eb04a', 0.4, 30, 0.4, box = { 1.5, 1.5, 1.5 } }, { 'W', '2718f5edf8cbaf8b', 20, 40, 0.4, box = { 6, 6, 5 } },
+        { 'V', '79e4b3d2da5e45e3', 3, 3, 0.5 }, { 'G', 'ee4c107b941ab7f4', 0.4, 3, 1.3 } }
+      for i = 1, 12 do UNITS[#UNITS + 1] = { 'K' .. i, 'eeeeeeeeeeeeeeee', 60 + i * 6, 60, 12 } end
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      M.debug_struct_by_id('2718f5edf8cbaf8b', 'il_warp_ship_candidate_A') GRIP = 0 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(45)''')
+    red_before = len([d for d in lines_all_of(rm) if d[7] == 210 and d[8] == 80])
+    try:
+        rm.execute('for _, u in ipairs(UNITS) do u.dead = true end run(3) GRIP = 41 run(1) GRIP = 51 run(1)')
+        err = None
+    except Exception as e:
+        err = str(e)
+    try:
+        # (the units back as new handles, as the game would make them: a destroyed handle never returns)
+        rm.execute('for _, u in ipairs(UNITS) do u.dead = nil if u[1] ~= "U" then u[1] = u[1] .. "b" end end run(45)')
+        err2 = None
+    except Exception as e:
+        err2 = str(e)
+    red_after = len([d for d in lines_all_of(rm) if d[7] == 210 and d[8] == 80])
+    check('every unit destroyed at once with the line on a hole (red before: %d), the walk, the hand, a vehicle and a grenade watched: no Unit call on any of them (%s); the units back: the mark red again (%d), no error (%s)' % (
+          red_before, err or 'no error', red_after, err2 or 'none'),
+          red_before > 0 and err is None and err2 is None and red_after > 0)
     r.execute('CHANGE.struct_mark(false) run(0.5)')
     red = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
     level, drop = ring_and_line()
@@ -2927,19 +3300,42 @@ def main():
     r.execute('CHANGE.mark_size(1)')
     # a bug hole as the game boxes them (the whole mesh, 7 x 7 x 10 m, luka's log: a small hole's is 8 x 9 x 11): the
     # mark where the shot meets the ground inside the footprint, not where the line enters the box in the air
+    # (2.5.18 / 2.5.23: for a kind without parts from its mesh — a test kind by hash through the hook, since every
+    # listed kind has a shape now; the holes have their shafts)
     r = lua51.LuaRuntime()
     setup(r)
     r.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
-      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '2e454bd4d24eb04a', 0.4, 34, 0.4, box = { 3.5, 3.5, 5 } } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '0123456789abcdef', 0.4, 34, 0.4, box = { 3.5, 3.5, 5 } } }
       OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
       f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
-      GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+      M.debug_struct_by_id('0123456789abcdef', 'a test kind') GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
     red = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
     red_level = [d for d in red if abs(d.z2 - d[4]) < 1e-9]
-    check('a bug hole boxed whole: the red mark on the ground at the landing inside the footprint (y %.1f, z %.2f), not at the box\'s side (30.5 m, 0.8 m up)' % (red_level[0][3] if red_level else 0, red_level[0][4] if red_level else 0),
+    check('a structure boxed whole (no mesh yet): the red mark on the ground at the landing inside the footprint (y %.1f, z %.2f), not at the box\'s side (30.5 m, 0.8 m up)' % (red_level[0][3] if red_level else 0, red_level[0][4] if red_level else 0),
           red_level and abs(red_level[0][3] - 36.5) < 1 and abs(red_level[0][4] - 0.48) < 0.05)
     r.execute('HAND_UP = nil CAM_FZ = nil')
     r.execute('MATES = nil WPOS = nil UNITS = nil')
+    # (2.5.18, luka: "fit the boxes from the extracted models") the small hole's parts come from its mesh
+    # (tools/make_shapes.py): the shaft and the mouth, in metres from the root (2.5.21), so the test's small box
+    # doesn't scale them: the mouth 1 to 4 m forward of the root, up to 2 m above it. The line into the middle of
+    # the hole: red at the entry into the mouth (in the air, not the ground rule); the line 2.2 m to the right, past
+    # the shaft and the mouth: no red at all — the mound is not the hole
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.7, 36, 0.4 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'H', '2e454bd4d24eb04a', 0.4, 34, 0.4, box = { 3.5, 3.5, 5 } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
+      GRIP = 40 run(2) WPOS = { U = { 0.7, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+    red_in = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
+    lvl = [d for d in red_in if abs(d.z2 - d[4]) < 1e-9]
+    parts_said = [l for l in r.eval('logs').values() if l.startswith('research: structure parts:')]
+    r.execute('WPOS = { U = { 2.9, 3, 0.4 } } run(1)')
+    red_off = [d for d in lines_all_of(r) if d[7] == 210 and d[8] == 80]
+    check('the small hole from its mesh (%d parts): the line into the middle: red at the shaft\'s entry (y %.1f, z %.2f: in the air before the far ground); 2.2 m right: no red (%d)' % (
+          parts_said[0].count(' m up') if parts_said else 0, lvl[0][3] if lvl else 0, lvl[0][4] if lvl else 0, len(red_off)),
+          len(red_in) > 0 and lvl and lvl[0][3] < 35.5 and lvl[0][4] > 0.1 and len(red_off) == 0 and parts_said and parts_said[0].count(' m up') == 2)
+    r.execute('HAND_UP = nil CAM_FZ = nil MATES = nil WPOS = nil UNITS = nil')
     r = lua51.LuaRuntime()
     setup(r)
     r.execute("HOST = '1111111111111111' PING = nil run(5)")

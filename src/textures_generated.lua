@@ -10,6 +10,8 @@ return {
   grenade_game = { { 256, 224, '4c6c95419a57eff1', 149 } },   -- (the game's icon layout: BC3, 9 mip levels; the icon 149 wide, 224 high, centred)
   reticle = { { 64, 56, '4d16a7367325e5c2', 56 }, { 128, 112, '45f732810dd22885', 112 }, { 256, 224, 'd4c0f1ca124a1d9e', 224 } },   -- (square textures, the icon centred: 224 wide, 224 high in the largest)
   reticle_game = { { 256, 224, 'c6ba7791c2215270', 224 } },   -- (the game's icon layout: BC3, 9 mip levels; the icon 224 wide, 224 high, centred)
+  ring = { { 64, 56, 'dc6266ce4ac122a6', 56 }, { 128, 112, '0afe6f583f01ffa5', 112 }, { 256, 224, '5328cebaea68b0e1', 224 } },   -- (square textures, the icon centred: 224 wide, 224 high in the largest)
+  ring_game = { { 256, 224, 'ee5d9664ae8003f1', 224 } },   -- (the game's icon layout: BC3, 9 mip levels; the icon 224 wide, 224 high, centred)
   stim = { { 64, 56, '1f09d2d7afc81813', 21 }, { 128, 112, '53381764199b5679', 41 }, { 256, 224, '82a779fcc996305f', 82 } },   -- (square textures, the icon centred: 82 wide, 224 high in the largest)
   stim_game = { { 256, 224, '241e0d9906daae59', 82 } },   -- (the game's icon layout: BC3, 9 mip levels; the icon 82 wide, 224 high, centred)
   decal_zone_cream_game = { { 512, 512, 'adb0308634640429', 512 } },   -- (a ground picture, tools/decal_art.py: BC3, every mip level)

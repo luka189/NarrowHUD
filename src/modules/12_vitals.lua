@@ -87,7 +87,11 @@ N.vitals_state = vs
 local FNAME = {}
 for id, name in string.gmatch(DATA.fieldnames or '', '(%x+) (%S+)') do FNAME[id] = name end
 N.FNAME_AIM = FNAME['95c46304']
-local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100, view = nil, ads = nil, wheel = nil }
+-- (2.5.25) vehicle guns fired from inside the armour: a gunner with one of these shown is hidden like the driver
+-- (luka's Maelstrom tank, 2026-11-07: its gun 9df87863 shows as a weapon of ours); the FRV's turrets (66f5d393,
+-- 0df6deff) are open and stay. 13_main's rule
+N.ENCLOSED_GUNS = { ['9df87863'] = true }
+local st8 = { at = -100, aim = 0, emote = -1, strat = false, goid = nil, armor = nil, armor_at = -100, view = nil, ads = nil, wheel = nil, role = nil }
 local function strat_held()
   local k = N.keys and N.keys.strat
   if k and k.down and k.down() == true then return true end
@@ -146,6 +150,14 @@ local function read_state(s, now)
   if seat ~= st8.seat then
     if cfg.research and (st8.seat ~= nil or seat ~= nil) then log('research: seat bit (6ff0e58a word 2, bit 50) %s > %s; hand pose %s', tostring(st8.seat), tostring(seat), tostring(N.hand and N.hand.grip)) end
     st8.seat = seat
+  end
+  -- (2.5.24, luka's nine seats of 2026-11-07) word 1's ninth hex digit (bits 28-31) is the seat's role while the
+  -- seat bit is set: 1 a passenger (the FRV's and the tank's), 2 the driver (FRV, tank), 4 a gunner (the FRV's
+  -- turret, the tank's gun), 8 the exosuit's pilot. 0 on foot
+  local role = type(w1) == 'string' and #w1 == 16 and tonumber(w1:sub(9, 9), 16) or nil
+  if role ~= st8.role then
+    if cfg.research and (st8.role ~= nil or role ~= nil) then log('research: seat role (6ff0e58a word 1, bits 28-31) %s > %s; the seat bit %s, hand pose %s', tostring(st8.role), tostring(role), tostring(seat), tostring(N.hand and N.hand.grip)) end
+    st8.role = role
   end
   -- (2.4.7) the hellpod: your Helldiver's d49efb40 reads false in the pod and true once it has landed (its first
   -- true: it flips in jumps and ragdolls later; HUDdle 0.5.4's finding). Unreadable counts as landed; 30 s at most

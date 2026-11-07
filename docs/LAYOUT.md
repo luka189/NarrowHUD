@@ -97,3 +97,26 @@ line's): a smaller radius curves more. The curve covers at most 300 degrees, how
 `align = 'right'` for the `(` and `align = 'left'` for the `)`, with `x` set to how far out each one sits.
 Where Chef Shared Loader can't draw triangles, the curved ones are drawn `vertical` instead.
 
+
+## `struct_parts` (for testing the red mark)
+
+An optional block beside `elements`, for fitting the shapes the red landing mark tests against the enemies'
+structures. Each structure kind has a box from the game (its whole mesh, mound and all — F9 Testing "Draw
+structure boxes" draws it in dim red); a kind can instead get *parts*, smaller boxes of your own inside it (drawn
+in full red), and the mark goes red only where the shot enters a part. Keyed by a piece of the kind's name, each a
+list of parts, each a list of 4 to 9 numbers:
+
+```lua
+struct_parts = {
+  bug_spawner_small_01 = { { 0.4, 0.3, 0.1, 0.6, 0.3, -0.2, 0, 0, 0 } },
+}
+```
+
+`fx, fy` — the part's width and depth as fractions of the box's (0 to 1); `z0, z1` — the part's bottom and top as
+fractions of the box's height, from the bottom up; `ox, oy` — the part's middle moved right and forward, as
+fractions of the box's half width and half depth (0 when left out); `pitch, roll, yaw` — the part's own turn in
+degrees about its middle (0 when left out). A part can instead be given in metres from the unit's root, as
+`{ m = { hx, hy, hz, cx, cy, cz } }` — half sizes, then the middle right, forward and up of the root — which is
+how the built-in shapes are written. The reload key reads the block again, so the red lines can be moved until
+they sit in the opening. The built-in shapes (from the structures' own models: the holes' shafts, the nests' and
+the spewer's trunk and cap, the guns' bodies) apply where the block has no entry for a kind.

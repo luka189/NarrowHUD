@@ -329,7 +329,12 @@ end
 -- (1.2.2) a mark in the log, for testing: the key set in F9 writes a numbered line with what's shown, so a moment
 -- in play can be found in the log ("at mark 3 the HUD blinked")
 local marks = 0
+local probed = {}                                  -- (2.5.14) the kinds whose box a MARK has asked
 local function read_forget_keys(now, s)
+  if keys.hide_hud and keys.hide_hud.pressed and keys.hide_hud.pressed() == true then   -- (2.5.23: the hide key, a toggle)
+    N.hud_off = not N.hud_off
+    log('the HUD %s (the hide key)', N.hud_off and 'hidden' or 'back')
+  end
   if keys.log_mark and keys.log_mark.pressed and keys.log_mark.pressed() == true then
     marks = marks + 1
     local o = hand.goid and objs[hand.goid]
@@ -341,6 +346,36 @@ local function read_forget_keys(now, s)
       tostring(hand.grip), o and o.t and TYPES[o.t].id or 'nothing', tostring(hand.goid), now - (input.last or -100), now - (swap.at or -100), where, kit)
     flash.text, flash.till = string.format('NarrowHUD: mark %d in the log', marks), now + 1.5
     N.mark_at = now                                -- (2.4.9: the aim-points research line counts afresh for 20 s)
+    -- (2.5.5, research) what stands where the reticle points at the MARK: the units within 15 m of the game's
+    -- reticle point (else the look point), named or not, from the walk's caches — so a MARK on a warp ship, a
+    -- spore tower or anything else says which unit kind it is
+    if cfg.research and N.reticle_point and chef.camera then
+      local cam = chef.camera()
+      local rp = cam and N.reticle_point(cam, true)
+      local lp = not rp and N.look_point and N.look_point()
+      local pt = rp or lp
+      if pt and N.units_near then
+        local near = N.units_near(pt.x, pt.y, 40, pt.z)   -- (2.5.12: 40 m, with each kind's count on the map)
+        log('research: at the MARK\'s aim point (%.1f, %.1f, %.1f; %s): %s', pt.x, pt.y, pt.z, rp and 'the reticle' or 'the look point',
+          #near > 0 and table.concat(near, '; ') or 'no walked unit within 40 m')
+        -- (2.5.14, the warp ship hunt: its furniture is all the listing shows) the box of the nearest unit of each
+        -- unnamed kind within 15 m, a dozen at most, each alive-checked the frame it's asked — the hull's box is
+        -- the big one. Once per kind per session
+        if N.box_probe and N.units_near_handles then
+          local n, out = 0, {}
+          for _, e in ipairs(N.units_near_handles(pt.x, pt.y, 15)) do
+            if n >= 12 then break end
+            if not UNIT_NAMES[e.k] and not probed[e.k] then
+              probed[e.k] = true
+              n = n + 1
+              local hx, hy, hz, dz = N.box_probe(e.u, e.k)
+              out[#out + 1] = hx and string.format('%s: %.1f x %.1f x %.1f m%s', e.k, hx * 2, hy * 2, hz * 2, dz and string.format(', its middle %+.1f m over the root', dz) or '') or (e.k .. ': ' .. tostring(hy or 'no box'))
+            end
+          end
+          if #out > 0 then log('research: at the MARK, the boxes: %s', table.concat(out, '; ')) end
+        end
+      end
+    end
   end
   if N.startup_flash then flash.text, flash.till, N.startup_flash = N.startup_flash, now + 8, nil end
   if keys.reload_layout and keys.reload_layout.pressed and keys.reload_layout.pressed() == true then
@@ -667,8 +702,9 @@ function M.update(dt)
   local vit = N.vitals_step(s, now, items_now)
   if N.dead then vital.dead_at = now end
   N.read_markers(s, now)
-  if N.ground_update then N.ground_update(now) end   -- (2.0.4: the ground grid's samples and the research census)
   t0 = lap('items', t0)
+  if N.ground_update then N.ground_update(now) end   -- (2.0.4: the ground grid's samples and the research census)
+  t0 = lap('ground', t0)                             -- (2.5.3: the walk timed apart from the items)
   -- Heat, every frame, between the field's values (12_heat)
   local d = shown_now
   if d and d.kind == 'heat' and d.o and d.o.h_last and not d.charge_anim then
@@ -738,14 +774,26 @@ function M.update(dt)
   end
   -- (the stratagem input, an emote: hidden over 80 ms (2.2.9; a quarter second before), back at once)
   local st8 = N.state8
-  local hide = st8.strat or (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)
+  -- (2.5.24, luka) in a vehicle: hidden as the driver (the FRV's, the tank's), the exosuit's pilot, or a gunner with
+  -- no gun of ours shown (the tank's: you can't be hurt in there); shown as a passenger or on the FRV's turret (its
+  -- gun is shown, and you're out in the open). 12_vitals' seat bit and role
+  -- (2.5.25, luka: the Maelstrom's gunner wasn't hidden — its gun 9df87863 is a weapon object of ours, shown
+  -- through "the object you're at"; the FRV's turrets 66f5d393 and 0df6deff are out in the open) a gun type that
+  -- sits inside armour counts as no gun shown
+  local gun_shown = shown_now and not N.ENCLOSED_GUNS[shown_now.tid]   -- (12_vitals' set: 13_main is at Lua's 60 upvalues)
+  local in_vehicle = cfg.hide_vehicle ~= false and st8.seat == 1 and (st8.role == 2 or st8.role == 8 or (st8.role == 4 and not gun_shown)) or false
+  if in_vehicle ~= hand.in_vehicle then
+    hand.in_vehicle = in_vehicle
+    if cfg.research then log('research: the HUD %s: in a vehicle (seat role %s, a gun shown: %s%s)', in_vehicle and 'hidden' or 'back', tostring(st8.role), tostring(shown_now ~= nil), shown_now and (' ' .. tostring(shown_now.tid) .. (N.ENCLOSED_GUNS[shown_now.tid] and ', enclosed' or '')) or '') end
+  end
+  local hide = N.hud_off or in_vehicle or st8.strat or (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)   -- (2.5.23: N.hud_off, the hide key)
     or (cfg.hide_wheel and st8.wheel == 1)   -- (2.1.1: the weapon settings wheel)
     or (cfg.hide_terminal and N.at_terminal())   -- (2.2.3: a terminal worked)
   -- (2.2.9, luka: the hide "instant or very quick", and the HUD and the vitals together — the HUD faded over a
   -- quarter second while the vitals cut at once: 80 ms for both now, the same curve, from the same frame)
   local HIDE_FADE = 0.08
   hand.hidef = hide and math.max(0, (hand.hidef or 1) - (dt or 0.016) / HIDE_FADE) or 1
-  local vhide = (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)   -- (1.5.72: the game's menu hides the vitals too)
+  local vhide = N.hud_off or in_vehicle or (cfg.hide_emote and st8.emote ~= -1 and st8.emote ~= 0) or game_menu(now)   -- (1.5.72: the game's menu hides the vitals too; 2.5.23: the hide key; 2.5.24: a vehicle)
     or (cfg.hide_wheel and st8.wheel == 1)   -- (2.1.2, luka: the wheel hides them too, unlike the stratagem key)
     or (cfg.hide_terminal and N.at_terminal())
   hand.vhidef = vhide and math.max(0, (hand.vhidef or 1) - (dt or 0.016) / HIDE_FADE) or 1
@@ -810,7 +858,7 @@ function M.update(dt)
     perf.at = perf.at or now
     if now - perf.at >= 60 then
       local f, parts, all = math.max(1, perf.frames), {}, 0
-      for _, k in ipairs({ 'sorting', 'scan', 'weapons', 'picking', 'research', 'items', 'drawing' }) do
+      for _, k in ipairs({ 'sorting', 'scan', 'weapons', 'picking', 'research', 'items', 'ground', 'drawing' }) do
         local ms = (perf.t[k] or 0) * 1000 / f
         all = all + ms
         parts[#parts + 1] = string.format('%s %.3f', k, ms)
@@ -840,6 +888,8 @@ function M.debug_objs() return objs end   -- (tests)
 function M.debug_N() return N end   -- (tests: the shared table)
 function M.debug_fly(b, pitch, len) return N.drop_fly(b, pitch, len) end
 function M.debug_cfg(k, v) cfg[k] = v end
+function M.debug_vis() return cfg.vis end   -- (tests, 2.5.24)
+function M.debug_struct_by_id(k, name) if N.debug_struct_by_id then N.debug_struct_by_id(k, name) end end   -- (tests, 2.5.12: a structure kind by hash)
 function M.debug_tone(ch, v) return N.tone(ch, v) end   -- (tests: the world's tone curve)   -- (tests: a setting with no menu row, such as the texture test's way)
 function M.debug_read_level(v) if v ~= N.read_level then log('Testing: reads %s', tostring(v)) end N.read_level = v end   -- (tests: the reads bisection, 2.0.3: no menu row)
 function M.debug_made() return N.engine_made and N.engine_made.mat end   -- (tests: material copies made)
