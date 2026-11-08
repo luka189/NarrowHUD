@@ -257,7 +257,7 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
   N.last_aim = entry
   local vx, vy, vz = hx * speed * math.cos(pitch), hy * speed * math.cos(pitch), speed * math.sin(pitch)
   local x, y, z = ox, oy, oz + p.up
-  local c = N.wcol(N.CREAM, 170)                  -- (2.0.17: the world's tone curve)
+  local c = N.wcol(N.LINES, 170)                  -- (2.0.17: the world's tone curve; 2.6.6: the Lines role)
   local lines = cfg.drop_thick or 1
   local crx, cry = cam.fy, -cam.fx
   local cl = math.sqrt(crx * crx + cry * cry)
@@ -266,7 +266,7 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
   -- (2.4.8) the look (12_decal): dashes fading in, dark edges; the blast zone of the grenade or C4 at the mark
   local lst = N.line_state(now)
   local dk = N.wcol({ 0, 0, 0 }, 110)
-  local cfun = lst.look ~= 1 and function(f) return N.wcol(N.CREAM, 170 * f), N.wcol({ 0, 0, 0 }, 110 * f) end or nil
+  local cfun = lst.look ~= 1 and function(f) return N.wcol(N.LINES, 170 * f), N.wcol({ 0, 0, 0 }, 110 * f) end or nil
   local blast = BLAST and ((kind == 'grenade' and gk and BLAST.grenades[gk]) or (kind == 'C4' and BLAST.grenades[C4_CHARGE])) or nil
   local floor = (feet_z or z) - DEEPEST
   local mark = cfg.landing_mark and N.ground_landing

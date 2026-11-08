@@ -1,4 +1,4 @@
-"""Copy the built-in layouts (src/modules/10_custom.lua: DEFAULT_LAYOUT, VERTICAL_LAYOUT, ARCS_LAYOUT, HORIZONTAL_LAYOUT, BLOCK_LAYOUT) into the editor's
+"""Copy the built-in layouts (src/modules/10_custom.lua: DEFAULT_LAYOUT, VERTICAL_LAYOUT, ARCS_LAYOUT, HORIZONTAL_LAYOUT, BLOCK_LAYOUT, CAKE_LAYOUT) into the editor's
 UNDER and PRESETS tables (editor/editor.html), so the editor's presets are the mod's, field for field.
 
     python3 tools/sync_presets.py
@@ -13,7 +13,7 @@ ED = ROOT / 'editor' / 'editor.html'
 JS = ED.read_text(encoding='utf-8')
 
 NAMES = { 'DEFAULT_LAYOUT': 'UNDER', 'VERTICAL_LAYOUT': 'Vertical pair', 'ARCS_LAYOUT': 'Arcs', 'HORIZONTAL_LAYOUT': 'Horizontal',
-  'BLOCK_LAYOUT': 'Block' }
+  'BLOCK_LAYOUT': 'Block', 'CAKE_LAYOUT': 'Cake' }
 
 
 def lua_table(name):

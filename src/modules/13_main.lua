@@ -879,7 +879,7 @@ function M.update(dt)
   end
   if (blocked.n >= 5 or (blocked.types or 0) > 2000 and not blocked.yes) and blocked.since and now - blocked.since < 25 then
     if not blocked.said then blocked.said = true log('GameSession.game_object_is_type refused: your weapons can\'t be read with this Chef version') end
-    notice('NarrowHUD: this Chef version blocks the reads it needs (it needs Chef Shared Loader 1.2.3 or newer)')
+    notice('NarrowHUD: this Chef version blocks the reads it needs (it needs Chef Shared Loader 1.4.0 or newer)')
   end
   if flash.text and now < flash.till then notice(flash.text) end
 end
@@ -914,7 +914,8 @@ function M.debug_ground_kind(k) return N.ground_kind_offset and N.ground_kind_of
 function M.debug_learned(kind, id) return learned[kind] and learned[kind][id] end   -- (tests: what's learned or seeded)
 function M.debug_my_unit() return N.my_unit and N.my_unit(call('session', 'Network.game_session')) end   -- (tests)
 function M.debug_hide() return hand.hidef, hand.vhidef end   -- (tests, 2.2.9)
-function M.debug_top() local d = N.shown_d return d and d.top, d and d.kind end   -- (tests, 2.1.12: the shown bar's top)
+function M.debug_top() local d = N.shown_d return d and d.top, d and d.kind end
+function M.debug_reload_line() local d = N.shown_d return d and d.reload_line == true or false end   -- (tests, 2.6.11)   -- (tests, 2.1.12: the shown bar's top)
 function M.shutdown()
   if N.dirty_at then save_learned() end
 end

@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.0.0
+
+- **NEW: your own colours.** The Colours tab in F9: Text, Bars, Low, Empty, the two mode colours, Lines and Stamina
+  are each a colour row (Left and Right step through the swatches), with Standard and Colourblind presets that set
+  them all. The layout editor goes further: a colour per part (a picker, the hex and the swatches), and the same
+  roles saved in the layout file, where they win over the tab. Low and Empty colour every part the same way, so a
+  low magazine always reads as one. The lines are drawn in the world, where each planet's light shifts a colour,
+  so their list is the pure colours only; the crosshairs keep the game's own cream.
+- **NEW: the Cake layout** (Layout: Cake, and the editor's fifth preset): five rings on one centre right of the
+  crosshair with a slice open at the top — the backpack and the stim timer sharing the innermost, then stamina,
+  health, the ammo bar and the charge meter — the count and the magazines in the middle.
+- **NEW: two more bar shapes**: a curve bulging up and one bulging down, on every bar, and a curve can close into a
+  full circle now (300 degrees was the most).
+- **NEW: Duds** (Lines and marks, on): a launcher round that lands closer than it arms bounces, so the drop line is
+  grey up to the arming distance (GL-21, Grenadier Battlement and Evictor 7 m; GL-28 5 m; GP-31, De-Escalator and
+  the One-Two's underbarrel 4 m), and a landing inside it gets a grey pin and chevron and no blast zone.
+- **NEW: rounds carry your movement**: the GP-20 Ultimatum's and the CB-9 Exploding Crossbow's chevrons move with
+  you — the round leaves with your own velocity added. Testing > "Rounds carry movement: all" tries it on every
+  weapon.
+- **NEW: Text outline** (Look, off): a dark outline round the count and the words, for bright planets.
+- The magazine's size is what the game counts: the rounds you have after a reload from empty, or at the drop (the
+  bolt pistol 6, the Crossbow 5, the Liberator 45). The bar is full at that and a tactical reload shows as one over
+  it on every weapon; a weapon with no attachments keeps its size between missions too. Before, these started every
+  mission one short until a tactical reload.
+- The Railgun's reload line ends as its round is back (it stayed a few seconds).
+- The editor: every pinned part has its X field; loading a file names the values that didn't fit, colours included.
+- Needs Chef Shared Loader 1.4.0 or newer now (the colour rows).
+
 ## 2.6.0
 
 - **NEW: the red mark knows the structures' real shapes.** It turns red only where the shot would go in — a bug

@@ -136,7 +136,7 @@ def main():
     manifest = {'Version': 1, 'Guid': GUID, 'Name': f'NarrowHUD {version}',
                 'Description': 'NEW: layout editor at https://luka189.github.io/NarrowHUD/editor/ . '
                                'Ammo and heat by the crosshair, plus stims, grenades and your backpack. '
-                               'Needs Chef Shared Loader 1.2.3 or newer. Settings: F9 menu, NarrowHUD.',
+                               'Needs Chef Shared Loader 1.4.0 or newer. Settings: F9 menu, NarrowHUD.',
                 'IconPath': 'thumbnail.png'}
     main_file, gpu_file = make_archive([(resource_hash(NAME), LUA_TYPE, struct.pack('<II', len(lua), 2) + lua, b'')] + textures())
     files = {f'core/{ARCHIVE}': main_file,

@@ -95,6 +95,9 @@ OBJ[5] = { name = NAMES.nova, fields = {} }       -- Nova: heat
 OBJ[5].fields[ROLE.heat] = 5; OBJ[5].fields[ROLE.overheated] = false; OBJ[5].fields[ROLE.charging] = false
 OBJ[5].fields[ROLE.carry] = 0; OBJ[5].fields[ROLE.magazines] = 0
 local function rec(t) draws[#draws + 1] = t end
+-- (2.6.2) a Chef colour lives for the frame it was made in (the loader's docs): the mocks refuse one from an earlier
+-- frame, as the game drew 2.6.1's cached outline colour white
+local function cc(c) if type(c) == 'table' and c.t ~= nil and c.t ~= T then error('a colour made in another frame (Chef colours live one frame): made at ' .. tostring(c.t) .. ', now ' .. tostring(T)) end return c end
 chef = {
   log = function(fmt, ...) logs[#logs + 1] = string.format(fmt, ...) end,
   own_log = function(name) LOG_NAME = name chef.log = function(fmt, ...) local ok, s = pcall(string.format, fmt, ...) logs[#logs + 1] = ok and s or tostring(fmt) if LOG_BY then LOG_BY[#LOG_BY + 1] = name end end return true end,
@@ -105,12 +108,12 @@ chef = {
     if path == 'screen_resolution' then return { 3440, 1440 } end
     if path == 'render_settings.render_resolution' then return { RENDER_W, RENDER_H } end
   end,
-  color = function(r, g, b, a) return { r, g, b, a } end, TOP = 2000,   -- (1.5.63: the top world's first layer, as Chef's)
-  rect = function(x, y, w, h, c, l) rec({ 'rect', x, y, w, h, c[1], c[2], c[3], c[4], l = l }) end,
+  color = function(r, g, b, a) return { r, g, b, a, t = T } end, TOP = 2000,   -- (1.5.63: the top world's first layer, as Chef's)
+  rect = function(x, y, w, h, c, l) c = cc(c) rec({ 'rect', x, y, w, h, c[1], c[2], c[3], c[4], l = l }) end,
   triangle = function(x1, y1, x2, y2, x3, y3, c, l)
-    if TRI_ROWS then return false end
+    c = cc(c) if TRI_ROWS then return false end
     rec({ 'tri', x1, y1, x2, y2, c[1], c[2], c[3], c[4], x3 = x3, y3 = y3 }) return true end,
-  text = function(x, y, s, px, c, l) rec({ 'text', x, y, s, px, c[1], c[2], c[3], c[4], l = l }) end,
+  text = function(x, y, s, px, c, l) c = cc(c) rec({ 'text', x, y, s, px, c[1], c[2], c[3], c[4], l = l }) end,
   text_width = function(s, px) return #s * 6 * px - px end,
   sprite = function(x, y, rows, cell, colors, l)
     for r, line in ipairs(rows) do
@@ -166,6 +169,7 @@ chef = {
   call = BUILD_ID and function(name, a) if name == 'Application.build_identifier' then return BUILD_ID end if name == 'Window.get_main_window' then return 'WIN' end if name == 'Window.show_cursor' and a == 'WIN' then return CURSOR == true end end or nil,
   option = function(id, spec) SPECS[#SPECS + 1] = { id = id, label = spec.label, heading = spec.heading, hint = spec.hint, fold = spec.fold } if OPTS[id] ~= nil then return OPTS[id] end return spec.default end,
   on_change = function(id, f) CHANGE[id] = f end,
+  set = function(id, v) OPTS[id] = v if CHANGE[id] then CHANGE[id](v) end return v end,   -- (2.6.6: Chef 1.4's chef.set, as a pick in the menu)
   key_pressed = function(k) return KEYS[k] == true end, wheel = function() return WHEEL end,
   load_table = function(n) if n == 'layout' then if LAYOUT_ERR then return nil, LAYOUT_ERR end if LAYOUT == nil then return nil, 'none saved' end return LAYOUT end return saved end,
   save_table = function(n, t) if n == 'layout' then LAYOUT = t else saved = t end end,
@@ -178,10 +182,10 @@ chef = {
     return setmetatable({}, { __index = function(t, k) if k == 'items' then return (MATES and MATES.items) or { { unit = 'U', x = 0, y = 0, z = 0 } } end end })
   end,
   camera = function() return { x = 0, y = 0, z = 1, yaw = CAM_YAW or 0, fx = math.sin(CAM_YAW or 0), fy = math.cos(CAM_YAW or 0), fz = CAM_FZ or 0 } end,
-  line = function(x1, y1, z1, x2, y2, z2, c) rec({ 'line', x1, y1, z1, x2, y2, c[1], c[2], c[3], c[4], z2 = z2 }) end,
+  line = function(x1, y1, z1, x2, y2, z2, c) c = cc(c) rec({ 'line', x1, y1, z1, x2, y2, c[1], c[2], c[3], c[4], z2 = z2 }) end,
   -- (BITMAP false: the texture can't be drawn, as Chef answers when it isn't loaded)
-  bitmap = function(tex, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex }) return true end,
-  bitmap_uv = function(tex, u0, v0, u1, v1, x, y, w, h, c, l) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex, uv = true, u0 = u0, v0 = v0, u1 = u1, v1 = v1 }) return true end,
+  bitmap = function(tex, x, y, w, h, c, l) c = cc(c) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex }) return true end,
+  bitmap_uv = function(tex, u0, v0, u1, v1, x, y, w, h, c, l) c = cc(c) if BITMAP == false then return false end rec({ 'bitmap', x, y, w, h, c[1], c[2], c[3], c[4], tex = tex, uv = true, u0 = u0, v0 = v0, u1 = u1, v1 = v1 }) return true end,
   texture_sizes = function(map) TEX_SIZES = map end,
   -- (a flat stand-in projection: 1000 px a metre of x over y metres ahead, from the screen's centre; nil behind)
   world_to_screen = function(x, y, z)
@@ -261,6 +265,7 @@ chef = {
     if name == 'Gui.text_extents' then return string.format('Vector3(0, %g, 0)', -0.02 * c), string.format('Vector3(%g, %g, 0)', #a * c * 0.55, c * 0.68) end
     -- Gui.text(gui, s, font, size, material, pos, color): pos is the baseline
     if name == 'Gui.text' then
+      f = cc(f)
       rec({ 'text', e[1], e[2], a, math.floor(c * 0.70 / 7 + 0.5), f[1], f[2], f[3], f[4], game = true, size = c })
       return true
     end
@@ -452,14 +457,16 @@ def main():
     except Exception as e:
         check('a weapon gone between reads: no read of it, no error (%s)' % e, False)
 
-    # a tactical reload: 44 in the magazine and one in the chamber: a 45th tick, gone after the first shot
-    # (at Huge, up to 50 rounds are ticks)
-    rt.execute('''LAYOUT = { _v = 1, elements = { bar = { ticks_max = 50 } } } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false CHANGE.size(4) GRIP = 10 OBJ[3].fields[ROLE.rounds] = 44 OBJ[3].fields[ROLE.chamber] = false run(0.5)''')
+    # a tactical reload: 45 in the magazine and one in the chamber: a 46th tick, gone after the first shot
+    # (at Huge, up to 50 rounds are ticks). (2.6.5: the Arbitrator dropped with 44 + 1 chambered, and that total is
+    # its magazine — 45 ticks, as the game counts it; 2.2.x took the 44 and showed the start's chambered round as a
+    # 45th tick)
+    rt.execute('''LAYOUT = { _v = 1, elements = { bar = { ticks_max = 50 } } } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false CHANGE.size(4) GRIP = 10 OBJ[3].fields[ROLE.rounds] = 45 OBJ[3].fields[ROLE.chamber] = false run(0.5)''')
     n = rt.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 21 then n = n + 1 end end return n end)()")
-    check('Huge, tactical reload: 45 ticks for 44 + 1 (%d)' % n, n == 45)
-    rt.execute('OBJ[3].fields[ROLE.rounds] = 43 run(0.5)')
+    check('Huge, tactical reload: 46 ticks for 45 + 1 (%d)' % n, n == 46)
+    rt.execute('OBJ[3].fields[ROLE.rounds] = 44 run(0.5)')
     n = rt.eval("(function() local n = 0 for _, d in ipairs(draws) do if d[1] == 'rect' and d[5] == 21 then n = n + 1 end end return n end)()")
-    check('after its first shot: 44 ticks again (%d)' % n, n == 44)
+    check('after its first shot: 45 ticks again (%d)' % n, n == 45)
     rt.execute('''CHANGE.size(2) LAYOUT = { _v = 1, elements = {} } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
 
     # an attachment's shorter magazine (the Liberator Penetrator's 30 instead of 45): once reloaded, a full 30 reads
@@ -1064,9 +1071,49 @@ def main():
     # keeps 10 (a tester's Crossbow flapped 4 / 5 every mission)
     rk.execute('''OBJ[41] = nil run(1) WORLD = 8
       OBJ[47] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[47].fields[ROLE.rounds] = 9
-      OBJ[47].fields[ROLE.magazines] = 6 OBJ[47].fields[ROLE.chamber] = false OBJ[47].fields[ROLE.carry] = 0 run(3) OBJ[47] = nil run(1)''')
-    check('kit B at a start with 9 + 1 chambered: still 10 (%s)' % rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")'),
-          rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")') == 10)
+      OBJ[47].fields[ROLE.magazines] = 6 OBJ[47].fields[ROLE.chamber] = false OBJ[47].fields[ROLE.carry] = 0 run(3)''')
+    # (2.6.3, luka: the Crossbow's bar read 4 at every start until a tactical reload) and the bar's top is 10 then too
+    t47 = rk.eval('M.debug_top()')[0]
+    rk.execute('''OBJ[47] = nil run(1)''')
+    check('kit B at a start with 9 + 1 chambered: still 10 (%s), and the bar\'s top 10 from the start (%s)' % (rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")'), t47),
+          rk.eval('M.debug_learned("kitmag", "c7dfd9eb:a1a1a1a1a1a1a1a1+b2b2b2b2b2b2b2b2")') == 10 and t47 == 10)
+    # (2.6.4, luka: "the bolt pistol's magazine is 6, it drops to 5" — its kit list is empty, so it had no kit key and
+    # no kept size) a weapon with nothing on it: 12 at its first reload, then a start with 11 + 1 chambered shows 12
+    rk.execute('''WORLD = 9 OBJ[48] = { name = NAMES.verdict, fields = { hpinuxg = {} } } OBJ[48].fields[ROLE.rounds] = 11
+      OBJ[48].fields[ROLE.magazines] = 6 OBJ[48].fields[ROLE.chamber] = false OBJ[48].fields[ROLE.carry] = 0 run(3)
+      OBJ[48].fields[ROLE.rounds] = 8 run(1) OBJ[48].fields[ROLE.rounds] = 12 run(1) OBJ[48] = nil run(1) WORLD = 10
+      OBJ[49] = { name = NAMES.verdict, fields = { hpinuxg = {} } } OBJ[49].fields[ROLE.rounds] = 11
+      OBJ[49].fields[ROLE.magazines] = 6 OBJ[49].fields[ROLE.chamber] = false OBJ[49].fields[ROLE.carry] = 0 run(3)''')
+    t49 = rk.eval('M.debug_top()')[0]
+    rk.execute('OBJ[49] = nil run(1)')
+    check('a weapon with an empty kit: its size kept under the key ":0" (%s), the bar\'s top 12 at the next start with 11 + 1 chambered (%s)' % (rk.eval('M.debug_learned("kitmag", "c7dfd9eb:0")'), t49),
+          rk.eval('M.debug_learned("kitmag", "c7dfd9eb:0")') == 12 and t49 == 12)
+    # (2.6.5, luka's bolt pistol: "its magazine is 6, it drops to 5") a chambered weapon's magazine reads one short at
+    # a start and after a reload from empty (the chambered round came out of it): the total is the size. The Verdict
+    # with a third kit: a start at 7 + 1 chambered shows 8 from the first frame (8 learned); fired to 0 and reloaded
+    # from empty — 7 and the chamber empty, then loaded: 8 of 8; a tactical reload to 8 + 1: 9 of 8, the size still 8
+    rk.execute('''WORLD = 11 OBJ[52] = { name = NAMES.verdict, fields = { hpinuxg = { 'd4d4d4d4d4d4d4d4' } } } local f = OBJ[52].fields f[ROLE.rounds] = 7
+      f[ROLE.magazines] = 6 f[ROLE.chamber] = false f[ROLE.carry] = 0 run(3)''')
+    t52a = rk.eval('M.debug_top()')[0]
+    rk.execute('''local f = OBJ[52].fields f[ROLE.rounds] = 6 run(1) f[ROLE.rounds] = 8 run(1)''')
+    t52d = rk.eval('M.debug_top()')[0]
+    # (a fourth kit, unknown, picked up 40 s into a mission with nothing in it: reloaded from empty — 7 with the chamber
+    # empty, 8 once it loads)
+    rk.execute('''OBJ[52] = nil run(1) WORLD = 12 GRIP = 10 run(40)
+      OBJ[53] = { name = NAMES.verdict, fields = { hpinuxg = { 'e5e5e5e5e5e5e5e5' } } } local f = OBJ[53].fields f[ROLE.rounds] = 0
+      f[ROLE.magazines] = 6 f[ROLE.chamber] = true f[ROLE.carry] = 0 GRIP = 36 run(3) f[ROLE.rounds] = 7 run(1)''')
+    t53b = rk.eval('M.debug_top()')[0]
+    rk.execute('''OBJ[53].fields[ROLE.chamber] = false run(1)''')
+    t53c = rk.eval('M.debug_top()')[0]
+    # (2.6.7, luka's Sightliner "learned 11": fired to 0 in the magazine with the round still chambered, reloaded to
+    # 8 — a tactical reload by another name: 8 + 1 over the bar, the size still 8)
+    rk.execute('''local f = OBJ[53].fields f[ROLE.rounds] = 0 run(1) f[ROLE.rounds] = 8 run(1)''')
+    t53d = rk.eval('M.debug_top()')[0]
+    rk.execute('OBJ[53] = nil run(1)')
+    check('a chambered weapon: 7 + 1 at a start is a magazine of 8 (%s, learned %s), a tactical reload to 8 + 1 keeps 8 (%s); an unknown one reloaded from empty: 7 with the chamber empty (%s), 8 once it loads (%s, learned %s); the magazine alone emptied and reloaded under the chambered round: still 8 (%s)' % (
+          t52a, rk.eval('M.debug_learned("kitmag", "c7dfd9eb:d4d4d4d4d4d4d4d4")'), t52d, t53b, t53c, rk.eval('M.debug_learned("kitmag", "c7dfd9eb:e5e5e5e5e5e5e5e5")'), t53d),
+          t52a == 8 and rk.eval('M.debug_learned("kitmag", "c7dfd9eb:d4d4d4d4d4d4d4d4")') == 8 and t52d == 8 and t53b == 7 and t53c == 8
+          and rk.eval('M.debug_learned("kitmag", "c7dfd9eb:e5e5e5e5e5e5e5e5")') == 8 and t53d == 8)
     # the next mission, 40 s in (no "full at the start"): kit B half fired shows over 10, an unknown kit over the type's 15
     rk.execute('''OBJ[41] = nil run(1) WORLD = 4 GRIP = 10 run(40)
       OBJ[42] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[42].fields[ROLE.rounds] = 6
@@ -1450,6 +1497,18 @@ def main():
     rq.execute('''for i = 1, 3 do OBJ[3].fields[ROLE.rounds] = 44 - i run(0.8) end''')
     nl = [l for l in rq.eval('logs').values() if 'not yours' in l]
     check('three shots without the fire button after them: "not yours" as before %s' % nl, len(nl) == 1)
+    # (2.6.11, luka's Railgun, MARK 1: "the reload bar stays a few seconds after it's reloaded") a single-round gun
+    # whose chamber flag never reads loaded: the reload line ends as its round shows, not 2.5 s later
+    rg = lua51.LuaRuntime()
+    setup(rg)
+    rg.execute('''OPTS.reload_line = true OBJ[3] = nil OBJ[60] = { name = NAMES.rail, fields = {} } local f = OBJ[60].fields f[ROLE.rounds] = 1 f[ROLE.magazines] = 10 f[ROLE.chamber] = true f[ROLE.carry] = 0 f[ROLE.reload_stage] = 0 f[ROLE.held] = false
+      M = (function(...) ''' + SRC + ''' end)(chef) GRIP = 60 run(2)
+      for i = 1, 2 do f[ROLE.rounds] = 0 run(0.2) f[ROLE.reload_stage] = 1 run(1.5) f[ROLE.rounds] = 1 f[ROLE.reload_stage] = 0 run(3) end
+      f[ROLE.rounds] = 0 run(0.2) f[ROLE.reload_stage] = 1 run(1.2)''')
+    line_in = rg.eval('M.debug_reload_line()')
+    rg.execute('''local f = OBJ[60].fields f[ROLE.rounds] = 1 f[ROLE.reload_stage] = 0 run(0.3)''')
+    line_after = rg.eval('M.debug_reload_line()')
+    check('the Railgun\'s reload line: shown while it reloads (%s), gone 0.3 s after its round is back (%s)' % (line_in, line_after), line_in is True and line_after is False)
     # (2.4.4) the orange turn (luka's pick): the count flashes once as the ammo drops to a quarter and turns orange
     # (8 -> 7 of 30), then plain orange; the next shot (7 -> 6) no flash
     r.execute('''FIRE = true OBJ[4].fields[ROLE.rounds] = 8 run(0.6)
@@ -2495,7 +2554,7 @@ def main():
     labels = {x.id: x.label for x in sp}
     order = [x.id for x in sp]
     check('Chef 1.4 menu: the headings %s' % [h[0] for h in heads],
-          [h[0] for h in heads] == ['Layout', 'Motion', 'Parts', 'Visibility', 'Look', 'Crosshairs', 'Lines and marks', 'Keys', 'Testing'] and heads[0][1] is False and all(h[1] is None for h in heads[1:]))   # (2.5.23: nine)
+          [h[0] for h in heads] == ['Layout', 'Motion', 'Parts', 'Visibility', 'Look', 'Colours', 'Crosshairs', 'Lines and marks', 'Keys', 'Testing'] and heads[0][1] is False and all(h[1] is None for h in heads[1:]))   # (2.5.23: nine; 2.6.7: Colours, ten)
     check('Chef 1.4 menu: labels without the group word (%s, %s, %s)' % (labels.get('vis_bar'), labels.get('fire'), labels.get('research')),
           labels.get('vis_bar') == 'Ammo / heat bar' and labels.get('fire') == 'Fire button' and labels.get('research') == 'Research log' and labels.get('swap_primary') == 'Swap to primary')
     long = [(x.id, len(x.hint)) for x in sp if x.hint and len(x.hint) > 200]
@@ -2920,13 +2979,13 @@ def main():
     # mark painted on the ground — the pin (1.6 m at Mark size 1), the blast zone (its full-damage 3.5 m radius: 7 m
     # across, a 7 m box) and the outer 7.5 m radius (15 m, a 12 m box) — turned to project down, no ring of lines;
     # aimed at the feet (no landing): the pictures parked 5 km down; our pictures not loaded: the Classic ring
-    def newlook(extra=''):
+    def newlook(extra='', tail=''):
         rn = lua51.LuaRuntime()
         setup(rn)
         rn.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 OPTS.line_look = 3 OPTS.mark_look = 2 WPOS = { U = { 0.4, 36, 0.4 } } ''' + extra + '''
           OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
           f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) ''' + SRC + ''' end)(chef)
-          GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+          GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''' + tail)
         return rn
     rn = newlook()
     dec = rn.eval('DECALS') or {}
@@ -2942,12 +3001,20 @@ def main():
     # (a line record: x1, y1, z1, x2, y2, r, g, b, a at 2..10, z2 by name)
     dark = [d for d in ls if d[7] == 0 and d[8] == 0 and d[9] == 0 and d[10] <= 110]
     level = [d for d in ls if abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]
-    drop = [d for d in ls if d[7] == 236 and d[8] == 229 and d[10] <= 170]
+    cream = [d for d in ls if d[7] == 236 and d[8] == 229 and d[10] <= 170]
+    # (2.6.1) the first 7 m of the GL-21's line are the dud stretch, grey (150, 150, 150 at 150): the fade-in sits there
+    grey = [d for d in ls if d[7] == 150 and d[8] == 150 and d[9] == 150 and d[10] <= 150]
+    drop = grey + cream
     gaps = sum(1 for i in range(len(drop) - 1) if (abs(drop[i][5] - drop[i + 1][2]) + abs(drop[i][6] - drop[i + 1][3])) > 0.05)
-    fades = sorted(set(d[10] for d in drop))[:3]
-    check('the new look: 3 pictures on the ground %s, %s across in boxes %s deep, turned down; no ring of lines (%d); the line in dashes (%d pieces, %d gaps), dark edges (%d), fading in (alphas %s)' % (
-          sorted(pics), sizes, depths, len(level), len(drop), gaps, len(dark), fades),
-          len(pics) == 3 and sizes == [1.6, 7.0, 15.0] and depths == [6, 7, 12] and len(level) == 0 and gaps >= 10 and len(dark) >= gaps and fades[0] < 170
+    fades = sorted(set(d[10] for d in grey))[:3]
+    def hand_dist(d):
+        return math.sqrt((d[2] - 0.4) ** 2 + (d[3] - 3) ** 2 + (d[4] - 0.4 - 1.5) ** 2)
+    far_grey = max((hand_dist(d) for d in grey), default=0)
+    near_cream = min((hand_dist(d) for d in cream), default=0)
+    check('the new look: 3 pictures on the ground %s, %s across in boxes %s deep, turned down; no ring of lines (%d); the line in dashes (%d pieces, %d gaps), dark edges (%d), fading in (alphas %s); the dud stretch grey (%d pieces, to %.1f m), cream from %.1f m' % (
+          sorted(pics), sizes, depths, len(level), len(drop), gaps, len(dark), fades, len(grey), far_grey, near_cream),
+          len(pics) == 3 and sizes == [1.6, 7.0, 15.0] and depths == [6, 7, 12] and len(level) == 0 and gaps >= 10 and len(dark) >= gaps and fades[0] < 150
+          and len(grey) >= 5 and len(cream) >= 20 and 6 < far_grey < 8.5 and 6 < near_cream < 8.5
           and all(dict(v['rot']) and abs(list(dict(v['rot']).values())[0] + 0.7071) < 0.001 for v in decs.values()))
     # (2.4.9) the chevron as a screen icon over the landing point (our chevron texture, cream), one bitmap; Thick
     # lines as a triangle: the third strand above the other two (a z offset), not beside them; Solid (the default):
@@ -2970,6 +3037,112 @@ def main():
     rn.execute('CAM_FZ = -0.005 run(0.5)')
     gchev = [d for d in rn.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
     check('on known ground: the chevron bright again (alpha %s)' % (gchev and gchev[0][9]), len(gchev) == 1 and gchev[0][9] == 209)
+    # (2.6.1, luka) duds: the GL-21 aimed at the ground inside its 7 m arming distance (the landing 4.8 m out, 5.3 m
+    # of path) — the pin and the chevron grey, the zone and its ring parked (no blast: the round bounces); F9 Duds off:
+    # the cream mark and the zone back
+    def mark_of(rt_):
+        ps = {}
+        for v in dict(rt_.eval('DECALS') or {}).values():
+            v = dict(v)
+            ps[str(v.get('pic'))] = [round(x, 2) for x in dict(v['pos']).values()] if v.get('pos') else None
+        ch = [(d[6], d[7], d[8]) for d in rt_.eval('draws').values() if d[1] == 'bitmap' and d.tex == 'fcdd3841020eed35']
+        return ps, ch
+    rd = newlook('', ' CAM_FZ = -0.25 run(0.5)')
+    dps, dch = mark_of(rd)
+    parked = [k for k, p in dps.items() if p and p[2] == -5000]
+    placed = [k for k, p in dps.items() if p and p[2] != -5000]
+    check('a dud: the GL-21\'s landing inside 7 m — the grey pin on the ground (%s at %s), the zone and ring parked (%d), the chevron grey (%s)' % (
+          placed, dps.get('id:f79a958af245d756'), len(parked), dch),
+          placed == ['id:f79a958af245d756'] and len(parked) == 2 and dps['id:f79a958af245d756'][1] < 3 + 7 and dch == [(150, 150, 150)])
+    rd.execute('CHANGE.duds(false) run(0.5)')
+    dps, dch = mark_of(rd)
+    placed = sorted(k for k, p in dps.items() if p and p[2] != -5000)
+    check('Duds off: the cream pin, the zone and the ring back on the ground (%s), the chevron cream (%s)' % (placed, dch),
+          len(placed) == 3 and 'id:5e71cb0818cee761' in placed and dch == [(236, 229, 206)])
+    # (2.6.1) rounds that carry your movement (the Ultimatum and the Crossbow; Testing "Rounds carry movement: all"
+    # puts it on the GL-21 here): strafing at 3 m/s for a second moves the landing a metre the same way (the GL-21's
+    # 100 m/s round flies a third of a second to 33 m), running at the aim lands it farther; without it, no change
+    def strafed(extra, fps=60):
+        rt_ = newlook(extra)
+        out = []
+        for step in ('WPOS.U[1] = WPOS.U[1] + 3 / %d', 'WPOS.U[1] = WPOS.U[1] - 3 / %d', 'WPOS.U[2] = WPOS.U[2] + 3 / %d'):
+            rt_.execute(('for i = 1, %d do ' + step + ' draws = {} T = T + 1 / %d M.update(1 / %d) end') % (fps, fps, fps, fps))
+            out.append(mark_of(rt_)[0]['id:5e71cb0818cee761'])
+        return out
+    # (2.6.2: and at 144 fps — 2.6.1's ring of one sample a frame held under the 0.15 s looked back at luka's 83)
+    for fps in (60, 144):
+        with_c, without = strafed('OPTS.carry_all = true ', fps), strafed('', fps)
+        dx = [round(a[0] - b[0], 2) for a, b in zip(with_c, without)]
+        dy = [round(a[1] - b[1], 2) for a, b in zip(with_c, without)]
+        check('rounds carry your movement at %d fps: strafing right then left, running at the aim — the landing moved against standing still by x %s, y %s' % (fps, dx, dy),
+              0.8 < dx[0] < 1.2 and -1.2 < dx[1] < -0.8 and abs(dx[2]) < 0.1 and abs(dy[0]) < 0.1 and abs(dy[1]) < 0.1 and 0.6 < dy[2] < 1.1)
+    # (2.6.1, luka: "for bright planets") F9 Look "Text outline": each string drawn four more times a pixel off in the
+    # four directions (two at a size over Medium), near-black at 0.9 of the text's alpha, under it; off by default
+    ro = lua51.LuaRuntime()
+    setup(ro)
+    ro.execute('M = (function(...) ' + SRC + ' end)(chef) run(2)')
+    def text_draws(rt_):
+        return [(str(d[4]), d[2], d[3], d[5], d[6], d[7], d[8], d[9]) for d in rt_.eval('draws').values() if d[1] == 'text']
+    plain = text_draws(ro)
+    ro.execute('CHANGE.text_outline(true) run(0.3)')
+    outlined = text_draws(ro)
+    blacks = [t for t in outlined if (t[4], t[5], t[6]) == (0, 0, 0)]
+    mains = [t for t in outlined if (t[4], t[5], t[6]) != (0, 0, 0)]
+    def outline_ok(m):
+        o = 2 if m[3] * 7 >= 20 else 1              # (the record's size is chef.text's: the capitals' height / 7)
+        want = {(m[1] + i * o, m[2] + j * o) for i in (-1, 0, 1) for j in (-1, 0, 1) if (i, j) != (0, 0)}   # (2.6.3: the diagonals too)
+        got = {(b[1], b[2]) for b in blacks if b[0] == m[0] and b[7] == math.floor(m[7] * 0.9 + 0.5)}
+        return want <= got
+    # (2.6.6, luka: "the F9 palette") the colours as roles: Text and Bars apart — Bars red leaves the count cream and
+    # paints the bar and the magazine squares; Text blue paints the count; the Colourblind preset writes every row
+    # (white text and bars); Standard back; Lines red paints the drop line (the world's tone curve undone on a pure
+    # colour: the line's red stays 255, 0, 0)
+    rc = lua51.LuaRuntime()
+    setup(rc)
+    rc.execute('M = (function(...) ' + SRC + ' end)(chef) run(2)')
+    def inks(rt_):
+        rects = set((d[6], d[7], d[8]) for d in rt_.eval('draws').values() if d[1] == 'rect' and (d[6], d[7], d[8]) != (0, 0, 0))
+        texts = set((d[6], d[7], d[8]) for d in rt_.eval('draws').values() if d[1] == 'text' and (d[6], d[7], d[8]) != (0, 0, 0) and len(str(d[4])) <= 6)   # (not the notice)
+        return rects, texts
+    r0, t0 = inks(rc)
+    rc.execute('CHANGE.col_bars("FF0000") run(0.3)')
+    r1, t1 = inks(rc)
+    rc.execute('CHANGE.col_text("0000FF") run(0.3)')
+    r2, t2 = inks(rc)
+    rc.execute('CHANGE.palette(2) run(0.3)')
+    r3, t3 = inks(rc)
+    vals = rc.eval('OPTS.col_text .. " " .. OPTS.col_bars .. " " .. OPTS.col_low .. " " .. OPTS.col_empty .. " " .. OPTS.col_lines')
+    rc.execute('CHANGE.palette(1) run(0.3)')
+    r4, t4 = inks(rc)
+    check('the colour roles: cream rects and texts (%s, %s); Bars red: the rects red, the text cream (%s, %s); Text blue (%s); Colourblind writes the rows (%s: %s, %s); Standard back (%s, %s)' % (
+          sorted(r0), sorted(t0), sorted(r1), sorted(t1), sorted(t2), vals, sorted(r3), sorted(t3), sorted(r4), sorted(t4)),
+          r0 == {(236, 229, 206)} and t0 == {(236, 229, 206)} and r1 == {(255, 0, 0)} and t1 == {(236, 229, 206)} and t2 == {(0, 0, 255)} and r2 == {(255, 0, 0)}
+          and vals == 'F0F0F0 F0F0F0 F0E442 E650C8 FFFFFF' and r3 == {(240, 240, 240)} and t3 == {(240, 240, 240)} and r4 == {(236, 229, 206)} and t4 == {(236, 229, 206)})
+    # (2.6.8) the layout file: a part's own `color` paints that part at rest (the count red, everything else cream;
+    # the magazine squares and their number share the mags part's); the file's `colors` roles win over the Colours
+    # tab (bars green in the file, F9's blue ignored, back to F9's once the file drops them); a colour that doesn't
+    # fit is dropped and counted; Low still paints a red count orange
+    rc.execute('''LAYOUT = { _v = 1, colors = { bars = '00FF00' }, elements = { count = { color = 'FF0000' }, mags = { color = '#0000FF', style = 'squares' } } }
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false CHANGE.col_bars('0000FF') run(0.5)''')
+    r5, t5 = inks(rc)
+    cnt = set((d[6], d[7], d[8]) for d in rc.eval('draws').values() if d[1] == 'text' and str(d[4]).isdigit() and int(d[4]) > 20)
+    rc.execute('''LAYOUT = { _v = 1, colors = { bars = 'green', text = 'FFFFFF' }, elements = { count = { color = 12 } } } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.5)''')
+    r6, t6 = inks(rc)
+    said = [l for l in rc.eval('logs').values() if l.startswith('layout file: read')][-1]
+    rc.execute('''OBJ[3].fields[ROLE.rounds] = 2 run(0.5)''')   # (2 + 1 chambered: "3")
+    cnt7 = set((d[6], d[7], d[8]) for d in rc.eval('draws').values() if d[1] == 'text' and str(d[4]) == '3')
+    rc.execute('''OBJ[3].fields[ROLE.rounds] = 44 LAYOUT = { _v = 1, elements = {} } BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false CHANGE.col_bars('ECE5CE') run(0.5)''')
+    check('a part\'s own colour and the file\'s roles: the count red (%s), the squares blue, the bars the file\'s green over F9\'s blue (%s, texts %s); a bad file: two values dropped (%s), the text white (%s); a low count still orange (%s)' % (
+          sorted(cnt), sorted(r5), sorted(t5), said, sorted(t6), sorted(cnt7)),
+          cnt == {(255, 0, 0)} and r5 == {(0, 255, 0), (0, 0, 255)} and t5 == {(255, 0, 0), (236, 229, 206)}
+          and '2 values that didn\'t fit' in said and t6 == {(255, 255, 255)} and cnt7 == {(240, 170, 90)})
+    rl = newlook('OPTS.col_lines = "FF0000" ')
+    reds = [d for d in rl.eval('draws').values() if d[1] == 'line' and (d[7], d[8], d[9]) == (255, 0, 0)]
+    creams = [d for d in rl.eval('draws').values() if d[1] == 'line' and d[7] == 236 and d[8] == 229]
+    check('Lines red: the drop line\'s pieces red (%d), none cream (%d)' % (len(reds), len(creams)), len(reds) >= 20 and len(creams) == 0)
+    check('the text outline: %d strings plain; on, each with eight near-black copies a pixel off (two for the big count) at 0.9 alpha (%d black of %d), all placed right (%s)' % (
+          len(plain), len(blacks), len(outlined), all(outline_ok(m) for m in mains)),
+          len(plain) >= 3 and all((t[4], t[5], t[6]) != (0, 0, 0) for t in plain) and len(mains) == len(plain) and len(blacks) == 8 * len(mains) and all(outline_ok(m) for m in mains))
     # (2.5.3, luka) the metres to the landing right of the chevron, the stim counter's size (16 px at size 1), on
     # its middle; off with its F9 row; and the Range part: the chevron's distance while the line is up
     def dist_texts(rt_):
@@ -3396,6 +3569,21 @@ def main():
     r.execute('CHANGE.layout(1) run(0.5)')
     bars = [d for d in r.eval('draws').values() if d[1] == 'rect' and d[4] == 260]
     check('layout 1 (horizontal): the 260 px bars under the middle (%s)' % sorted(set((b[3], b[5]) for b in bars)), bars and all(b[2] == 1590 for b in bars))
+    # (2.6.12, luka's Cake: choice 6, after Custom so saved choices keep their numbers) five rings on one centre 16.3 %
+    # right and 13.1 % under the middle: the arcs' boxes share a centre (the charge, health and stamina slots are empty
+    # here: nothing to show), the count in it, 8 px up
+    r.execute('OPTS.health = 2 OPTS.stamina = 2 OPTS.stim_timer = true CHANGE.layout(6) run(0.5)')
+    bx = r.eval('M.debug_boxes()')
+    def centre(id):
+        b = dict(bx)[id]; p, sz = b.split(' ')[0], b.split(' ')[1]
+        x, y = (int(v) for v in p.split(',')); w, h = (int(v) for v in sz.split('x'))
+        return (x + w / 2, y + h / 2, w, h)
+    cs = {id: centre(id) for id in ('bar', 'charge', 'health', 'stamina', 'count')}
+    cx, cy = 1720 + 0.163 * 1440, 720 - 0.131 * 1440
+    check('layout 6 (Cake): the rings\' boxes on one centre (%s; wanted %.0f, %.0f), the count in the middle (%s)' % (
+          {k: (round(v[0]), round(v[1]), v[2]) for k, v in cs.items()}, cx, cy, cs['count'][:2]),
+          all(abs(v[0] - cx) <= 2 and abs(v[1] - cy) <= 2 for k, v in cs.items() if k != 'count') and cs['bar'][2] == 173   # (2 x 86.5: the bar's outer radius)
+          and abs(cs['count'][0] - cx) <= 3 and abs(cs['count'][1] - cy) <= 12)
     # Layout: Custom, no layout file yet: one with the vertical pair written (2.0), and drawn from it
     r = lua51.LuaRuntime()
     setup(r)
@@ -3492,6 +3680,29 @@ def main():
     pts = tri_pts()
     b_, hgt = bulge([(-x_, y_) for x_, y_ in pts])
     check('custom, curved left: a "(" (bulge %.0f)' % b_, 45 < b_ < 62)
+    # (2.6.10, luka) curved up and down: the same arc turned, bulging up (its middle above its ends) or down, filling
+    # from the left (the heat at 50: the filled triangles on the left half); and a circle: a length of 2 pi times the
+    # radius closes it — the box a square of 2 r_out, the arc passing all four extremes
+    def filled():
+        return [(d[2], d[3]) for d in r.eval('draws').values() if d[1] == 'tri' and d[9] > 95]
+    r.execute('''LAYOUT.elements.bar.style = 'curved_up' BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    pts = tri_pts()
+    b_, wid = bulge([(y_, x_) for x_, y_ in pts])   # (turned: the bulge reads along y)
+    fx = filled(); xs = [p[0] for p in pts]; xm = (min(xs) + max(xs)) / 2
+    left_share = sum(1 for p in fx if p[0] < xm) / max(1, len(fx))
+    check('custom, curved up: the middle above the ends (bulge %.0f, width %.0f), filled from the left (%.0f%% of the fill left of the middle)' % (b_, wid, left_share * 100), 45 < b_ < 62 and 225 < wid < 250 and left_share > 0.9)
+    r.execute('''LAYOUT.elements.bar.style = 'curved_down' BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    pts = tri_pts()
+    b_, wid = bulge([(-y_, x_) for x_, y_ in pts])
+    fx = filled(); xs = [p[0] for p in pts]; xm = (min(xs) + max(xs)) / 2
+    left_share = sum(1 for p in fx if p[0] < xm) / max(1, len(fx))
+    check('custom, curved down: the middle below the ends (bulge %.0f), filled from the left (%.0f%%)' % (b_, left_share * 100), 45 < b_ < 62 and left_share > 0.9)
+    r.execute('''LAYOUT.elements.bar.style = 'curved_right' LAYOUT.elements.bar.length = 943 BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
+    pts = tri_pts(); xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    bw, bh = (int(v) for v in r.eval('M.debug_boxes()')['bar'].split(' ')[1].split('x'))
+    check('custom, a circle: 943 along a 150 radius closes it (the box %d x %d, the points %.0f x %.0f)' % (bw, bh, max(xs) - min(xs), max(ys) - min(ys)),
+          312 <= bw <= 316 and 312 <= bh <= 316 and max(xs) - min(xs) > 300 and max(ys) - min(ys) > 300)
+    r.execute('''LAYOUT.elements.bar.length = 260 BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)''')
     r.execute('TRI_ROWS = true BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false run(0.3)')
     dr = list(r.eval('draws').values())
     check('custom, curved where Chef draws triangles as rects: vertical, logged',

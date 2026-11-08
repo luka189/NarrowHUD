@@ -72,10 +72,11 @@ if chef.has and chef.has('menu') then
   -- The two offsets move any of them (a Custom file only when it says so). (2.0.3, luka: the aim Spread under the
   -- Spread and Motion here; the aim opacity and the old Extras under Visibility.)
   group('Layout', '', true)
-  local BUILTIN = { 'horizontal', 'arcs', 'vertical', 'block' }   -- (luka's order: 1 horizontal, 2 arcs, 3 vertical, 4 block)
-  choice('layout', 'Layout', { 'Horizontal', 'Arcs', 'Vertical pair', 'Block', 'Custom layout' }, 1,
+  -- (luka's order: 1 horizontal, 2 arcs, 3 vertical, 4 block; 2.6.12: Cake after Custom, since a saved choice is its number)
+  local BUILTIN = { 'horizontal', 'arcs', 'vertical', 'block', nil, 'cake' }
+  choice('layout', 'Layout', { 'Horizontal', 'Arcs', 'Vertical pair', 'Block', 'Custom layout', 'Cake' }, 1,
     function(v) cfg.custom, cfg.builtin = true, BUILTIN[v] end,
-    'Four built-in layouts, or Custom layout: your own from the online editor (the README has the link), read from the layout file.')
+    'Five built-in layouts, or Custom layout: your own from the online editor (the README has the link), read from the layout file.')
   local SIZES = { 0.8, 1.0, 1.25, 1.5 }
   choice('size', 'Size', { 'Small', 'Medium', 'Large', 'Huge' }, 2, function(v) cfg.size = SIZES[v] or 1 end,
     'The whole HUD. The icons never go below Medium\'s size.')
@@ -222,9 +223,9 @@ if chef.has and chef.has('menu') then
   -- it falls (a Nexus comment, 2026-11-01); a layout's count part can set its own
   choice('count_digits', 'Count digits', { 'Fixed', 'Tight' }, 1, function(v) cfg.count_tight = v == 2 end,
     'Fixed: the count sits right-aligned in a box as wide as a full magazine, so it and the parts after it never slide. Tight: the box is the number\'s own width. A layout can set its own.')
+  -- (2.6.1, luka: "the text outline for bright planets")
+  toggle('text_outline', 'Text outline', false, 'A dark outline all round the count and the words, for bright planets.')
   toggle('mode_colors', 'Modes in colour', false, 'The fire and weapon modes (words and icons) each in a colour of their own, so a switch is easy to see.')
-  choice('palette', 'Colours', { 'Standard', 'Colourblind' }, 1, function(v) cfg.palette = v if N.apply_palette then N.apply_palette() end end,
-    'Colourblind: white, sky blue, yellow and magenta, told apart by brightness too.')
   -- (2.4.5, luka) where ammo turns low: the bar, the count and an ammo backpack orange (and the one flash) at this share
   slider('low_ammo', 'Low ammo at, %', 5, 50, 5, 25, function(v) cfg.low_ammo = v / 100 end,
     'The ammo bar and count turn orange, with one flash as they do, at this much of a magazine or less; an ammo backpack too.')
@@ -243,6 +244,42 @@ if chef.has and chef.has('menu') then
   -- (1.5.43) the sniper rifles' third-person crosshair (12_reticle); (1.3.0) your map pin and the spot of your last
   -- death, with their distance, an arrow at the screen's edge when out of view; (1.4.0) the drop line: the shot's
   -- flight from the crosshair, for weapons whose shot drops; (1.5.0) throw lines: a stratagem ball, a grenade or C4
+  ---------------------------------------------------------------------------------- Colours
+  group('Colours', 'Colours: ')   -- (2.6.7, luka: their own tab)
+  -- (2.6.6, luka: "the F9 palette") the colours as roles, a colour row each (Chef 1.4's: Left / Right step through
+  -- our list; the editor can set them too, the layout file's winning). The preset row writes them all at once:
+  -- Standard, or Colourblind (white, sky blue, yellow, magenta: told apart by brightness too)
+  local SWATCHES = { 'ECE5CE', 'FFFFFF', 'F0F0F0', 'C8C8C8', '8E8E93', 'FFE710', 'ECD660', 'F0E442', 'F0AA5A', 'FF9500', 'D25048',
+                     'FF3B30', 'FF2D55', 'E650C8', 'BF5AF2', '5E5CE6', '0A84FF', '82BEEB', '82CDF5', '56B4E9', '00C7BE', '50DCAF',
+                     '34C759', 'A2845E' }
+  local LINE_SWATCHES = { 'ECE5CE', 'FFFFFF', '0000FF', 'FF0000', '00FF00' }   -- (luka: pure colours only in the world)
+  local PRESETS = {
+    { col_text = 'ECE5CE', col_bars = 'ECE5CE', col_low = 'F0AA5A', col_empty = 'D25048', col_mode_a = '82CDF5', col_mode_b = '50DCAF', col_lines = 'ECE5CE', col_stamina = '82BEEB' },
+    { col_text = 'F0F0F0', col_bars = 'F0F0F0', col_low = 'F0E442', col_empty = 'E650C8', col_mode_a = '82CDF5', col_mode_b = '50DCAF', col_lines = 'FFFFFF', col_stamina = '56B4E9' },
+  }
+  local COLOR_ROWS = { 'col_text', 'col_bars', 'col_low', 'col_empty', 'col_mode_a', 'col_mode_b', 'col_lines', 'col_stamina' }
+  cfg.palette = chef.option('palette', spec_of('Colour preset', 'Sets the colour rows below at once. Colourblind: white, sky blue, yellow and magenta, told apart by brightness too.',
+    { type = 'choice', choices = { 'Standard', 'Colourblind' }, default = 1 })) or 1
+  chef.on_change('palette', function(v)
+    cfg.palette = v or 1
+    local preset = PRESETS[cfg.palette] or PRESETS[1]
+    if chef.set then for _, id in ipairs(COLOR_ROWS) do chef.set(id, preset[id]) end end
+    if N.apply_palette then N.apply_palette() end
+  end)
+  local function color(id, label, swatches, hint)
+    local v = chef.option(id, spec_of(label, hint, { type = 'color', default = PRESETS[1][id], palette = swatches }))
+    cfg[id] = type(v) == 'string' and v or nil
+    chef.on_change(id, function(nv) cfg[id] = type(nv) == 'string' and nv or nil if N.apply_palette then N.apply_palette() end end)
+  end
+  color('col_text', 'Text', SWATCHES, 'The counts, words and icons; the chevron and the map pin too (the crosshairs keep the game\'s own cream).')
+  color('col_bars', 'Bars', SWATCHES, 'The bars, the magazine squares and the ticks, at rest.')
+  color('col_low', 'Low', SWATCHES, 'Ammo low, heat high, health half: the bar, the count and the flash.')
+  color('col_empty', 'Empty', SWATCHES, 'Nothing left, overheated, health low.')
+  color('col_mode_a', 'Mode colour A', SWATCHES, 'The second fire or weapon mode, with "Modes in colour" on.')
+  color('col_mode_b', 'Mode colour B', SWATCHES, 'The third mode.')
+  color('col_lines', 'Lines', LINE_SWATCHES, 'The drop and throw lines. They are drawn in the world, where each planet\'s light shifts a colour: pure colours only.')
+  color('col_stamina', 'Stamina', SWATCHES, 'The stamina bar at rest.')
+  if N.apply_palette then N.apply_palette() end
   ---------------------------------------------------------------------------------- Crosshairs
   group('Crosshairs', 'Crosshairs: ')   -- (2.5.23: out of World)
   toggle('reticle', 'Sniper crosshair', true, 'A crosshair for the APW-1, R-40 and AMW-20 in third person, where the game draws none: the game\'s own ring and dot.')
@@ -275,6 +312,8 @@ if chef.has and chef.has('menu') then
   toggle('mark_range', '   Distance by the chevron', true, 'The metres to the landing, small, to the right of the chevron.')
   slider('mark_size', '   Mark size, m', 0.3, 1, 0.1, 0.5, function(v) cfg.mark_size = v end, 'The landing mark\'s width: the ring and the arrow over it.')
   toggle('struct_mark', 'Structure hits', true, 'The mark turns red where the shot or throw would hit an enemy structure (a bug hole, a fabricator, a warp ship) before the ground.')
+  -- (2.6.1, luka) duds: the line grey up to a launcher round's arming distance, a landing inside it a grey chevron
+  toggle('duds', 'Duds', true, 'A launcher round landing closer than it arms (the GL-21 7 m, the GL-28 5 m, the GP-31 4 m...) bounces: the line is grey up to there, and a landing inside gets a grey chevron and no blast zone.')
   choice('drop_thick', '   Lines', { 'Thin', 'Medium', 'Thick' }, 1, function(v) cfg.drop_thick = v end, 'The drop and throw lines\' thickness.')
   -- (2.4.8, luka: "our line and ending markers look like v0.5 next to a v2.5 HUD") the new look, the old one kept
   choice('line_look', '   Line look', { 'Classic', 'Solid', 'Dashes', 'Flowing dashes' }, 2, function(v) cfg.line_look = v end,
@@ -301,6 +340,8 @@ if chef.has and chef.has('menu') then
     if N.research_types then N.research_types() end
     -- (2.5.13, luka) the structures' boxes drawn in the world, to see the model against the game
     toggle('struct_boxes', 'Draw structure boxes', false, 'The boxes the red mark tests, drawn in red lines in the world (the parts the shot hits brighter). For checking them against the game.')
+    -- (2.6.1) a test: every weapon's round carries your movement, not only the Ultimatum's and the Crossbow's
+    toggle('carry_all', 'Rounds carry movement: all', false, 'For a test: every weapon\'s round leaves with your velocity added, not only the Ultimatum\'s and the Crossbow\'s. Fire while strafing and see which chevron the shot follows.')
     toggle('any_build', 'Any game version', false, 'Run on a game version the mod wasn\'t made for. It may crash the game.')
     -- (1.5.38) the host's objects are never listed, sorted or read: with them, a client lost its host 12 to 17
     -- minutes into every mission (luka's three drops, the reporters'); without them, none in 44 minutes (the

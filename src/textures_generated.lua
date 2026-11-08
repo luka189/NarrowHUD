@@ -20,5 +20,6 @@ return {
   decal_ring_red_game = { { 512, 512, 'c5bf27f40829000d', 512 } },   -- (a ground picture, tools/decal_art.py: BC3, every mip level)
   decal_pin_cream_game = { { 256, 256, '5e71cb0818cee761', 256 } },   -- (a ground picture, tools/decal_art.py: BC3, every mip level)
   decal_pin_red_game = { { 256, 256, 'f380ca34d8d02448', 256 } },   -- (a ground picture, tools/decal_art.py: BC3, every mip level)
+  decal_pin_grey_game = { { 256, 256, 'f79a958af245d756', 256 } },   -- (a ground picture, tools/decal_art.py: BC3, every mip level)
   hatch_game = { { 512, 512, '9d1ae52177072a62', 512, { { 8, 0, 64 }, { 10, 64, 64 }, { 12, 128, 64 }, { 14, 192, 64 }, { 16, 256, 64 }, { 20, 320, 64 }, { 24, 384, 64 }, { 32, 448, 64 } } } },   -- (the hatched shade's stripes: BC3, every mip level; bands of { period, first row, rows }, the stripes along u + v)
 }

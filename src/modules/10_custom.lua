@@ -3,6 +3,7 @@
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local cfg, learned, learn, txt_width, txt, CREAM = N.cfg, N.learned, N.learn, N.txt_width, N.txt, N.CREAM
 local WARN, RED, col, empty_rect, solid_bar, txt_modes = N.WARN, N.RED, N.col, N.empty_rect, N.solid_bar, N.txt_modes
+local BARS, STAMINA_C = N.BARS, N.STAMINA                -- (2.6.6: the Bars and Stamina roles; CREAM is Text)
 local MARK_COLORS, heat_tone, pack_state = N.MARK_COLORS, N.heat_tone, N.pack_state
 
 ------------------------------------------------------------------------------------------------ a custom layout
@@ -49,7 +50,8 @@ local SIDES = { auto = 1, none = 1, left = 1, right = 1, up = 1, down = 1 }
 local COMMON = { on = { 'boolean', true }, anchor = { 'choice', 'center', ANCHORS }, x = { 'number', 0, -100, 100 },
   y = { 'number', 0, -100, 100 }, align = { 'choice', 'bottom_left', ALIGNS }, size = { 'number', 1, 0.3, 4 },
   opacity = { 'number', 100, 0, 100 }, after = { 'choice', 'none', AFTER }, gap = { 'number', 8, -500, 500 },
-  pin = { 'choice', 'none', PINS }, side = { 'choice', 'auto', SIDES }, hold = { 'boolean', false } }
+  pin = { 'choice', 'none', PINS }, side = { 'choice', 'auto', SIDES }, hold = { 'boolean', false },
+  color = { 'color', nil } }   -- (2.6.8: the part's own colour at rest, 'RRGGBB'; none: the Colours tab's)
 -- (1.5.72) hold: a part with nothing to show for the moment (the weapon put away, a stratagem ball in hand, no
 -- weapon seated) keeps the place it had, so the parts pinned to it stay where they are; off, they take its place
 -- (as a part that's Off, or one this loadout never has — no backpack, no charge meter — always does). On in Under's
@@ -57,11 +59,11 @@ local COMMON = { on = { 'boolean', true }, anchor = { 'choice', 'center', ANCHOR
 -- stamina — and off for the ones a weapon or loadout may not have (the charge meter, the magazines, the backpack,
 -- the modes, the rate of fire), which give their place away (luka, 1.5.72 / 1.5.75)
 local ELEMENTS = {
-  { id = 'bar', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+  { id = 'bar', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1, curved_up = 1, curved_down = 1 } },
       fill = { 'choice', 'auto', { auto = 1, ticks = 1, solid = 1 } }, length = { 'number', 260, 10, 2000 },
       radius = { 'number', 150, 10, 2000 },
       thickness = { 'number', 14, 1, 200 }, ticks_max = { 'number', 30, 1, 200 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
-  { id = 'charge', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+  { id = 'charge', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1, curved_up = 1, curved_down = 1 } },
       length = { 'number', 260, 10, 2000 }, thickness = { 'number', 4, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   -- (2.1.13) digits: fixed — the number sits right-aligned in a box as wide as it gets (the full magazine, the full
   -- heat), so it never slides as it falls and what's pinned after it stays put (a player, 2026-11-01: "the 9 where
@@ -89,15 +91,15 @@ local ELEMENTS = {
   -- (2.5.3, luka) the range: the metres to the landing chevron while a line is up, else to where the game's reticle
   -- points, for any weapon; "-" with nothing to measure (the sky: the reticle point 1 km out)
   { id = 'range', fields = {} },
-  { id = 'pack', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+  { id = 'pack', fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1, curved_up = 1, curved_down = 1 } },
       length = { 'number', 120, 10, 2000 }, thickness = { 'number', 7, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   -- (1.1.0) your health and stamina: shown when F9's Health bar / Stamina bar say so (off by default)
-  { id = 'health', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+  { id = 'health', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1, curved_up = 1, curved_down = 1 } },
       length = { 'number', 260, 10, 2000 }, thickness = { 'number', 5, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
-  { id = 'stamina', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+  { id = 'stamina', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1, curved_up = 1, curved_down = 1 } },
       length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
   -- (1.2.0) the stim timer: shown when F9's Stim timer is on, while a stim of yours works
-  { id = 'stim', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1 } },
+  { id = 'stim', vitals = true, fields = { style = { 'choice', 'horizontal', { horizontal = 1, vertical = 1, curved_left = 1, curved_right = 1, curved_up = 1, curved_down = 1 } },
       length = { 'number', 260, 10, 2000 }, thickness = { 'number', 3, 1, 200 }, radius = { 'number', 150, 10, 2000 }, edge = BAR_LOOK.edge, shade = BAR_LOOK.shade } },
 }
 -- the layout written the first time Custom is chosen and there's no file: Under's look, to start from
@@ -215,6 +217,30 @@ local BLOCK_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 60, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
   stim = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'health', gap = 8, pin = 'below', side = 'auto', style = 'horizontal', length = 60, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' } } }
 
+-- (2.6.12, luka's "Cake") five rings on one centre right of the crosshair, a 30-degree slice open at the top, 6 px
+-- apart: the backpack and the stim timer sharing the innermost (150 degrees each, right and left), then stamina,
+-- health, the ammo bar and the charge meter; the count and the magazines in the middle, the icons and the rate of
+-- fire right of the rings, stims and grenades either side of the crosshair, the range under it.
+local CAKE_LAYOUT = { _v = LAYOUT_VERSION, elements = {
+  bar = { on = true, anchor = 'center', x = 16.3, y = -13.1, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'curved_down', fill = 'auto', length = 466.5, radius = 81, thickness = 11, ticks_max = 30, edge = 'auto', shade = 'auto' },
+  charge = { on = true, anchor = 'center', x = 16.3, y = -13.1, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_down', length = 544.3, thickness = 4, radius = 94.5, edge = 'auto', shade = 'auto' },
+  count = { on = true, anchor = 'center', x = 16.3, y = -12.6, align = 'center', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, digits = 'tight' },
+  mags = { on = true, anchor = 'center', x = 0, y = 0, align = 'top', size = 1, opacity = 100, after = 'count', gap = 3, pin = 'below', side = 'auto', hold = false, style = 'number', empty = 'shown', divider = false },
+  mode1 = { on = false, anchor = 'center', x = 0, y = 0.5, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 14, pin = 'right', side = 'auto', hold = false },
+  mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 4, pin = 'below', side = 'auto', hold = false },
+  zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'below', side = 'auto', hold = false },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'above', side = 'auto', hold = false, style = 'line' },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 6, pin = 'right', side = 'auto', hold = false, style = 'line' },
+  rpm = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 3, pin = 'right', side = 'auto', hold = false },
+  stims = { on = true, anchor = 'center', x = -1, y = -8.1, align = 'top_right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
+  grenades = { on = true, anchor = 'center', x = 1, y = -8.1, align = 'top_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
+  range = { on = true, anchor = 'center', x = 0, y = -11.6, align = 'center', size = 1, opacity = 100, after = 'none', gap = -67, pin = 'none', side = 'auto', hold = false },
+  pack = { on = true, anchor = 'center', x = 16.3, y = -13.1, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_right', length = 115.2, thickness = 5, radius = 44, edge = 'auto', shade = 'auto' },
+  health = { on = true, anchor = 'center', x = 16.3, y = -13.1, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = true, style = 'curved_down', length = 380.1, thickness = 7, radius = 66, edge = 'auto', shade = 'auto' },
+  stamina = { on = true, anchor = 'center', x = 16.3, y = -13.1, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_down', length = 313.9, thickness = 4, radius = 54.5, edge = 'auto', shade = 'auto' },
+  stim = { on = true, anchor = 'center', x = 16.3, y = -13.1, align = 'arc', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false, style = 'curved_left', length = 115.2, thickness = 5, radius = 44, edge = 'auto', shade = 'auto' } } }
+
 -- a layout table as read: every known field checked (type, range, choice), what doesn't fit dropped and counted,
 -- Under's look's values (or the field's default) for the rest
 local function read_layout(t)
@@ -229,7 +255,8 @@ local function read_layout(t)
         local ok = v ~= nil
         if ok and f[1] == 'boolean' then ok = type(v) == 'boolean'
         elseif ok and f[1] == 'number' then ok = type(v) == 'number' and v == v and v >= f[3] and v <= f[4]
-        elseif ok and f[1] == 'choice' then ok = type(v) == 'string' and f[3][v] ~= nil end
+        elseif ok and f[1] == 'choice' then ok = type(v) == 'string' and f[3][v] ~= nil
+        elseif ok and f[1] == 'color' then ok = type(v) == 'string' and N.hex_rgb(v) ~= nil end
         if v ~= nil and not ok then dropped = dropped + 1 end
         -- (a field not given: Under's look's, else the field's own default. Not after / pin / side when the element
         -- is in the file without them: a file from before pins had the magazines where its maker put them, which
@@ -239,14 +266,27 @@ local function read_layout(t)
         if ok then e[name] = v elseif dv ~= nil then e[name] = dv elseif name == 'on' and el.off then e[name] = false else e[name] = f[2] end
       end
     end
+    if e.color then e.rgb = { N.hex_rgb(e.color) } end   -- (2.6.8: parsed once)
     out[el.id] = e
+  end
+  return out, dropped
+end
+-- (2.6.8) the file's `colors = { text = 'RRGGBB', bars = ..., low, empty, mode_a, mode_b, lines, stamina }`: the
+-- roles over the Colours tab's rows; what doesn't fit is dropped and counted
+local COLOR_ROLES = { text = 1, bars = 1, low = 1, empty = 1, mode_a = 1, mode_b = 1, lines = 1, stamina = 1 }
+local function read_colors(t)
+  local out, dropped = {}, 0
+  local src = type(t) == 'table' and t.colors or nil
+  if src ~= nil and type(src) ~= 'table' then return out, 1 end
+  for role, v in pairs(src or {}) do
+    if COLOR_ROLES[role] and type(v) == 'string' and N.hex_rgb(v) then out[role] = v else dropped = dropped + 1 end
   end
   return out, dropped
 end
 local layout = { els = nil, said = nil, builtin = {} }
 local cur = {}                                     -- the elements being drawn this frame
 -- a built-in layout as read, once; F9's offsets move it
-local BUILTIN = { vertical = VERTICAL_LAYOUT, arcs = ARCS_LAYOUT, horizontal = HORIZONTAL_LAYOUT, block = BLOCK_LAYOUT }
+local BUILTIN = { vertical = VERTICAL_LAYOUT, arcs = ARCS_LAYOUT, horizontal = HORIZONTAL_LAYOUT, block = BLOCK_LAYOUT, cake = CAKE_LAYOUT }
 local function builtin_layout(name)
   local l = layout.builtin[name]
   if not l then l = { els = read_layout(BUILTIN[name] or HORIZONTAL_LAYOUT) } layout.builtin[name] = l end
@@ -268,11 +308,16 @@ local function load_layout(why)
   end
   if not ok or type(t) ~= 'table' then
     layout.els, layout.offsets = read_layout(DEFAULT_LAYOUT), false
+    N.layout_colors = nil if N.apply_palette then N.apply_palette() end
     log('layout file: can\'t be read (%s): Under\'s look until it\'s fixed (%s)', tostring(ok and err or t), why)
     return false
   end
   local dropped
   layout.els, dropped = read_layout(t)
+  local colors, cdropped = read_colors(t)
+  N.layout_colors = next(colors) and colors or nil
+  if N.apply_palette then N.apply_palette() end
+  dropped = dropped + cdropped
   -- (F9's two offsets move a Custom layout only when its file says so: one set for another layout moved a Custom one
   -- placed in the editor without anyone noticing)
   layout.offsets = t.use_offsets == true
@@ -288,7 +333,7 @@ end
 local function weapon_tone(d)
   local frac = 0
   if d.top and d.top > 0 then frac = math.max(0, math.min(1, d.value / d.top)) end
-  local tone = CREAM
+  local tone = BARS                                           -- (2.6.6: the bar's rest colour; the count takes Text at rest)
   if d.kind == 'ammo' then
     if d.value == 0 then tone = RED elseif frac <= (cfg.low_ammo or 0.25) then tone = WARN end   -- (2.4.5: F9 Low ammo at)
   else
@@ -305,7 +350,10 @@ local L_CUSTOM = 905                             -- (+ N.L0, set at each draw_cu
 -- were). length runs along the arc, thickness across it, radius is its middle line's; they fill from the bottom up.
 -- Without chef.triangle, or when Chef draws triangles as rows of rects: vertical instead.
 local arcs_ok = chef.triangle ~= nil
-local function curved(e) return arcs_ok and (e.style == 'curved_left' or e.style == 'curved_right') end
+-- (2.6.10, luka) and 'curved_up' a "⌒" bulging up, 'curved_down' a "⌣" bulging down, both filling from the left; a
+-- curve may cover the full 360 degrees now (a length of 2 pi times the radius closes the circle)
+local ARC_MID = { curved_right = 90, curved_left = 270, curved_up = 0, curved_down = 180 }
+local function curved(e) return arcs_ok and ARC_MID[e.style] ~= nil end
 -- the arc's shape at scale k: { cx, cy (from the box's bottom left), r_in, r_out, bot (the bottom end's angle: 0 up,
 -- clockwise, degrees), span (degrees), dir (+1: the fill goes clockwise), len }, and the box w, h
 -- (worked out once per layout and size: the box takes a few dozen sin / cos)
@@ -316,16 +364,18 @@ local function arc_geom(e, k)
   local th = math.max(1, math.floor(e.thickness * k + 0.5))
   local R = math.max(th, e.radius * k)
   local len = e.length * k
-  local span = math.min(300, math.deg(len / R))
-  local right = e.style == 'curved_right'
-  local mid = right and 90 or 270
+  local span = math.min(360, math.deg(len / R))
+  local mid = ARC_MID[e.style] or 270
+  -- (the fill runs from `bot` in direction `dir`: up from the bottom for the left and right curves, left to right
+  -- for the up and down ones — clockwise for right and down, the other way for left and up)
+  local cw = e.style == 'curved_right' or e.style == 'curved_down'
   local g = { r_in = R - th / 2, r_out = R + th / 2, span = span, len = len, th = th,
-    bot = right and (mid + span / 2) or (mid - span / 2), dir = right and -1 or 1 }
+    bot = cw and (mid + span / 2) or (mid - span / 2), dir = cw and -1 or 1 }
   -- the box: every point of both edges, from one end to the other
   local x0, x1, y0, y1 = 1e9, -1e9, 1e9, -1e9
   local angs = {}
   for i = 0, 24 do angs[#angs + 1] = g.bot + g.dir * span * i / 24 end
-  for q = 0, 360, 90 do   -- the farthest points, where the arc passes up, right, down or left
+  for q = -360, 360, 90 do   -- the farthest points, where the arc passes up, right, down or left (the up curve's angles run negative)
     if (q - g.bot) * g.dir >= 0 and (q - g.bot) * g.dir <= span then angs[#angs + 1] = q end
   end
   for _, deg in ipairs(angs) do
@@ -371,12 +421,12 @@ end
 -- the arc corner by corner (a stripe is narrow: straight edges between the corners follow the curve closely enough)
 local function arc_hatch(g, x, y, f0, f1, r0, r1, faint)
   if f1 <= f0 or r1 <= r0 or not arcs_ok then return end
-  if not chef.triangle then arc_piece(g, x, y, f0, f1, r0, r1, col(CREAM, faint), L_CUSTOM) return end
+  if not chef.triangle then arc_piece(g, x, y, f0, f1, r0, r1, col(BARS, faint), L_CUSTOM) return end
   arc_piece(g, x, y, f0, f1, r0, r1, col({ 0, 0, 0 }, 70), L_CUSTOM)
   local len = math.max(1, g.len)
   local P = math.max(6, math.floor(10 * (N.hatch_k or 1) + 0.5)) / len   -- (2.3.11: the straight bars' spacing; in fractions of the arc)
   local S, d = P / 2, (r1 - r0) / len                          -- (the slant: 45 degrees at the middle radius)
-  local c = col(N.hatch_tint or CREAM, 95)
+  local c = col(N.hatch_tint or BARS, 95)
   local cx, cy = x + g.cx, y + g.cy
   local clip = N.hatch_clip
   for kk = math.floor((f0 - d) / P) - 1, math.ceil(f1 / P) + 1 do
@@ -399,21 +449,21 @@ local function arc_empty(g, x, y, f0, f1, faint, lw, edge, shade)
   -- (an outline on a piece only a few pixels long, a narrow tick, would look filled anyway: faint instead)
   if edge ~= 2 or g.th <= 2 * lw + 1 or (f1 - f0) * g.len <= 4 * lw then
     if shade == 'hatch' then arc_hatch(g, x, y, f0, f1, g.r_in, g.r_out, faint)
-    elseif shade or edge == 2 then arc_piece(g, x, y, f0, f1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
+    elseif shade or edge == 2 then arc_piece(g, x, y, f0, f1, g.r_in, g.r_out, col(BARS, faint), L_CUSTOM) end
     return
   end
-  local c, cap = col(CREAM, 190), lw / math.max(1, g.len)
+  local c, cap = col(BARS, 190), lw / math.max(1, g.len)
   arc_piece(g, x, y, f0, f1, g.r_in, g.r_in + lw, c, L_CUSTOM)
   arc_piece(g, x, y, f0, f1, g.r_out - lw, g.r_out, c, L_CUSTOM)
   arc_piece(g, x, y, f0, math.min(f1, f0 + cap), g.r_in, g.r_out, c, L_CUSTOM)
   arc_piece(g, x, y, math.max(f0, f1 - cap), f1, g.r_in, g.r_out, c, L_CUSTOM)
   if shade == 'hatch' then arc_hatch(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, faint)
-  elseif shade then arc_piece(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, col(CREAM, faint), L_CUSTOM) end
+  elseif shade then arc_piece(g, x, y, f0 + cap, f1 - cap, g.r_in + lw, g.r_out - lw, col(BARS, faint), L_CUSTOM) end
 end
 -- (1.5.53) square brackets at an arc's two ends: a radial stroke just past each end, a little beyond both edges,
 -- with short feet in along the inner and outer edges
 local function arc_brackets(g, x, y, lw)
-  local c = col(CREAM, 210)
+  local c = col(BARS, 210)
   local len = math.max(1, g.len)
   local cap = lw / len                      -- (lw along the arc, as a fraction of it)
   local s = math.max(4 * lw, math.min(math.floor(g.th * 0.5 + 0.5), 10 * lw)) / len
@@ -437,7 +487,7 @@ local function arc_solid(g, x, y, f, c, lw, faint, edge, shade)
     if edge == 3 then arc_brackets(g, x, y, lw) end
     arc_piece(g, x, y, 0, f, g.r_in, g.r_out, c, L_CUSTOM + 1)   -- (the faint part only where it's empty)
     if shade == 'hatch' then arc_hatch(g, x, y, f, 1, g.r_in, g.r_out, faint)
-    elseif shade then arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(CREAM, faint), L_CUSTOM) end
+    elseif shade then arc_piece(g, x, y, f, 1, g.r_in, g.r_out, col(BARS, faint), L_CUSTOM) end
   end
 end
 -- (1.5.58) a pulse's wash over the whole arc
@@ -605,8 +655,8 @@ function EL_DRAW.charge(e, k, d, x, y, dry)
   if not d or not d.charge_frac then N.ease_reset('charge') return nil end   -- (2.4.4: a new charge starts from empty)
   local f = d.charge_frac
   local over = d.charge_mark and f >= d.charge_mark
-  local cc = d.locked and WARN or (((over or f >= 0.95) and d.t0 and not d.t0.has.lock and not d.charge_safe) and RED or CREAM)
-  if d.kind == 'none' then cc = f >= 1 and WARN or CREAM end
+  local cc = d.locked and WARN or (((over or f >= 0.95) and d.t0 and not d.t0.has.lock and not d.charge_safe) and RED or BARS)
+  if d.kind == 'none' then cc = f >= 1 and WARN or BARS end
   local edge, shade = look_of(e)
   local lw = math.max(1, math.floor(k * 0.8 + 0.5))
   f = N.ease('charge', f, 80)
@@ -642,7 +692,7 @@ function EL_DRAW.count(e, k, d, x, y, dry)
       or string.rep('0', #tostring(math.floor(math.max(d.top or 0, d.value or 0))))
     box = math.max(w, txt_width(most, big))
   end
-  if not dry then txt(x + box - w, y, str, big, col(N.pulsed('bar', tone), 245), L_CUSTOM) end
+  if not dry then txt(x + box - w, y, str, big, col(N.pulsed('bar', tone == BARS and CREAM or tone), 245), L_CUSTOM) end   -- (2.6.6: Text at rest)
   return box, big
 end
 function EL_DRAW.mags(e, k, d, x, y, dry)
@@ -664,7 +714,7 @@ function EL_DRAW.mags(e, k, d, x, y, dry)
         local lw = math.max(1, math.floor(k * 0.8 + 0.5))
         for i = 0, top - 1 do
           local sx = x + i * (ps + pg)
-          if N.sweep_lit('mags', i, d.reserve) then chef.rect(sx, y, ps, ps, col(N.pulsed('mags', CREAM), 220), L_CUSTOM)   -- (2.4.4: a resupply lights them in order)
+          if N.sweep_lit('mags', i, d.reserve) then chef.rect(sx, y, ps, ps, col(N.pulsed('mags', BARS), 220), L_CUSTOM)   -- (2.4.4: a resupply lights them in order)
           elseif cfg.edge == 2 then empty_rect(sx, y, ps, ps, 55, L_CUSTOM, lw, 2, false)
           else chef.rect(sx, y, ps, ps, col({ 150, 150, 150 }, 120), L_CUSTOM) end
         end
@@ -680,7 +730,7 @@ function EL_DRAW.mags(e, k, d, x, y, dry)
     local big = math.floor(28 * k + 0.5)
     local dx = math.floor(7 * k)
     if not dry then
-      chef.rect(x, y, math.max(1, math.floor(2 * k)), big, col(CREAM, 150), L_CUSTOM)
+      chef.rect(x, y, math.max(1, math.floor(2 * k)), big, col(BARS, 150), L_CUSTOM)
       txt(x + dx, y, str, small, col(N.pulsed('mags', CREAM), 220), L_CUSTOM)
     end
     return dx + txt_width(str, small), big
@@ -932,7 +982,6 @@ end
 -- Health and stamina (vit: 13_main's reading): a bar of the part that's left, and for health, what a hit just took
 -- in red, shrinking to it ("trail"). Health cream, orange from half, red from a quarter; stamina blue, orange when
 -- nearly out. Faint where it's empty, as the other bars.
-local STAMINA_C = { 130, 190, 235 }
 local function vital_bar(e, k, f, c, trail, x, y, dry, key, tint)
   f = math.max(0, math.min(1, f))
   local tc = col(RED, 170)
@@ -975,7 +1024,7 @@ end
 function EL_DRAW.health(e, k, d, x, y, dry, items, vit)
   if not vit or not vit.hp or (cfg.health or 1) == 1 then return nil end
   local f = vit.hp / math.max(1, vit.max)
-  local c = f <= 0.25 and RED or (f <= 0.5 and WARN or CREAM)
+  local c = f <= 0.25 and RED or (f <= 0.5 and WARN or BARS)
   if vit.show_h <= 0.01 then return vital_bar(e, k, f, col(c, 230), nil, x, y, true) end
   local a = N.alpha_k
   if not dry then N.alpha_k = a * vit.show_h * (vit.pulse_h or 1) end
@@ -1002,6 +1051,7 @@ function EL_DRAW.stamina(e, k, d, x, y, dry, items, vit)
 end
 -- the stim timer: green, shrinking from full as the stim's effect runs out
 local STIM_C = { 120, 215, 140 }
+N.ink_tables_add(STIM_C)                           -- (2.6.8: a stim part's own colour takes its green too)
 function EL_DRAW.stim(e, k, d, x, y, dry, items, vit)
   if not vit or not vit.stim then return nil end
   return vital_bar(e, k, vit.stim, col(STIM_C, 225), nil, x, y, dry, 'stim')
@@ -1158,6 +1208,7 @@ local function f9_off(id)
   return false
 end
 local function draw_custom(d, items, vitals)
+  N.ink_pop()                                      -- (2.6.8: a push a failed draw left on, undone before anything draws)
   L_CUSTOM = N.L0 + 905
   local w, h = chef.screen()
   if not w then return end
@@ -1233,7 +1284,11 @@ local function draw_custom(d, items, vitals)
       -- (2.3.9: each part sets its own colour, or the stripes are cream; 2.3.11: its size, and its corner to fix the
       -- pattern to, or the box's own)
       N.hatch_tint, N.hatch_ox, N.hatch_oy, N.hatch_k = nil, nil, nil, k
-      if rule > 0.01 then EL_DRAW[el.id](e, k, d, sx, sy, false, items, vitals) end
+      if rule > 0.01 then
+        if e.rgb then N.ink_push(e.rgb) end            -- (2.6.8: the part's own colour at rest)
+        EL_DRAW[el.id](e, k, d, sx, sy, false, items, vitals)
+        if e.rgb then N.ink_pop() end
+      end
       drawn[el.id] = { x = b.x, y = b.y, w = b.w, h = b.h, ax = b.ax, ay = b.ay }
       if c0 then clocks[el.id] = (clocks[el.id] or 0) + el_clock() - c0 end
     elseif sizes[el.id] == false then

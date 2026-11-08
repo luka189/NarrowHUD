@@ -386,17 +386,39 @@ local function shown(s, goid, t, w, o)
         o = o.per_sel[sel]
       end
       if o then
+        -- (2.6.5, luka: "the bolt pistol's magazine is 6, it drops to 5", "the crossbow holds 5, drops to 4") a
+        -- chambered weapon's magazine field reads one short at a mission's start and after a reload from empty: the
+        -- round in the chamber came out of the magazine (the bolt pistol: rounds 5 and the chamber loaded a second
+        -- after the reload; 6 only after a tactical reload, with the chamber's round on top of it). The size the
+        -- player sees is that total, so the chambered round lifts the size by one in those two moments — never
+        -- after a tactical reload (the +1 stays in the chamber)
+        local at_start = blocked.since ~= nil and chef.time() - blocked.since < 30
+        local chambered = t.has.chamber and w.chamber == false
         if o.mag_max == nil then
           o.mag_max = d.mag
-          o.mag_full = (blocked.since ~= nil and chef.time() - blocked.since < 30) or d.mag >= (kmag or learned.mag[t.id] or 0)
+          o.mag_full = at_start or d.mag >= (kmag or learned.mag[t.id] or 0)
+          o.lift = at_start
         elseif d.mag > o.mag_max then
           o.mag_max, o.mag_full = d.mag, true
+          o.lift = (o.mag_prev or 0) == 0 and not o.chm_prev
         elseif o.mag_prev and d.mag > o.mag_prev then
           o.mag_full = true
+          o.lift = o.mag_prev == 0 and not o.chm_prev
+        elseif o.mag_prev and d.mag < o.mag_prev then
+          o.lift = false                                       -- (fired: the moment is over)
         end
-        o.mag_prev = d.mag
+        -- (2.6.7, luka's Sightliner learned 11: a magazine fired to 0 with the round still chambered reloads to 10
+        -- + that round — a tactical reload, not one from empty. From empty means the chamber was empty too)
+        if o.lift and chambered and d.mag >= o.mag_max then
+          o.mag_max, o.mag_full, o.lift = d.mag + 1, true, false
+          if o.mag_max > (learned.mag[t.id] or 0) then learn('mag', t.id, o.mag_max) end   -- (the type's most, the fallback for a kit not seen)
+        end
+        o.mag_prev, o.chm_prev = d.mag, chambered
         if o.mag_full then
-          top = o.mag_max
+          -- (2.6.3, luka: "my crossbow always drops to 4 at the start until a tactical reload": a mission's first
+          -- magazine counted as full at 4 with one chambered, and the bar took that 4 over the kit's known 5 until
+          -- the magazine grew. The kit's size is the floor: a kit's magazine can't shrink)
+          top = kmag and math.max(o.mag_max, kmag) or o.mag_max
           -- (2.1.12: the size this kit gives, for the next mission's first frame; not the Halt's per ammo type)
           -- (2.2.6: the most seen with the kit, never less — a kit's magazine can't shrink, and a weapon with a
           -- chambered round starts a mission with one fewer in the magazine (a tester's Crossbow: "holds 4" at

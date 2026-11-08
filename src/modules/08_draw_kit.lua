@@ -165,7 +165,37 @@ local function txt_width(str, cap)
   return chef.text_width(string.upper(str), px)
 end
 -- a string with its capitals' bottom-left at x, y (bottom-left origin)
+local txt_core
+-- (2.6.1, luka: "a dark outline for bright planets") F9 Look "Text outline": the string drawn under itself a
+-- pixel off in the eight directions (two at a size over Medium), near-black at the text's own alpha, a layer down
+local DARKS = {}                                      -- (2.6.1) the outline's near-black, one colour per alpha, this frame's
+local alpha_of = setmetatable({}, { __mode = 'k' })   -- (2.6.1) each colour object's alpha, for the text outline (Chef's colours don't tell)
 local function txt(x, y, str, cap, c, layer)
+  if cfg.text_outline and c then
+    local a = alpha_of[c] or 235
+    if a > 0 then
+      local o = cap >= 20 and 2 or 1
+      local da = math.floor(a * 0.9 + 0.5)
+      if DARKS.frame ~= N.frame then DARKS = { frame = N.frame } end   -- (a Chef colour lives one frame: 2.6.1's cached one drew white)
+      local d = DARKS[da]
+      if d == nil then d = chef.color(0, 0, 0, da) or false DARKS[da] = d end
+      if d then
+        local l = (layer or 0) - 1
+        txt_core(x - o, y, str, cap, d, l)
+        txt_core(x + o, y, str, cap, d, l)
+        txt_core(x, y - o, str, cap, d, l)
+        txt_core(x, y + o, str, cap, d, l)
+        -- (2.6.3, luka: thinner at the corners) and the four diagonals
+        txt_core(x - o, y - o, str, cap, d, l)
+        txt_core(x + o, y - o, str, cap, d, l)
+        txt_core(x - o, y + o, str, cap, d, l)
+        txt_core(x + o, y + o, str, cap, d, l)
+      end
+    end
+  end
+  return txt_core(x, y, str, cap, c, layer)
+end
+txt_core = function(x, y, str, cap, c, layer)
   if CHEF_TEXT then chef.text(x, y, str, cap / 7, c, layer) return end
   local g = game_font()
   if g then
@@ -185,23 +215,75 @@ local CREAM = { 236, 229, 206 }
 local WARN = { 240, 170, 90 }
 local RED = { 210, 80, 72 }   -- (1.5.59: a notch less vibrant, luka)
 local YELLOW = { 236, 214, 96 }
+local GREY = { 150, 150, 150 }                   -- (2.6.1) a dud's line and chevron: the round won't go off there
 -- Colourblind: told apart by brightness as well as hue (the Okabe-Ito colours): white for normal, sky blue for the
 -- first mark, yellow for low or hot, magenta for empty or overheated.
 -- (MODE2, MODE3: the modes' own colours: a sky blue and a bluish green in both palettes, none of them a warning's
 -- colour. 1.5.78: lifted for the UI layer — the old 86 180 233 and 0 175 130 were chosen under the world's tone
 -- curve, which showed them near white; drawn as they are they read dark against the cream (luka))
 local MODE2, MODE3 = { 130, 205, 245 }, { 80, 220, 175 }
+-- (2.6.6, luka: "the F9 palette") the colours are roles, each an F9 colour row: Text (CREAM: the counts, words and
+-- icons — and the chevron and the map pin; not the crosshairs, 2.6.7), Bars (BARS: the bars, squares and ticks), Low (WARN),
+-- Empty (RED), the two mode colours, Lines (LINES: the drop and throw lines, drawn in the world: a short list of
+-- pure colours, since the planet's tone curve shifts anything else) and Stamina. The tables are filled in place
+-- from the rows, so every draw sees a change at once; the Standard / Colourblind presets write the rows
+local BARS = { 236, 229, 206 }
+local LINES = { 236, 229, 206 }
+local STAMINA = { 130, 190, 235 }
 local PALETTES = {
   { CREAM = { 236, 229, 206 }, YELLOW = { 236, 214, 96 }, WARN = { 240, 170, 90 }, RED = { 210, 80, 72 } },
   { CREAM = { 240, 240, 240 }, YELLOW = { 86, 180, 233 }, WARN = { 240, 228, 66 }, RED = { 230, 80, 200 } },
 }
+local ROLE_ROWS = { col_text = CREAM, col_bars = BARS, col_low = WARN, col_empty = RED, col_mode_a = MODE2, col_mode_b = MODE3, col_lines = LINES, col_stamina = STAMINA }
+local function hex_rgb(v)
+  local h = type(v) == 'string' and string.match(v, '^#?(%x%x%x%x%x%x)$')
+  if not h then return nil end
+  return tonumber(h:sub(1, 2), 16), tonumber(h:sub(3, 4), 16), tonumber(h:sub(5, 6), 16)
+end
+N.hex_rgb = hex_rgb
 N.apply_palette = function()
+  -- (the preset's colours first — all a loader without colour rows gets — then each row's own)
   local p = PALETTES[cfg.palette] or PALETTES[1]
   for name, c in pairs({ CREAM = CREAM, YELLOW = YELLOW, WARN = WARN, RED = RED }) do
     for i = 1, 3 do c[i] = p[name][i] end
   end
+  for i = 1, 3 do BARS[i], LINES[i] = p.CREAM[i], p.CREAM[i] end
+  MODE2[1], MODE2[2], MODE2[3], MODE3[1], MODE3[2], MODE3[3] = 130, 205, 245, 80, 220, 175
+  STAMINA[1], STAMINA[2], STAMINA[3] = 130, 190, 235
+  for row, c in pairs(ROLE_ROWS) do
+    local r, g, b = hex_rgb(cfg[row])
+    if r then c[1], c[2], c[3] = r, g, b end
+  end
+  -- (2.6.8) a Custom layout file's `colors = { text = 'RRGGBB', ... }` over the rows: the file is the deliberate
+  -- setting, F9 the quick one; the editor writes the file (N.layout_colors from 10_custom's read of the file)
+  for role, hex in pairs(N.layout_colors or {}) do
+    local c = ROLE_ROWS['col_' .. role]
+    local r, g, b = hex_rgb(hex)
+    if c and r then c[1], c[2], c[3] = r, g, b end
+  end
 end
 N.apply_palette()
+-- (2.6.8) a part's own colour (its `color` in the layout file): the rest-colour tables take it while that part is
+-- drawn and get their values back after — every draw reads the tables live, so nothing is threaded through; Low
+-- and Empty stay the palette's. ink_push(rgb) / ink_pop(); 10_custom adds its own tables (the stim timer's green)
+local INK_TABLES = { CREAM, BARS, STAMINA }
+local ink_saved, ink_on = {}, false
+N.ink_tables_add = function(t) INK_TABLES[#INK_TABLES + 1] = t end
+N.ink_push = function(rgb)
+  for i, t in ipairs(INK_TABLES) do
+    if not ink_on then                             -- (a draw that errored out left the push on: the originals are kept)
+      local sv = ink_saved[i] or {} ink_saved[i] = sv
+      sv[1], sv[2], sv[3] = t[1], t[2], t[3]
+    end
+    t[1], t[2], t[3] = rgb[1], rgb[2], rgb[3]
+  end
+  ink_on = true
+end
+N.ink_pop = function()
+  if not ink_on then return end
+  for i, t in ipairs(INK_TABLES) do local sv = ink_saved[i] t[1], t[2], t[3] = sv[1], sv[2], sv[3] end
+  ink_on = false
+end
 N.alpha_k = 1                                    -- the opacity option times the fade, this frame
 N.L0 = 0                                         -- (1.5.63) the layers' base: chef.TOP in the game's UI layer, else 0
 -- (1.5.61) The game's world puts a HUD's colours through its tone mapping before they reach the screen: a steep
@@ -263,7 +345,9 @@ local function col(c, a)
     local af = alpha / 255
     r, g, b = math.floor(tone_fix(1, r, af) + 0.5), math.floor(tone_fix(2, g, af) + 0.5), math.floor(tone_fix(3, b, af) + 0.5)
   end
-  return chef.color(r, g, b, alpha)
+  local co = chef.color(r, g, b, alpha)
+  if co then alpha_of[co] = alpha end
+  return co
 end
 -- (2.0.17) a colour for the lines drawn in the game's world (chef.line: the drop and throw lines, the landing
 -- mark), which go through the world's tone mapping whatever layer the HUD is on: luka's screenshots had the cream
@@ -372,7 +456,7 @@ local function hatch_texture(x, y, w, h, P, c, L, base)
 end
 local function hatch(x, y, w, h, faint, L, tint, ox, oy)
   if w <= 0 or h <= 0 then return end
-  if not hatch_ok then chef.rect(x, y, w, h, col(CREAM, faint), L) return end
+  if not hatch_ok then chef.rect(x, y, w, h, col(BARS, faint), L) return end
   chef.rect(x, y, w, h, col({ 0, 0, 0 }, 70), L)                -- (the dark ground)
   -- (2.3.11) one spacing for every bar, the HUD's size its only measure (10 px at 1440p: the health bar's in 2.3.10;
   -- it was 1.4 of each bar's own thickness, too wide on the ammo bar and too narrow on stamina: luka); and the pattern
@@ -380,13 +464,13 @@ local function hatch(x, y, w, h, faint, L, tint, ox, oy)
   -- standing still under a moving bar)
   local P = math.max(6, math.floor(10 * (N.hatch_k or 1) + 0.5))
   local S = P / 2
-  local c = col(tint or N.hatch_tint or CREAM, 95)
+  local c = col(tint or N.hatch_tint or BARS, 95)
   -- (2.3.12: the corner the pattern hangs from: the one given (a solid bar's own, for its empty part that grows and
   -- shrinks — the reload line scrolled its stripes as it filled: luka), else the part's, else this box's)
   local base = (ox or N.hatch_ox or x) - (oy or N.hatch_oy or y)
   -- (2.4.16, luka's screenshots: the texture's stripes came out brighter than the triangles', 94 against 73 on
   -- the same ground, so its alpha is scaled to match)
-  if (cfg.hatch_way or 2) == 2 and hatch_tex_ok and hatch_texture(x, y, w, h, P, col(tint or N.hatch_tint or CREAM, 95 * 0.78), L, base) then return end
+  if (cfg.hatch_way or 2) == 2 and hatch_tex_ok and hatch_texture(x, y, w, h, P, col(tint or N.hatch_tint or BARS, 95 * 0.78), L, base) then return end
   -- stripes: the points with ((px - ox) - (py - oy)) mod P in [0, S); k counts them from the part's corner
   for k = math.floor((x - (y + h) - base) / P) - 1, math.ceil((x + w - y - base) / P) + 1 do
     local u0 = base + k * P
@@ -414,16 +498,16 @@ local function empty_rect(x, y, w, h, faint, L, lw, edge, shade)
   edge, shade = bar_style(edge, shade)
   if edge ~= EDGE_OUTLINE or w <= 2 * lw or h <= 2 * lw then
     if shade == 'hatch' then hatch(x, y, w, h, faint, L)
-    elseif shade or edge == EDGE_OUTLINE then chef.rect(x, y, w, h, col(CREAM, faint), L) end
+    elseif shade or edge == EDGE_OUTLINE then chef.rect(x, y, w, h, col(BARS, faint), L) end
     return
   end
-  local c = col(CREAM, 190)
+  local c = col(BARS, 190)
   chef.rect(x, y, w, lw, c, L)
   chef.rect(x, y + h - lw, w, lw, c, L)
   chef.rect(x, y + lw, lw, h - 2 * lw, c, L)
   chef.rect(x + w - lw, y + lw, lw, h - 2 * lw, c, L)
   if shade == 'hatch' then hatch(x + lw, y + lw, w - 2 * lw, h - 2 * lw, faint, L)
-  elseif shade then chef.rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(CREAM, faint), L) end
+  elseif shade then chef.rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(BARS, faint), L) end
 end
 -- square brackets at a bar's two ends, just outside it: a stroke lw thick the bar's height plus a little, with short
 -- feet pointing in along the bar's edges; a vertical bar gets them at its bottom and top
@@ -431,7 +515,7 @@ end
 -- the bar's edges, the feet lw thick and half the bar's height long (at least 4 lw))
 local function brackets(x, y, w, h, lw, vertical, L)
   lw = math.max(1, lw or 1)
-  local c = col(CREAM, 210)
+  local c = col(BARS, 210)
   local sw, ext = 2 * lw, 2 * lw
   if vertical then
     local s = math.max(4 * lw, math.min(math.floor(w * 0.5 + 0.5), 10 * lw))
@@ -465,7 +549,7 @@ local function solid_bar(x, y, w, h, f, c, L, lw, vertical, edge, shade)
       -- (only the empty part: the stripes don't show through the fill)
       if vertical then local a = math.floor(h * f + 0.5) hatch(x, y + a, w, h - a, 45, L, nil, x, y)
       else local a = math.floor(w * f + 0.5) hatch(x + a, y, w - a, h, 45, L, nil, x, y) end
-    elseif shade then chef.rect(x, y, w, h, col(CREAM, 45), L) end
+    elseif shade then chef.rect(x, y, w, h, col(BARS, 45), L) end
     if vertical then chef.rect(x, y, w, math.floor(h * f + 0.5), c, L + 1)
     else chef.rect(x, y, math.floor(w * f + 0.5), h, c, L + 1) end
     return
@@ -553,7 +637,7 @@ end
 -- heat marks' colours (HEAT_RANGE), and the count's: the colour of the last mark passed
 local MARK_COLORS = { YELLOW, WARN, RED }
 local function heat_tone(d, frac)
-  local tone = CREAM
+  local tone = BARS
   for _, m in ipairs(d.heat_marks) do if frac >= m[1] then tone = MARK_COLORS[m[2]] end end
   return tone
 end
@@ -564,11 +648,11 @@ end
 local function pack_state(items, d)
   if items.warp then
     local h = items.warp
-    return { f = h / 78, c = h > 45 and RED or (h > 15 and WARN or CREAM), a = 215, marks = { { 15 / 78, WARN }, { 45 / 78, RED } } }
+    return { f = h / 78, c = h > 45 and RED or (h > 15 and WARN or BARS), a = 215, marks = { { 15 / 78, WARN }, { 45 / 78, RED } } }
   elseif items.recharge then
     local f = items.recharge
     local ready = f >= 1 or items.draining
-    return { f = f, c = ready and CREAM or WARN, a = ready and 215 or 180, marks = {} }
+    return { f = f, c = ready and BARS or WARN, a = ready and 215 or 180, marks = {} }
   elseif items.pack and items.pack_top and items.pack_top > 0 and not (d and d.fed) then
     local f = math.max(0, math.min(1, items.pack / items.pack_top))
     -- (1.5.45) a pack counted in uses (the supply pack's 4, a launcher's rounds, the C4 pack's charges: a whole
@@ -576,7 +660,7 @@ local function pack_state(items, d)
     -- pack's 1000, a shield's) stays one bar
     local top = items.pack_top
     local segs = (top <= 16 and top == math.floor(top)) and top or nil
-    return { f = f, c = items.pack == 0 and RED or (f <= (cfg.low_ammo or 0.25) and WARN or CREAM), a = 215, marks = {}, segs = segs, n = math.floor(items.pack + 0.5) }
+    return { f = f, c = items.pack == 0 and RED or (f <= (cfg.low_ammo or 0.25) and WARN or BARS), a = 215, marks = {}, segs = segs, n = math.floor(items.pack + 0.5) }
   end
   return nil
 end
@@ -723,7 +807,8 @@ N.icon_scale, N.icon_px, N.stim_px = icon_scale, icon_px, stim_px
 local function seg_max() return math.floor(25 + (cfg.size - 0.8) / 0.7 * 25 + 0.5) end
 
 
-N.txt_width, N.txt, N.CREAM, N.WARN, N.RED, N.col = txt_width, txt, CREAM, WARN, RED, col
+N.txt_width, N.txt, N.CREAM, N.WARN, N.RED, N.GREY, N.col = txt_width, txt, CREAM, WARN, RED, GREY, col
+N.BARS, N.LINES, N.STAMINA = BARS, LINES, STAMINA   -- (2.6.6: the roles)
 N.empty_rect, N.solid_bar, N.txt_modes, N.notice, N.MARK_COLORS, N.heat_tone = empty_rect, solid_bar, txt_modes, notice, MARK_COLORS, heat_tone
 N.pack_state, N.seg_max = pack_state, seg_max
 

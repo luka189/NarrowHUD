@@ -265,7 +265,9 @@ local function reload_track(d, now)
     local risen = d.value > rl.v0
     if risen and not rl.rise_at then rl.rise_at = now end
     local needs = rl.kind == 'reload_e' and t and t.has.rounds and t.has.chamber
-    local chambered = not needs or d.value > (d.mag or d.value)
+    -- (2.6.11, luka's Railgun: the line stayed 2.5 s after its round showed) a single-round gun never reads chambered
+    -- (its flag stays "empty" with the round in): with its one round back it's done
+    local chambered = not needs or d.value > (d.mag or d.value) or ((d.top or 0) <= 1 and d.value >= 1)
     local waiting = (not risen and now - rl.done_at <= 2) or (risen and not chambered and now - rl.rise_at <= 2.5)
     if waiting then
       local secs = learned[rl.kind][rl.tid]

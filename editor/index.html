@@ -91,6 +91,18 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .preview-opts { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
 .preview-opts .note { color: var(--muted); font-size: 13px; flex-basis: 100%; margin: 0; }
 .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+/* (2.6.9) colours: the picker, the hex and the swatches */
+.colorbox { display: flex; flex-direction: column; gap: 6px; }
+.colorline { display: flex; gap: 6px; align-items: center; }
+.colorline input[type=color] { width: 36px; height: 28px; padding: 0 2px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); cursor: pointer; }
+.colorline .hex { width: 84px; font-family: var(--font-mono); text-transform: uppercase; }
+.btn.small { font-size: 12px; padding: 3px 8px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.sw { width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; padding: 0; }
+.sw[aria-pressed="true"] { outline: 2px solid var(--fg); outline-offset: 1px; }
+.roles { grid-column: 1 / -1; width: 100%; }
+.roles summary { cursor: pointer; font-size: 14px; }
+.rolerow { margin-top: 8px; }
 
 /* the rail */
 .rail { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
@@ -285,8 +297,13 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
       <label class="chk" for="o-spread">Spread <input type="number" id="o-spread" min="-30" max="30" step="0.5" value="0" style="width:64px"> % <span class="muted">(the two sides closer or farther apart)</span></label>
       <label class="chk"><input type="checkbox" id="o-snap" checked> Snap to parts when dragging <span class="muted">(pins them; hold Ctrl while dragging not to)</span></label>
       <label class="chk"><input type="checkbox" id="o-modecol"> Modes in their own colours</label>
-      <label class="chk"><input type="checkbox" id="o-cb"> Colourblind colours</label>
+      <label class="chk"><input type="checkbox" id="o-cb"> Colourblind colours <span class="muted">(F9's preset, for the preview)</span></label>
       <label class="chk"><input type="checkbox" id="o-guides" checked> Anchor points</label>
+      <details class="roles" id="roles">
+        <summary>Colours in the file <span class="muted">(these win over F9's Colours tab; a part can still have its own, in its fields)</span></summary>
+        <div id="rolecolors"></div>
+        <p class="note">Lines are drawn in the world, where each planet's light shifts a colour: the pure ones only. Low and Empty colour every part the same way. A role left empty is F9's.</p>
+      </details>
       <p class="note">These are the mod's own settings, shown here only so the preview matches your game. They aren't saved in the layout file, except whether F9's offsets move this layout at all (off unless you turn it on).</p>
     </div>
   </section>
@@ -348,7 +365,7 @@ const ANCHORS = { center: [0.5, 0.5], top: [0.5, 1], bottom: [0.5, 0], left: [0,
   top_left: [0, 1], top_right: [1, 1], bottom_left: [0, 0], bottom_right: [1, 0] };
 const ALIGNS = Object.assign({ arc: [0.5, 0.5] }, ANCHORS);   // (arc: a curved bar's own centre on the anchor; 1.5.74)
 const GRID9 = ['top_left', 'top', 'top_right', 'left', 'center', 'right', 'bottom_left', 'bottom', 'bottom_right'];
-const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right'];
+const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right', 'curved_up', 'curved_down'];   // (2.6.10: up and down)
 const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
   y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
   opacity: ['number', 100, 0, 100],
@@ -359,7 +376,18 @@ const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys
   pin: ['choice', 'none', ['none', 'right', 'left', 'above', 'below']],
   side: ['choice', 'auto', ['auto', 'none', 'left', 'right', 'up', 'down']],   // (2.2.9: up / down — the Spread moves the part vertically)
   // (1.5.72) hold: a part with nothing to show for the moment keeps its place, so the parts pinned to it stay
-  hold: ['boolean', false] };
+  hold: ['boolean', false],
+  // (2.6.9) the part's own colour at rest, 'RRGGBB'; none: the Colours tab's Text / Bars (Low and Empty stay shared)
+  color: ['color', undefined] };
+const COLOR_ROLES = ['text', 'bars', 'low', 'empty', 'mode_a', 'mode_b', 'lines', 'stamina'];
+const ROLE_NAMES = { text: 'Text', bars: 'Bars', low: 'Low', empty: 'Empty', mode_a: 'Mode colour A', mode_b: 'Mode colour B', lines: 'Lines', stamina: 'Stamina' };
+// (the mod's F9 swatches; the lines' list is the pure colours, since the world's light shifts anything else)
+const SWATCHES = ['ECE5CE', 'FFFFFF', 'F0F0F0', 'C8C8C8', '8E8E93', 'FFE710', 'ECD660', 'F0E442', 'F0AA5A', 'FF9500', 'D25048',
+  'FF3B30', 'FF2D55', 'E650C8', 'BF5AF2', '5E5CE6', '0A84FF', '82BEEB', '82CDF5', '56B4E9', '00C7BE', '50DCAF', '34C759', 'A2845E'];
+const LINE_SWATCHES = ['ECE5CE', 'FFFFFF', '0000FF', 'FF0000', '00FF00'];
+function hexOk(v) { return typeof v === 'string' && /^#?[0-9a-fA-F]{6}$/.test(v); }
+function hexNorm(v) { return v.replace('#', '').toUpperCase(); }
+function rgbOf(hex) { const h = hexNorm(hex); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
 const BAR_LOOK = { edge: ['choice', 'auto', ['auto', 'none', 'outline', 'brackets']], shade: ['choice', 'auto', ['auto', 'on', 'off', 'hatch']] };
 const ELEMENTS = [
   { id: 'bar', name: 'Ammo / heat bar', fields: { style: ['choice', 'horizontal', BAR_STYLES], fill: ['choice', 'auto', ['auto', 'ticks', 'solid']],
@@ -490,6 +518,25 @@ const PRESETS = [
   health: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'stamina', gap: 8, pin: 'below', side: 'auto', hold: true, style: 'horizontal', length: 128, thickness: 7, radius: 150, edge: 'auto', shade: 'auto' },
   pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 60, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
   stim: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'health', gap: 8, pin: 'below', side: 'auto', style: 'horizontal', length: 60, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' } } } },
+  { name: 'Cake', note: 'As F9\'s Layout: Cake: five rings on one centre right of the crosshair, a slice open at the top, the count in the middle', t: { _v: 1, elements: {
+  bar: { on: true, anchor: 'center', x: 16.3, y: -13.1, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'curved_down', fill: 'auto', length: 466.5, radius: 81, thickness: 11, ticks_max: 30, edge: 'auto', shade: 'auto' },
+  charge: { on: true, anchor: 'center', x: 16.3, y: -13.1, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_down', length: 544.3, thickness: 4, radius: 94.5, edge: 'auto', shade: 'auto' },
+  count: { on: true, anchor: 'center', x: 16.3, y: -12.6, align: 'center', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, digits: 'tight' },
+  mags: { on: true, anchor: 'center', x: 0, y: 0, align: 'top', size: 1, opacity: 100, after: 'count', gap: 3, pin: 'below', side: 'auto', hold: false, style: 'number', empty: 'shown', divider: false },
+  mode1: { on: false, anchor: 'center', x: 0, y: 0.5, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 14, pin: 'right', side: 'auto', hold: false },
+  mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 4, pin: 'below', side: 'auto', hold: false },
+  zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'below', side: 'auto', hold: false },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'above', side: 'auto', hold: false, style: 'line' },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 6, pin: 'right', side: 'auto', hold: false, style: 'line' },
+  rpm: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 3, pin: 'right', side: 'auto', hold: false },
+  stims: { on: true, anchor: 'center', x: -1, y: -8.1, align: 'top_right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
+  grenades: { on: true, anchor: 'center', x: 1, y: -8.1, align: 'top_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
+  range: { on: true, anchor: 'center', x: 0, y: -11.6, align: 'center', size: 1, opacity: 100, after: 'none', gap: -67, pin: 'none', side: 'auto', hold: false },
+  pack: { on: true, anchor: 'center', x: 16.3, y: -13.1, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_right', length: 115.2, thickness: 5, radius: 44, edge: 'auto', shade: 'auto' },
+  health: { on: true, anchor: 'center', x: 16.3, y: -13.1, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: true, style: 'curved_down', length: 380.1, thickness: 7, radius: 66, edge: 'auto', shade: 'auto' },
+  stamina: { on: true, anchor: 'center', x: 16.3, y: -13.1, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_down', length: 313.9, thickness: 4, radius: 54.5, edge: 'auto', shade: 'auto' },
+  stim: { on: true, anchor: 'center', x: 16.3, y: -13.1, align: 'arc', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false, style: 'curved_left', length: 115.2, thickness: 5, radius: 44, edge: 'auto', shade: 'auto' } } } },
 ];
 
 function fieldOk(f, v) {
@@ -497,7 +544,19 @@ function fieldOk(f, v) {
   if (f[0] === 'boolean') return typeof v === 'boolean';
   if (f[0] === 'number') return typeof v === 'number' && v === v && v >= f[2] && v <= f[3];
   if (f[0] === 'choice') return typeof v === 'string' && f[2].includes(v);
+  if (f[0] === 'color') return hexOk(v);
   return false;
+}
+// (2.6.9) the file's colors = { text = 'RRGGBB', ... }: the roles given, normalised; what doesn't fit named
+function readColors(t, dropped) {
+  const out = {};
+  const src = t && typeof t === 'object' ? t.colors : undefined;
+  if (src === undefined) return out;
+  if (typeof src !== 'object' || src === null || Array.isArray(src)) { dropped.push('colors'); return out; }
+  for (const [role, v] of Object.entries(src)) {
+    if (COLOR_ROLES.includes(role) && hexOk(v)) out[role] = hexNorm(v); else dropped.push('colors.' + role);
+  }
+  return out;
 }
 // a layout table as the mod reads it: each field checked, what doesn't fit dropped (named), Under's values for the rest
 function readLayout(t) {
@@ -515,12 +574,13 @@ function readLayout(t) {
         // (after / pin / side not given in an element that is there: on its own, as files from before pins were made;
         // an element left out altogether takes all of Under's look, pins too — as the mod reads it)
         const dv = (given === undefined || (name !== 'after' && name !== 'pin' && name !== 'side')) && UNDER.elements[el.id] ? UNDER.elements[el.id][name] : undefined;
+        if (f[0] === 'color') { if (ok) e[name] = hexNorm(v); continue; }   // (2.6.9: none when not given)
         e[name] = ok ? v : (dv !== undefined ? dv : (name === 'on' && el.off ? false : f[1]));
       }
     }
     out[el.id] = e;
   }
-  return { els: out, dropped };
+  return { els: out, dropped, colors: readColors(t, dropped) };
 }
 
 // ------------------------------------------------------------------------------------------------- a Lua table reader
@@ -634,12 +694,15 @@ function writeLayout(els) {
     'return {',
     '  _v = 1,',
     '  use_offsets = ' + (useOffsets ? 'true' : 'false') + ',   -- true: F9\'s two Offset sliders move every part too',
-    '  elements = {',
   ];
+  // (2.6.9) the roles set here win over the Colours tab's rows in the game
+  const roles = COLOR_ROLES.filter(r => colors[r]);
+  if (roles.length) lines.push('  colors = { ' + roles.map(r => r + " = '" + colors[r] + "'").join(', ') + ' },   -- over F9\'s Colours tab');
+  lines.push('  elements = {');
   for (const el of ELEMENTS) {
     const e = els[el.id];
     const parts = [];
-    for (const name of Object.keys(COMMON)) parts.push(name + ' = ' + luaValue(e[name]));
+    for (const name of Object.keys(COMMON)) { if (name === 'color') { if (e.color) parts.push("color = '" + e.color + "'"); continue; } parts.push(name + ' = ' + luaValue(e[name])); }
     for (const name of Object.keys(el.fields)) parts.push(name + ' = ' + luaValue(e[name]));
     lines.push('    ' + el.id + ' = { ' + parts.join(', ') + ' },');
   }
@@ -659,10 +722,19 @@ function viewRect() {
   return { l, t, w, h };
 }
 const cfg = { size: 1, edge: 1, shade: true, spread: 0, mode_colors: false, palette: 1, opacity: 1, off_x: 0, off_y: 0 };
-const PALETTES = { 1: { CREAM: [236, 229, 206], YELLOW: [236, 214, 96], WARN: [240, 170, 90], RED: [210, 80, 72] },
-  2: { CREAM: [240, 240, 240], YELLOW: [86, 180, 233], WARN: [240, 228, 66], RED: [230, 80, 200] } };
-let P = PALETTES[1];
-const MODE2 = [130, 205, 245], MODE3 = [80, 220, 175];   // (1.5.78: lifted for the UI layer)
+// (2.6.9) the colours as the mod's roles: the F9 preset (Standard / Colourblind, a preview setting here) under the
+// file's own colors = {}; a part's own colour swaps the rest colours around its draw, as the mod does
+const PRESET_COLORS = { 1: { text: 'ECE5CE', bars: 'ECE5CE', low: 'F0AA5A', empty: 'D25048', mode_a: '82CDF5', mode_b: '50DCAF', stamina: '82BEEB', yellow: 'ECD660' },
+  2: { text: 'F0F0F0', bars: 'F0F0F0', low: 'F0E442', empty: 'E650C8', mode_a: '82CDF5', mode_b: '50DCAF', stamina: '56B4E9', yellow: '56B4E9' } };
+let cbPreset = 1;
+let colors = {};                                   // (the file's roles: text, bars, low, empty, mode_a, mode_b, lines, stamina)
+function palette() {
+  const pr = PRESET_COLORS[cbPreset];
+  const pick = (role) => rgbOf(colors[role] || pr[role]);
+  return { CREAM: pick('text'), BARS: pick('bars'), WARN: pick('low'), RED: pick('empty'), YELLOW: rgbOf(pr.yellow),
+    MODE2: pick('mode_a'), MODE3: pick('mode_b'), STAMINA: pick('stamina'), STIM: [120, 215, 140] };
+}
+let P = palette();
 let alphaK = 1;
 const fl = Math.floor;
 function col(c, a = 235) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (fl(a * alphaK + 0.5) / 255) + ')'; }
@@ -691,14 +763,14 @@ function emptyRect(x, y, w, h, faint, lw, edge, shade) {
   if (w <= 0 || h <= 0) return;
   lw = Math.max(1, lw || 1);
   if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
-  if (edge !== 2 || w <= 2 * lw || h <= 2 * lw) { if (shade || edge === 2) rect(x, y, w, h, col(P.CREAM, faint)); return; }
-  const c = col(P.CREAM, 190);
+  if (edge !== 2 || w <= 2 * lw || h <= 2 * lw) { if (shade || edge === 2) rect(x, y, w, h, col(P.BARS, faint)); return; }
+  const c = col(P.BARS, 190);
   rect(x, y, w, lw, c); rect(x, y + h - lw, w, lw, c); rect(x, y + lw, lw, h - 2 * lw, c); rect(x + w - lw, y + lw, lw, h - 2 * lw, c);
-  if (shade) rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(P.CREAM, faint));
+  if (shade) rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw, col(P.BARS, faint));
 }
 function brackets(x, y, w, h, lw, vertical) {
   lw = Math.max(1, lw || 1);
-  const c = col(P.CREAM, 210), sw = 2 * lw, ext = 2 * lw;
+  const c = col(P.BARS, 210), sw = 2 * lw, ext = 2 * lw;
   if (vertical) {
     const s = Math.max(4 * lw, Math.min(fl(w * 0.5 + 0.5), 10 * lw));
     rect(x - ext, y - lw - sw, w + 2 * ext, sw, c); rect(x - ext, y - lw, lw, s, c); rect(x + w + ext - lw, y - lw, lw, s, c);
@@ -714,7 +786,7 @@ function solidBar(x, y, w, h, f, c, lw, vertical, edge, shade) {
   if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
   if (edge !== 2 || w <= 2 * lw + 1 || h <= 2 * lw + 1) {
     if (edge === 3) brackets(x, y, w, h, lw, vertical);
-    if (shade) rect(x, y, w, h, col(P.CREAM, 45));
+    if (shade) rect(x, y, w, h, col(P.BARS, 45));
     if (vertical) rect(x, y, w, fl(h * f + 0.5), c); else rect(x, y, fl(w * f + 0.5), h, c);
     return;
   }
@@ -746,7 +818,7 @@ function txtModes(x, y, s, cap, a) {
   const sep = txtWidth('  ', cap);
   for (const w of parts) {
     const n = MODE_TONE[w] || 1;
-    txt(x, y, w, cap, col(n === 3 ? MODE3 : (n === 2 ? MODE2 : P.CREAM), a));
+    txt(x, y, w, cap, col(n === 3 ? P.MODE3 : (n === 2 ? P.MODE2 : P.CREAM), a));
     x += txtWidth(w, cap) + sep;
   }
 }
@@ -824,7 +896,7 @@ function sprite(x, y, rows, cell, colors) {
 function weaponTone(d) {
   let frac = 0;
   if (d.top && d.top > 0) frac = Math.max(0, Math.min(1, d.value / d.top));
-  let tone = P.CREAM;
+  let tone = P.BARS;                             // (2.6.9: the bar's rest colour; the count takes Text)
   if (d.kind === 'ammo') { if (d.value === 0) tone = P.RED; else if (frac <= 0.25) tone = P.WARN; }
   else { if (d.overheated) tone = P.RED; else if (frac >= 0.75 && !d.charge_weapon) tone = P.WARN; }
   return [frac, tone, d.reloading ? 120 : 235];
@@ -832,19 +904,20 @@ function weaponTone(d) {
 const MARK_COLORS = () => [P.YELLOW, P.WARN, P.RED];
 
 // curved bars
-function curved(e) { return e.style === 'curved_left' || e.style === 'curved_right'; }
+const ARC_MID = { curved_right: 90, curved_left: 270, curved_up: 0, curved_down: 180 };
+function curved(e) { return ARC_MID[e.style] !== undefined; }
 function arcGeom(e, k) {
   const th = Math.max(1, fl(e.thickness * k + 0.5));
   const R = Math.max(th, e.radius * k);
   const len = e.length * k;
-  const span = Math.min(300, (len / R) * 180 / Math.PI);
-  const right = e.style === 'curved_right';
-  const mid = right ? 90 : 270;
-  const gm = { r_in: R - th / 2, r_out: R + th / 2, span, len, th, bot: right ? mid + span / 2 : mid - span / 2, dir: right ? -1 : 1 };
+  const span = Math.min(360, (len / R) * 180 / Math.PI);   // (2.6.10: a curve may close)
+  const mid = ARC_MID[e.style] !== undefined ? ARC_MID[e.style] : 270;
+  const cw = e.style === 'curved_right' || e.style === 'curved_down';
+  const gm = { r_in: R - th / 2, r_out: R + th / 2, span, len, th, bot: cw ? mid + span / 2 : mid - span / 2, dir: cw ? -1 : 1 };
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
   const angs = [];
   for (let i = 0; i <= 24; i++) angs.push(gm.bot + gm.dir * span * i / 24);
-  for (let q = 0; q <= 360; q += 90) if ((q - gm.bot) * gm.dir >= 0 && (q - gm.bot) * gm.dir <= span) angs.push(q);
+  for (let q = -360; q <= 360; q += 90) if ((q - gm.bot) * gm.dir >= 0 && (q - gm.bot) * gm.dir <= span) angs.push(q);
   for (const deg of angs) {
     const a = deg * Math.PI / 180;
     for (const r of [gm.r_in, gm.r_out]) {
@@ -868,16 +941,16 @@ function arcPiece(gm, x, y, f0, f1, r0, r1, c) {
 }
 function arcEmpty(gm, x, y, f0, f1, faint, lw, edge, shade) {
   if (edge === undefined) edge = cfg.edge; if (shade === undefined) shade = cfg.shade;
-  if (edge !== 2 || gm.th <= 2 * lw + 1 || (f1 - f0) * gm.len <= 4 * lw) { if (shade || edge === 2) arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_out, col(P.CREAM, faint)); return; }
-  const c = col(P.CREAM, 190), cap = lw / Math.max(1, gm.len);
+  if (edge !== 2 || gm.th <= 2 * lw + 1 || (f1 - f0) * gm.len <= 4 * lw) { if (shade || edge === 2) arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_out, col(P.BARS, faint)); return; }
+  const c = col(P.BARS, 190), cap = lw / Math.max(1, gm.len);
   arcPiece(gm, x, y, f0, f1, gm.r_in, gm.r_in + lw, c);
   arcPiece(gm, x, y, f0, f1, gm.r_out - lw, gm.r_out, c);
   arcPiece(gm, x, y, f0, Math.min(f1, f0 + cap), gm.r_in, gm.r_out, c);
   arcPiece(gm, x, y, Math.max(f0, f1 - cap), f1, gm.r_in, gm.r_out, c);
-  if (shade) arcPiece(gm, x, y, f0 + cap, f1 - cap, gm.r_in + lw, gm.r_out - lw, col(P.CREAM, faint));
+  if (shade) arcPiece(gm, x, y, f0 + cap, f1 - cap, gm.r_in + lw, gm.r_out - lw, col(P.BARS, faint));
 }
 function arcBrackets(gm, x, y, lw) {
-  const c = col(P.CREAM, 210), len = Math.max(1, gm.len), cap = lw / len;
+  const c = col(P.BARS, 210), len = Math.max(1, gm.len), cap = lw / len;
   const s = Math.max(4 * lw, Math.min(fl(gm.th * 0.5 + 0.5), 10 * lw)) / len;
   for (const f of [0, 1]) {
     arcPiece(gm, x, y, f === 0 ? -3 * cap : 1 + cap, f === 0 ? -cap : 1 + 3 * cap, gm.r_in - 2 * lw, gm.r_out + 2 * lw, c);
@@ -895,7 +968,7 @@ function arcSolid(gm, x, y, f, c, lw, faint, edge, shade) {
     arcPiece(gm, x, y, cap, cap + (1 - 2 * cap) * f, gm.r_in + lw, gm.r_out - lw, c);
   } else {
     if (edge === 3) arcBrackets(gm, x, y, lw);
-    if (shade) arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.CREAM, faint));
+    if (shade) arcPiece(gm, x, y, f, 1, gm.r_in, gm.r_out, col(P.BARS, faint));
     arcPiece(gm, x, y, 0, f, gm.r_in, gm.r_out, c);
   }
 }
@@ -961,7 +1034,7 @@ const EL_DRAW = {
   charge(e, k, d, x, y, dry) {
     if (!d || d.charge_frac === undefined) return null;
     let f = d.charge_frac;
-    let cc = d.locked ? P.WARN : (f >= 0.95 && !d.lock ? P.RED : (f >= (d.charge_mark || 2) ? P.WARN : P.CREAM));
+    let cc = d.locked ? P.WARN : (f >= 0.95 && !d.lock ? P.RED : (f >= (d.charge_mark || 2) ? P.WARN : P.BARS));
     const [edge, shade] = lookOf(e), lw = Math.max(1, fl(k * 0.8 + 0.5));
     if (curved(e)) {
       const [gm, w, h] = arcGeom(e, k);
@@ -993,7 +1066,7 @@ const EL_DRAW = {
       const most = d.kind === 'heat' ? '000%' : '0'.repeat(String(Math.max(d.top || 0, d.value || 0)).length);
       box = Math.max(w, txtWidth(most, big));
     }
-    if (!dry) txt(x + box - w, y, s, big, col(tone, 245));
+    if (!dry) txt(x + box - w, y, s, big, col(tone === P.BARS ? P.CREAM : tone, 245));
     return [box, big];
   },
   mags(e, k, d, x, y, dry) {
@@ -1008,7 +1081,7 @@ const EL_DRAW = {
           const lw = Math.max(1, fl(k * 0.8 + 0.5));
           for (let i = 0; i < top; i++) {
             const sx = x + i * (ps + pg);
-            if (i < d.reserve) rect(sx, y, ps, ps, col(P.CREAM, 220));
+            if (i < d.reserve) rect(sx, y, ps, ps, col(P.BARS, 220));
             else if (cfg.edge === 2) emptyRect(sx, y, ps, ps, 55, lw, 2, false);
             else rect(sx, y, ps, ps, col([150, 150, 150], 120));
           }
@@ -1020,7 +1093,7 @@ const EL_DRAW = {
     const s = 'x' + d.reserve;
     if (e.divider) {
       const big = fl(28 * k + 0.5), dx = fl(7 * k);
-      if (!dry) { rect(x, y, Math.max(1, fl(2 * k)), big, col(P.CREAM, 150)); txt(x + dx, y, s, small, col(P.CREAM, 220)); }
+      if (!dry) { rect(x, y, Math.max(1, fl(2 * k)), big, col(P.BARS, 150)); txt(x + dx, y, s, small, col(P.CREAM, 220)); }
       return [dx + txtWidth(s, small), big];
     }
     if (!dry) txt(x, y, s, small, col(P.CREAM, 220));
@@ -1117,7 +1190,6 @@ const EL_DRAW = {
 };
 // health and stamina (as the mod: health cream, orange from half, red from a quarter, a hit's trail in red;
 // stamina blue, orange when nearly out)
-const STAMINA_C = [130, 190, 235];
 function vitalBar(e, k, f, c, trail, x, y, dry) {
   f = Math.max(0, Math.min(1, f));
   const [edge, shade] = lookOf(e);
@@ -1143,17 +1215,17 @@ EL_DRAW.health = function (e, k, d, x, y, dry, items) {
   const v = items && items.vit;
   if (!v) return null;
   const f = v.hp / v.max;
-  return vitalBar(e, k, f, col(f <= 0.25 ? P.RED : (f <= 0.5 ? P.WARN : P.CREAM), 230), v.trail / v.max, x, y, dry);
+  return vitalBar(e, k, f, col(f <= 0.25 ? P.RED : (f <= 0.5 ? P.WARN : P.BARS), 230), v.trail / v.max, x, y, dry);
 };
 EL_DRAW.stamina = function (e, k, d, x, y, dry, items) {
   const v = items && items.vit;
   if (!v) return null;
-  return vitalBar(e, k, v.st, col(v.st <= 0.2 ? P.WARN : STAMINA_C, 220), null, x, y, dry);
+  return vitalBar(e, k, v.st, col(v.st <= 0.2 ? P.WARN : P.STAMINA, 220), null, x, y, dry);
 };
 EL_DRAW.stim = function (e, k, d, x, y, dry, items) {
   const v = items && items.vit;
   if (!v) return null;
-  return vitalBar(e, k, v.stim, col([120, 215, 140], 225), null, x, y, dry);
+  return vitalBar(e, k, v.stim, col(P.STIM, 225), null, x, y, dry);
 };
 function iconEl(rows, n, k, x, y, dry) {
   const cell = Math.max(1, fl(1.6 * iconScale(k) + 0.5)), small = Math.max(7, fl(16 * k + 0.5));
@@ -1171,13 +1243,13 @@ function iconEl(rows, n, k, x, y, dry) {
 function packState(items, d) {
   if (items.warp !== undefined) {
     const h = items.warp;
-    return { f: h / 78, c: h > 45 ? P.RED : (h > 15 ? P.WARN : P.CREAM), a: 215, marks: [[15 / 78, P.WARN], [45 / 78, P.RED]] };
+    return { f: h / 78, c: h > 45 ? P.RED : (h > 15 ? P.WARN : P.BARS), a: 215, marks: [[15 / 78, P.WARN], [45 / 78, P.RED]] };
   }
   if (items.pack !== undefined && items.pack_top > 0) {
     const f = Math.max(0, Math.min(1, items.pack / items.pack_top));
     // (a pack counted in uses, up to 16: a tick a use, as the mod draws it since 1.5.48)
     const segs = items.pack_top <= 16 && Number.isInteger(items.pack_top) ? items.pack_top : undefined;
-    return { f, c: items.pack === 0 ? P.RED : (f <= 0.25 ? P.WARN : P.CREAM), a: 215, marks: [], segs, n: items.pack };
+    return { f, c: items.pack === 0 ? P.RED : (f <= 0.25 ? P.WARN : P.BARS), a: 215, marks: [], segs, n: items.pack };
   }
   return null;
 }
@@ -1204,8 +1276,8 @@ let slots = {};                          // (every part's place this render, the
 let snapHint = null;                     // (while dragging: the part a drop would pin to, and on which side)
 let keepPlace = true;
 let useOffsets = false;                 // (the file's use_offsets: F9's offsets move a Custom layout only when it's on)
-try { const s = localStorage.getItem(STORE); if (s) { const t = JSON.parse(s); const r = readLayout(t); els = r.els; useOffsets = t.use_offsets === true; } } catch (e) { /* (a draft is a convenience only) */ }
-function saveDraft() { try { localStorage.setItem(STORE, JSON.stringify({ _v: 1, use_offsets: useOffsets, elements: els })); } catch (e) { /* ignore */ } }
+try { const s = localStorage.getItem(STORE); if (s) { const t = JSON.parse(s); const r = readLayout(t); els = r.els; colors = r.colors; useOffsets = t.use_offsets === true; } } catch (e) { /* (a draft is a convenience only) */ }
+function saveDraft() { try { localStorage.setItem(STORE, JSON.stringify({ _v: 1, use_offsets: useOffsets, colors, elements: els })); } catch (e) { /* ignore */ } }
 
 const $ = (id) => document.getElementById(id);
 const sampleSel = $('sample');
@@ -1328,6 +1400,7 @@ function render() {
   const s = cssW / vr.w * dpr;
   g.setTransform(s, 0, 0, s, -vr.l * s, -vr.t * s);
   backdrop();
+  P = palette();
   const { d, items } = state();
   const sizes = {}, silent = new Set();   // (silent: holding its place with nothing to show: the slot, nothing drawn)
   for (const el of ELEMENTS) {
@@ -1347,7 +1420,13 @@ function render() {
     boxes[el.id] = b;
     if (silent.has(el.id)) continue;
     alphaK = cfg.opacity * e.opacity / 100;
-    EL_DRAW[el.id](e, b.k, d, b.x, b.y, false, items);
+    if (e.color) {
+      // (2.6.9) the part's own colour: the rest colours take it while it's drawn; Low and Empty stay
+      const saved = P, rgb = rgbOf(e.color);
+      P = Object.assign({}, P, { CREAM: rgb, BARS: rgb, STAMINA: rgb, STIM: rgb });
+      EL_DRAW[el.id](e, b.k, d, b.x, b.y, false, items);
+      P = saved;
+    } else EL_DRAW[el.id](e, b.k, d, b.x, b.y, false, items);
   }
   alphaK = 1;
   overlay();
@@ -1418,16 +1497,17 @@ function overlay() {
 }
 
 // ------------------------------------------------------------------------------------------------- the rail
-const STYLE_NAMES = { horizontal: 'Horizontal', vertical: 'Vertical', curved_left: 'Curved', curved_right: 'Curved', auto: 'Auto', ticks: 'Ticks',
+const STYLE_NAMES = { horizontal: 'Horizontal', vertical: 'Vertical', curved_left: 'Curved', curved_right: 'Curved', curved_up: 'Curved', curved_down: 'Curved', auto: 'Auto', ticks: 'Ticks',
   solid: 'Solid', number: 'Number (x7)', squares: 'Squares', shown: 'Shown', hidden: 'Hidden', line: 'In a line', stacked: 'Stacked' };
-const STYLE_GLYPHS = { horizontal: '\u2014', vertical: '|', curved_left: '(', curved_right: ')' };
+const STYLE_GLYPHS = { horizontal: '\u2014', vertical: '|', curved_left: '(', curved_right: ')', curved_up: '\u2229', curved_down: '\u222a' };   // (2.6.11: ∩ ∪ — the arc glyphs weren't in luka's font)
 const FIELD_NAMES = { style: 'Style', fill: 'Fill', length: 'Length', thickness: 'Thickness', radius: 'Radius', ticks_max: 'Ticks up to', empty: 'Empty squares',
-  divider: 'Divider', size: 'Size', opacity: 'Opacity', x: 'X', y: 'Y', after: 'Pinned to', pin: 'Where', gap: 'Gap', side: 'Side', edge: 'Edge', shade: 'Shade', hold: 'Holds its place' };
+  divider: 'Divider', size: 'Size', opacity: 'Opacity', color: 'Colour', x: 'X', y: 'Y', after: 'Pinned to', pin: 'Where', gap: 'Gap', side: 'Side', edge: 'Edge', shade: 'Shade', hold: 'Holds its place' };
 // (a choice's labels when they aren't the style names: per field)
 const CHOICE_NAMES = { pin: { none: 'Old way (x after it)', right: 'On its right', left: 'On its left', above: 'Above it', below: 'Below it' },
   side: { auto: 'Auto', none: 'Neither', left: 'Left', right: 'Right', up: 'Up', down: 'Down' }, edge: { auto: 'F9\'s', none: 'None', outline: 'Outline', brackets: 'Brackets' },
   shade: { auto: 'F9\'s', on: 'On', off: 'Off' } };
 const FIELD_HELP = {
+  color: 'This part\'s own colour at rest: its text, bar, squares, ticks and icons. Low (orange) and Empty (red) stay the palette\'s, so a low magazine still reads as one. Palette\'s: the Colours tab\'s Text / Bars (or the colours below).',
   fill: 'Auto: a tick a round up to the number below, solid above it.',
   length: 'Pixels at 1440p, Medium size (any other resolution scales it). Along the curve for a curved style.',
   radius: 'Of the curve\'s middle line: smaller curves more.',
@@ -1446,7 +1526,7 @@ const FIELD_HELP = {
   edge: 'None, an outline, or square brackets at the ends as the game draws its own bars. F9\'s: as the Look setting there.',
   shade: 'The empty part faint behind the fill, or nothing there. F9\'s: as the Look setting there.',
   opacity: '% of the F9 Opacity; 0 hides the part.',
-  style: 'Horizontal or vertical bar, or a curve: ( bends left, ) bends right.',
+  style: 'Horizontal or vertical bar, or a curve: ( bends left, ) bends right, \u2229 up, \u222a down (the last two fill from the left). A curve as long as 2 \u03c0 \u00d7 its radius closes into a circle.',
   thickness: 'Pixels at 1440p, Medium size.',
 };
 
@@ -1525,7 +1605,7 @@ function pad9(label, name, map, e) {
     pad.append(b);
   }
   box.append(cap, pad);
-  if (name === 'align' && (e.style === 'curved_left' || e.style === 'curved_right')) {
+  if (name === 'align' && curved(e)) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.style.cssText = 'margin-top:6px;font-size:12px;padding:3px 8px;width:100%';
     b.textContent = 'Arc centre'; b.title = 'The arc\'s own centre sits on the anchor point: arcs around the crosshair stay concentric at every Size';
     b.setAttribute('aria-pressed', String(e[name] === 'arc'));
@@ -1686,19 +1766,62 @@ function buildFields() {
   }, FIELD_HELP.after);
   if (e.after !== 'none') row('pin', (w) => choiceField(w, 'pin', COMMON.pin, e), FIELD_HELP.pin);
   if (e.after !== 'none') row('gap', (w) => numberField(w, 'gap', COMMON.gap, e), FIELD_HELP.gap);
-  if (e.after === 'none' || pinned) row('x', (w) => numberField(w, 'x', COMMON.x, e), pinned ? 'A nudge, % of the screen\'s height, + right.' : FIELD_HELP.x);
+  // (2.6.11, luka: the stamina had no X — it was on the old-way pin, where x is the offset from that part's right edge)
+  row('x', (w) => numberField(w, 'x', COMMON.x, e), pinned ? 'A nudge, % of the screen\'s height, + right.' : (e.after !== 'none' ? 'From that part\'s right edge, % of the screen\'s height, + right.' : FIELD_HELP.x));
   row('y', (w) => numberField(w, 'y', COMMON.y, e), pinned ? 'A nudge, % of the screen\'s height, + up.' : FIELD_HELP.y);
   if (e.after === 'none') row('side', (w) => choiceField(w, 'side', COMMON.side, e), FIELD_HELP.side);
   // the size
   group('Size');
   row('size', (w) => numberField(w, 'size', COMMON.size, e), FIELD_HELP.size);
   row('opacity', (w) => numberField(w, 'opacity', COMMON.opacity, e), FIELD_HELP.opacity);
+  // (2.6.9) the colour
+  group('Colour');
+  // (the rebuild deferred: the hex field's change event is still being dispatched when its box is replaced)
+  row('color', (w) => colorField(w, e.color, SWATCHES, (v) => { setField('color', v); changed(); setTimeout(buildFields, 0); }, 'Palette\'s'), FIELD_HELP.color);
+}
+// (2.6.9) a colour: the picker, the hex, the swatches, and a button for none
+function colorField(wrap, value, swatches, set, noneLabel) {
+  const box = document.createElement('div'); box.className = 'colorbox';
+  const line = document.createElement('div'); line.className = 'colorline';
+  const pick = document.createElement('input'); pick.type = 'color'; pick.value = '#' + (value || 'ECE5CE').toLowerCase(); pick.title = 'Pick any colour';
+  pick.addEventListener('input', () => { changeKey = 'color'; set(hexNorm(pick.value)); });
+  const hex = document.createElement('input'); hex.type = 'text'; hex.className = 'hex'; hex.maxLength = 7; hex.placeholder = 'none'; hex.value = value || ''; hex.spellcheck = false;
+  hex.setAttribute('aria-label', 'The colour as six hex digits');
+  hex.addEventListener('change', () => { const v = hex.value.trim(); if (!v) set(undefined); else if (hexOk(v)) set(hexNorm(v)); else hex.value = value || ''; });
+  const none = document.createElement('button'); none.type = 'button'; none.className = 'btn small'; none.textContent = noneLabel; none.title = 'No colour of its own';
+  none.disabled = !value;
+  none.addEventListener('click', () => set(undefined));
+  line.append(pick, hex, none);
+  const sw = document.createElement('div'); sw.className = 'swatches'; sw.setAttribute('role', 'group'); sw.setAttribute('aria-label', 'Swatches');
+  for (const h of swatches) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.style.background = '#' + h; b.title = h;
+    b.setAttribute('aria-label', h); b.setAttribute('aria-pressed', String(value === h));
+    b.addEventListener('click', () => set(h));
+    sw.append(b);
+  }
+  box.append(line, sw);
+  wrap.append(box);
+}
+// (2.6.9) the file's roles, in the preview options: each with its colour or none (the game's Colours tab then)
+function buildRoleColors() {
+  const box = $('rolecolors'); if (!box) return;
+  box.replaceChildren();
+  for (const role of COLOR_ROLES) {
+    const f = document.createElement('div'); f.className = 'f rolerow';
+    const l = document.createElement('div'); l.className = 'lbl'; l.textContent = ROLE_NAMES[role];
+    const w = document.createElement('div'); w.style.minWidth = '0';
+    colorField(w, colors[role], role === 'lines' ? LINE_SWATCHES : SWATCHES, (v) => {
+      if (v === undefined) delete colors[role]; else colors[role] = v;
+      changed(); setTimeout(buildRoleColors, 0);
+    }, 'F9\'s');
+    f.append(l, w); box.append(f);
+  }
 }
 
 // Undo and redo (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z, the two buttons): the layout and the offsets box as they were before
 // each change. A run of the same quick change (a slider moving, arrow-key nudges) within 600 ms counts as one step.
 const hist = { undo: [], redo: [], last: null, key: null, at: 0 };
-function snap() { return JSON.stringify({ e: els, o: useOffsets }); }
+function snap() { return JSON.stringify({ e: els, o: useOffsets, c: colors }); }
 function histMark(key) {
   const s = snap();
   if (s === hist.last) return;
@@ -1712,11 +1835,11 @@ function histMark(key) {
 }
 function histApply(s) {
   const t = JSON.parse(s);
-  els = t.e; useOffsets = t.o; hist.last = s; hist.key = null;
+  els = t.e; useOffsets = t.o; colors = t.c || {}; hist.last = s; hist.key = null;
   if (sel && !els[sel]) sel = 'bar';
   for (const id of [...selSet]) if (!els[id]) selSet.delete(id);
   if (!selSet.size && sel) selSet.add(sel);
-  syncOffsets(); buildFields(); saveDraft(); updateFile(); render(); histButtons();
+  syncOffsets(); buildRoleColors(); buildFields(); saveDraft(); updateFile(); render(); histButtons();
 }
 function undo() { if (!hist.undo.length) return; hist.redo.push(snap()); histApply(hist.undo.pop()); }
 function redo() { if (!hist.redo.length) return; hist.undo.push(snap()); histApply(hist.redo.pop()); }
@@ -1738,7 +1861,7 @@ function updateFile() { $('out').textContent = writeLayout(els); }
 // presets
 for (const p of PRESETS) {
   const b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.textContent = p.name; b.title = p.note;
-  b.addEventListener('click', () => { els = readLayout(p.t).els; buildFields(); changed(); $('loadstat').textContent = ''; });
+  b.addEventListener('click', () => { els = readLayout(p.t).els; colors = {}; buildRoleColors(); buildFields(); changed(); $('loadstat').textContent = ''; });
   $('presets').append(b);
 }
 
@@ -2057,7 +2180,7 @@ $('o-edge').addEventListener('change', () => { cfg.edge = Number($('o-edge').val
 $('o-shade').addEventListener('change', () => { cfg.shade = $('o-shade').checked; render(); });
 $('o-spread').addEventListener('change', () => { cfg.spread = Math.max(-30, Math.min(30, Number($('o-spread').value) || 0)); render(); });
 $('o-modecol').addEventListener('change', () => { cfg.mode_colors = $('o-modecol').checked; render(); });
-$('o-cb').addEventListener('change', () => { P = PALETTES[$('o-cb').checked ? 2 : 1]; render(); });
+$('o-cb').addEventListener('change', () => { cbPreset = $('o-cb').checked ? 2 : 1; render(); });
 $('o-guides').addEventListener('change', render);
 function syncOffsets() { $('o-useoff').checked = useOffsets; $('o-offx').disabled = !useOffsets; $('o-offy').disabled = !useOffsets; }
 $('o-useoff').addEventListener('change', () => { useOffsets = $('o-useoff').checked; syncOffsets(); changed(); });
@@ -2094,7 +2217,9 @@ function compactLayout() {
     }
     if (Object.keys(c).length) out[el.id] = c;
   }
-  return { o: useOffsets, e: out };
+  const r = { o: useOffsets, e: out };
+  if (Object.keys(colors).length) r.c = colors;
+  return r;
 }
 const b64u = { enc: (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
   dec: (str) => Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0)) };
@@ -2129,8 +2254,8 @@ async function loadShared() {
   if (!m) return false;
   try {
     const t = await decodeShare(m[1]);
-    const r = readLayout({ _v: 1, elements: t.e || {} });
-    els = r.els; useOffsets = t.o === true; syncOffsets();
+    const r = readLayout({ _v: 1, colors: t.c, elements: t.e || {} });
+    els = r.els; colors = r.colors; useOffsets = t.o === true; syncOffsets(); buildRoleColors();
     select(sel || 'bar'); buildFields(); updateFile(); render();
     const stat = $('loadstat'); stat.className = 'status ok'; stat.textContent = 'The layout from the link: read.' + (r.dropped.length ? ' ' + r.dropped.length + ' value(s) left at Under\'s.' : '');
     return true;
@@ -2156,7 +2281,7 @@ function loadText(text, from) {
   try {
     const t = parseLua(text);
     const r = readLayout(t);
-    els = r.els;
+    els = r.els; colors = r.colors; buildRoleColors();
     if (t.use_offsets !== undefined && typeof t.use_offsets !== 'boolean') r.dropped.push('use_offsets');
     useOffsets = t.use_offsets === true; syncOffsets();
     select(sel || 'bar'); changed();
@@ -2180,7 +2305,7 @@ $('paste').addEventListener('input', () => { const t = $('paste').value.trim(); 
 function start() {
   measureCap();
   SCR.W = Math.round(1440 * Number($('aspect').value));
-  syncOffsets(); buildFields(); updateFile(); hist.last = snap(); histButtons(); railApply();
+  syncOffsets(); buildRoleColors(); buildFields(); updateFile(); hist.last = snap(); histButtons(); railApply();
   loadShared().then((ok) => { if (ok) { hist.last = snap(); } });
 }
 if (document.fonts && document.fonts.load) {

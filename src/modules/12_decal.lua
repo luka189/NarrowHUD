@@ -30,7 +30,7 @@ local function REACH()
 end
 local K = math.sqrt(0.5)
 local PIC = {}
-for _, n in ipairs({ 'zone_cream', 'zone_red', 'ring_cream', 'ring_red', 'pin_cream', 'pin_red' }) do
+for _, n in ipairs({ 'zone_cream', 'zone_red', 'ring_cream', 'ring_red', 'pin_cream', 'pin_red', 'pin_grey' }) do   -- (pin_grey 2.6.1: a dud)
   local t = TEXTURES and TEXTURES['decal_' .. n .. '_game']
   PIC[n] = t and t[1] and t[1][3] or nil
 end
@@ -140,7 +140,8 @@ local function mark_painted(key, x, y, z, conf, color, px, py, blast)
   local a = math.min(1, (cfg.line_alpha or 0.3) / 0.3) * (N.alpha_k or 1)
   local k = cfg.mark_size or 0.5
   local hit = color == N.RED
-  if not paint(key .. '.pin', hit and 'pin_red' or 'pin_cream', x, y, z, 1.6 * k, 6, math.min(1, a)) then return false end
+  local dud = color == N.GREY                     -- (2.6.1) a landing inside the arming distance: the pin and the chevron grey
+  if not paint(key .. '.pin', hit and 'pin_red' or dud and 'pin_grey' or 'pin_cream', x, y, z, 1.6 * k, 6, math.min(1, a)) then return false end
   if blast and cfg.blast_zone ~= false then
     local inner, outer = blast[1] or 0, blast[2] or 0
     -- (you inside it: your Helldiver within a radius, a few metres up or down: the outer ring red inside the outer
@@ -172,7 +173,7 @@ local function mark_painted(key, x, y, z, conf, color, px, py, blast)
       local sw, sh = chef.screen()
       local S = math.max(12, math.floor((sh or 1440) / 1440 * 34 * (k / 0.7) + 0.5))
       N.alpha_k = (N.alpha_k or 1)
-      local cc = hit and N.RED or N.CREAM
+      local cc = hit and N.RED or dud and N.GREY or N.CREAM
       -- (the screen's y runs up from the bottom, as the HUD's parts are placed: the icon's bottom a little over the pin;
       -- 2.4.9 subtracted and drew it under the pin, luka's screenshot)
       local ok = N.icon_texture('chevron', math.floor(sx - S / 2 + 0.5), math.floor(sy + S * 0.15 + 0.5), S, cc, sure and 0.95 or 0.5, N.L0 + 905)

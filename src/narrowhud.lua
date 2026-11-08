@@ -1,5 +1,5 @@
 -- HD2-Addon: mods/luka189/narrowhud
--- HD2-Requires: chef-shared-loader >= 1.2.3
+-- HD2-Requires: chef-shared-loader >= 1.4.0
 -- HD2-Keep-On-Crash: yes
 -- NarrowHUD (luka189): your weapon's ammo, heat and reserve as a narrow bar under the crosshair, plus grenades and
 -- stims. A Chef Shared Loader addon: plain Lua 5.1, read only, every engine call through chef.call_kind (crash
@@ -15,7 +15,7 @@
 -- game font is the likely one: then the pixel font is used).
 -- DATA is put in front of this file by tools/build.py.
 local chef = ...
-local M = { version = '2.6.0' }
+local M = { version = '3.0.0' }
 -- Two logs of its own (1.5.41): narrowhud.log for what anyone reads (a few hundred lines a session), and
 -- narrowhud_research.log for the research rows' field dumps (a megabyte an hour). The loader starts a fresh file
 -- for a log once it passes 1 MB at the next launch, so one log for both lost two sessions' plain lines to the

@@ -6,7 +6,7 @@
 
 A small ammo and heat readout by your crosshair for Helldivers 2: the magazine in hand as a narrow bar, the count and
 your spare magazines, plus your stims, grenades and backpack. It runs on
-[Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.2.3 or newer** (older versions either block the
+[Chef Shared Loader](https://github.com/Th3chef/Chef-Shared-Loader) **1.4.0 or newer** (older versions either block the
 reads it needs or take some smaller missions for the ship, where NarrowHUD stays off).
 
 ## Make it your own: the layout editor
@@ -14,13 +14,13 @@ reads it needs or take some smaller missions for the ship, where NarrowHUD stays
 **[Open the NarrowHUD layout editor](https://luka189.github.io/NarrowHUD/editor/)** to place every part of the HUD
 anywhere on the screen: drag the bar, the count, the magazines, the modes, stims, grenades and the backpack bar around a
 game screen (or a screenshot of your own game, read in the browser only), make bars vertical or curved, and see how each kind of weapon will look. Then download (or copy) the file,
-pick **Layout: Custom layout** in F9, and press the "Keys: reload layout file" key. The four built-in layouts are there
+pick **Layout: Custom layout** in F9, and press the "Keys: reload layout file" key. The five built-in layouts are there
 to start from, parts pin to each other so a layout holds together, and the Help button explains the rest. The file's
 format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
 
 ## Install
 
-1. Install Chef Shared Loader (1.2.3 or newer) as its page says, with the highest priority in your mod manager.
+1. Install Chef Shared Loader (1.4.0 or newer) as its page says, with the highest priority in your mod manager.
 2. Add the NarrowHUD zip in your mod manager and enable it.
 3. Play. Settings are in the F9 menu, under NarrowHUD.
 
@@ -61,14 +61,15 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
   edges and a fade-in at your hand; dashes that keep their size near and far, and the old plain line (Classic), are
   F9 choices.
 
-Four built-in layouts: the **horizontal** stack (the bars under the crosshair), the **arcs** (centred on the
+Five built-in layouts: the **horizontal** stack (the bars under the crosshair), the **arcs** (centred on the
 crosshair, the meters and the backpack inside), the **vertical pair** (the ammo bar standing right of the crosshair,
-health on the left) and the **block** (one block right of the crosshair). Or **Custom**: your own, made in
+health on the left), the **block** (one block right of the crosshair) and the **Cake** (five rings on one centre right
+of the crosshair, a slice open at the top, the count in the middle). Or **Custom**: your own, made in
 the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 
 ## Settings (F9, NarrowHUD)
 
-- Layout: four built-in ones (the horizontal stack, the arcs, the vertical pair, the block) or Custom: every part
+- Layout: five built-in ones (the horizontal stack, the arcs, the vertical pair, the block, the Cake) or Custom: every part
   placed and styled on its own from a layout file, made in the [layout editor](https://luka189.github.io/NarrowHUD/editor/);
   size; one sideways and one up / down offset that moves any of them; Spread (the two sides of the crosshair closer
   or farther apart; the horizontal layout up or down as a whole) and how it changes while you aim; opacity.
@@ -88,14 +89,20 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   shade behind the bars (none, solid, or the game's hatching, drawn as one texture or stripe by stripe); the count's digits fixed (it never slides as it falls) or tight; the modes in their own
   colours; colours standard or colourblind (white, sky blue, yellow,
   magenta: told apart by brightness too); the share of a magazine that counts as low ammo (orange, with one
-  flash). The HUD is drawn in the game's UI layer, so the colours are exact on every planet.
+  flash); a dark outline round the count and the words for bright planets. The HUD is drawn in the game's UI layer, so the colours are exact on every planet.
+- Colours: Text, Bars, Low, Empty, the two mode colours, Lines (pure colours only: they're drawn in the world) and
+  Stamina, each a colour row, with Standard and Colourblind presets that set them all. The crosshairs keep the game's cream.
+  A Custom layout file can carry the same roles (`colors = {...}`, winning over the tab) and a colour per part
+  (`color`, docs/LAYOUT.md); Low and Empty stay shared, so a low magazine always reads as one. The layout editor sets
+  both: a colour picker, the hex and the swatches on each part, and "Colours in the file" under its F9 settings.
 - Crosshairs: the sniper crosshair (while aiming or always; on the game's own aim point or static at the centre;
   and one for the Maxigun and, if you like, the flamethrowers in first person), and its size.
 - Lines and marks: the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its
   length, whether it follows the reticle or the view, and where it starts), the throw line, the landing mark, its
   size and the distance beside it, structure hits (the mark red where the shot goes into a bug hole, a fabricator,
   a warp ship, a nest, an emplacement's gun — shapes from the structures' own models), the lines' thickness,
-  opacity and look (dashes, flowing dashes or Classic), the mark's look (on the ground or Classic) and the blast zone.
+  opacity and look (dashes, flowing dashes or Classic), the mark's look (on the ground or Classic), the blast zone
+  and duds (a launcher round landing inside its arming distance: the line grey up to there, a grey chevron and no zone).
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.

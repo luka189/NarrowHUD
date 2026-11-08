@@ -8,6 +8,9 @@
 -- (tools/build.py puts src/narrowhud.lua and these modules together, each module in a function of its own; N holds
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local cfg, input = N.cfg, N.input
+-- (2.6.7, luka) the crosshairs keep the game's own cream whatever the Colours tab says: the game draws the other
+-- weapons' crosshairs, and one sniper's in a colour of its own looked off
+local INK = { 236, 229, 206 }
 local SNIPERS = { b697955d = 'APW-1 Anti-Materiel Rifle', ['30294946'] = 'R-40 Sightliner', a4eff4fa = 'AMW-20 Apex' }
 -- (2.0.1, a Nexus request) weapons the game gives no crosshair in first person: the ring and dot there, always.
 -- (2.0.11, luka's five marks, 2026-10-31: the flamethrowers, under their own row, off by default — a flamethrower is
@@ -51,7 +54,7 @@ local function draw_reticle(d, now)
   if not w then return end
   local sx, sy = math.floor(w / 2 + 0.5), math.floor(h / 2 + 0.5)
   local L = N.L0 + 895
-  local c, back = N.col(N.CREAM, 240), N.col({ 0, 0, 0 }, 150)
+  local c, back = N.col(INK, 240), N.col({ 0, 0, 0 }, 150)
   -- (2.5.1, luka) the ring and dot follow the game's own aim (the reticle point 12_drop reads for the drop line,
   -- led the same two frames, projected to the screen), as the game's reticle would if it drew one: it lags the view
   -- in a turn and sways with the sight. A larger, thinner ring stays at the screen's middle, so the crosshair comes
@@ -102,7 +105,7 @@ local function draw_reticle(d, now)
     for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
       N.icon_texture('reticle', x0 + o[1], y0 + o[2], S, { 0, 0, 0 }, 0.7, L - 1)
     end
-    drawn = N.icon_texture('reticle', x0, y0, S, N.CREAM, 1.09, L)
+    drawn = N.icon_texture('reticle', x0, y0, S, INK, 1.09, L)
     if ring and drawn then
       -- the centre ring: 1.6 times the crosshair, at the screen's middle, a little dimmer
       local S2 = math.floor(S * 1.6 + 0.5)
@@ -112,7 +115,7 @@ local function draw_reticle(d, now)
       for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
         N.icon_texture('ring', x1 + o[1], y1 + o[2], S2, { 0, 0, 0 }, 0.6, L - 1)
       end
-      N.icon_texture('ring', x1, y1, S2, N.CREAM, 0.85, L)
+      N.icon_texture('ring', x1, y1, S2, INK, 0.85, L)
     end
   end
   if drawn then return end

@@ -61,7 +61,9 @@ function N.kit_key(s, goid, t, o)
   if not o then return nil end
   if o.kit == nil then
     local ids = kit_read(s, goid, t)
-    o.kit = (ids and #ids > 0) and (t.id .. ':' .. table.concat(ids, '+')) or false
+    -- (2.6.4, luka's bolt pistol at 5 of 6 every start: a kit with nothing on it is a kit too, keyed ':0', so its
+    -- magazine's size is kept as any kit's; no key only when the list can't be read)
+    o.kit = ids and (t.id .. ':' .. (#ids > 0 and table.concat(ids, '+') or '0')) or false
     if o.kit and cfg.research then log('research: kit of %s (object %s): %s', t.id, tostring(goid), o.kit) end
   end
   return o.kit or nil

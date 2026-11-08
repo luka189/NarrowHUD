@@ -80,6 +80,89 @@ local NO_LINE = { c7dfd9eb = true, ['1d3b01d7'] = true }   -- (2.4.12, luka: the
 -- (2.4.14, luka) the Recoilless and the EAT keep their line but get no landing mark and no blast zone: aimed at an
 -- enemy, the mark landed on the ground behind it and got in the way of the aim, and their blast hardly matters
 local NO_MARK = { b2bfd847 = true, ['6ec2a850'] = true }
+-- (2.6.1, luka's shape of HUDdle 0.7.3's idea) duds: a launcher round landing closer than its arming distance
+-- bounces. The line is grey up to the arming point, and a landing inside it gets a grey chevron and no blast zone
+-- (a structure hit inside it too: the round won't go off). Metres of path from the muzzle; the numbers HUDdle's /
+-- the wiki's, not the game's data (it has none we can read): GL-21, the Grenadier Battlement and the Evictor 7,
+-- the GL-28 5, the GP-31, the De-Escalator and the One-Two's underbarrel 4
+local ARMING = { ['8c0aee6e'] = 7, ['17db8107'] = 7, ['17b02218'] = 7, ['6b47e064'] = 5, ['362577f7'] = 4, e1f10066 = 4, ['16425925'] = 4 }
+N.ARMING = ARMING
+-- (2.6.1) rounds that carry your movement: the GP-20 Ultimatum and the CB-9 Exploding Crossbow leave with your
+-- velocity added (BTM measured it; HUDdle has it). Your speed over the last 0.15 s, none under 0.6 m/s, 12 m/s at
+-- most. cfg.carry_all (Testing) tries it on every weapon, for a test
+local CARRY = { ['36fcbd00'] = true, eb38d34e = true }
+local CARRY_MIN, CARRY_MAX = 0.6, 12
+-- (the ring is filled by time, a sample every 25 ms at most, 24 of them: 2.6.1 kept one a frame, 12 of them, which at
+-- luka's 83 fps was 0.145 s of history — under the 0.15 s looked back, so the carry never engaged in game)
+local MV_N, MV_EVERY = 24, 0.025
+local mv = { t = {}, x = {}, y = {}, z = {}, n = 0 }   -- the Helldiver's recent positions (a ring)
+local function my_velocity(x, y, z, now)
+  local last = mv.n > 0 and mv.t[(mv.n - 1) % MV_N + 1] or nil
+  if not last or now - last >= MV_EVERY or now < last then
+    local i = mv.n % MV_N + 1
+    mv.t[i], mv.x[i], mv.y[i], mv.z[i], mv.n = now, x, y, z, mv.n + 1
+  end
+  local best = nil
+  for j = 1, MV_N do
+    local t = mv.t[j]
+    if t and now - t >= 0.15 and now - t < 0.5 and (not best or t > mv.t[best]) then best = j end
+  end
+  if not best then return 0, 0, 0 end
+  local dt = now - mv.t[best]
+  local vx, vy, vz = (x - mv.x[best]) / dt, (y - mv.y[best]) / dt, (z - mv.z[best]) / dt
+  local sp = math.sqrt(vx * vx + vy * vy + vz * vz)
+  if sp < CARRY_MIN then return 0, 0, 0 end
+  if sp > CARRY_MAX then local f = CARRY_MAX / sp vx, vy, vz = vx * f, vy * f, vz * f end
+  return vx, vy, vz
+end
+-- (2.6.1) is a landing (or a structure hit) inside the arming distance: its own path, where it falls in the segment
+-- lx..wx of the flight (lpath..path), against `arm`
+local function dud_at(arm, lx, ly, lz, lpath, wx, wy, wz, path, gx, gy, gz)
+  if not arm or not lx then return false end
+  local sl = math.sqrt((wx - lx) ^ 2 + (wy - ly) ^ 2 + (wz - lz) ^ 2)
+  local t = sl > 1e-6 and math.sqrt((gx - lx) ^ 2 + (gy - ly) ^ 2 + (gz - lz) ^ 2) / sl or 0
+  return lpath + (path - lpath) * math.min(1, t) <= arm
+end
+-- the flight in three dimensions with a velocity added, not cached (the path depends on the added velocity's
+-- direction against the aim's): points { along, up, path, right } — `right` across the aim's horizontal
+local function fly3(b, pitch, len, ex, ey, ez, hx, hy)
+  local r = b.d * 0.0005
+  local k = math.pi / 2 * r * r * 1.2 * b.drag
+  local m = b.m * 0.001
+  local g = G * b.g
+  local cp, sp = math.cos(pitch), math.sin(pitch)
+  -- the added velocity in the aim's frame: along the horizontal of the aim, across it, up
+  local ea, er = ex * hx + ey * hy, ex * hy - ey * hx
+  local vx, vy, vz = b.v * cp + ea, er, b.v * sp + ez
+  local x, y, z = 0, 0, 0
+  local pts, path, next_pt, t = {}, 0, 0, 0
+  local first = start_hand(b)
+  local dir_at = math.atan2(vz, vx)
+  while path < len and t < 24 do
+    local dir = math.atan2(vz, vx)
+    if path >= next_pt or (#pts > 1 and math.abs(dir - dir_at) >= TURN) then
+      pts[#pts + 1] = { x, z, path, y }
+      dir_at = dir
+      next_pt = #pts == 1 and first or (path + POINT_EVERY)
+    end
+    local speed = math.sqrt(vx * vx + vy * vy + vz * vz)
+    local a = speed > 0 and k * speed / m or 0
+    vx = vx - a * vx * STEP
+    vy = vy - a * vy * STEP
+    vz = vz - a * vz * STEP - g * STEP
+    local nx, ny, nz = x + vx * STEP, y + vy * STEP, z + vz * STEP
+    local d = math.sqrt((nx - x) ^ 2 + (ny - y) ^ 2 + (nz - z) ^ 2)
+    if path + d >= len and d > 0 then
+      local f = (len - path) / d
+      x, y, z, path = x + (nx - x) * f, y + (ny - y) * f, z + (nz - z) * f, len
+      break
+    end
+    path = path + d
+    x, y, z, t = nx, ny, nz, t + STEP
+  end
+  pts[#pts + 1] = { x, z, path, y }
+  return pts
+end
 local function drops(tid)
   if NO_LINE[tid] then return false end
   local v = drop100[tid]
@@ -329,10 +412,30 @@ local function draw_drop(tid)
   local hl = math.sqrt(fx * fx + fy * fy)
   if hl < 1e-4 then return end
   local pitch = math.atan2(fz, hl)
-  local pts = flight_of(tid, pitch, len)
   local hx, hy = fx / hl, fy / hl                   -- the aim's horizontal direction
-  local c = N.wcol(N.CREAM, 170)                  -- (2.0.17: the world's tone curve)
-  local function world(p) return x0 + hx * p[1], y0 + hy * p[1], z0 + p[2] end
+  -- (2.6.1) your movement carried by the round: the Helldiver's velocity over the last 0.15 s (the hand's node
+  -- moves with the sway, so the unit's root), added to the muzzle velocity in a flight of its own
+  local pts
+  local carry = (CARRY[tid] or cfg.carry_all) and u and chef.unit_position
+  if carry then
+    local ux, uy, uz = chef.unit_position(u)
+    local vx, vy, vz = 0, 0, 0
+    if ux then vx, vy, vz = my_velocity(ux, uy, uz, chef.time()) end
+    if vx ~= 0 or vy ~= 0 or vz ~= 0 then pts = fly3(BALLISTICS[tid], pitch, len, vx, vy, vz, hx, hy) end
+    if cfg.research then
+      local sp = math.sqrt(vx * vx + vy * vy + vz * vz)
+      local said = mv.said or 0
+      if (sp >= CARRY_MIN) ~= (said > 0) then mv.said = sp >= CARRY_MIN and 1 or 0 log('research: the round carries your movement: %.1f m/s %s', sp, sp >= CARRY_MIN and 'added' or '(under the floor, none)') end
+    end
+  end
+  pts = pts or flight_of(tid, pitch, len)
+  local c = N.wcol(N.LINES, 170)                  -- (2.0.17: the world's tone curve; 2.6.6: the Lines role)
+  local rx, ry = hy, -hx                            -- the aim's right
+  local function world(p) local r = p[4] or 0 return x0 + hx * p[1] + rx * r, y0 + hy * p[1] + ry * r, z0 + p[2] end
+  -- (2.6.1) the dud stretch: the line grey up to the arming point, a landing inside it a grey chevron with no zone
+  local arm = cfg.duds ~= false and ARMING[tid] or nil
+  local cdud, dkdud = N.wcol(N.GREY, 150), N.wcol({ 0, 0, 0 }, 90)
+  local cfdud = function(f) return N.wcol(N.GREY, 150 * f), N.wcol({ 0, 0, 0 }, 90 * f) end
   -- thickness: the line drawn again beside itself, offset across the view by a share of its distance from the
   -- camera (the same width on the screen at any distance); the engine's lines are one pixel wide
   local lines = cfg.drop_thick or 1                 -- (Thin 1, Medium 2, Thick 3 lines side by side)
@@ -344,7 +447,7 @@ local function draw_drop(tid)
   -- (2.4.8) the look: dashes (12_decal), fading in over the first metre and a half, with dark edges; Classic as before
   local lst = N.line_state(chef.time())
   local dk = N.wcol({ 0, 0, 0 }, 110)
-  local cfun = lst.look ~= 1 and function(f) return N.wcol(N.CREAM, 170 * f), N.wcol({ 0, 0, 0 }, 110 * f) end or nil
+  local cfun = lst.look ~= 1 and function(f) return N.wcol(N.LINES, 170 * f), N.wcol({ 0, 0, 0 }, 110 * f) end or nil
   local blast = BLAST and BLAST.weapons[tid]
   if NO_MARK[tid] then blast = nil end
   local lx, ly, lz, lpath = nil, nil, nil, 0
@@ -360,9 +463,13 @@ local function draw_drop(tid)
     -- (2.0.13) where the flight meets the ground (12_ground's guess): a ring there; the line runs on to its end
     -- (2.0.14, luka: the game's own depth test hides the part under the ground, and a ring a little off keeps a
     -- whole line rather than a cut one); never within 20 m of you (7 m for the Ultimatum's lob)
+    local dud = arm and p[3] <= arm                -- (2.6.1) this stretch of the flight is inside the arming distance
     if shit and not marked and lx and lpath >= from then
       local hx, hy, hz = shit(lx, ly, lz, wx, wy, wz, sst, x0, y0)
-      if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, x0, y0, blast, 'drop') marked = true mkx, mky, mkz = hx, hy, hz end
+      if hx then
+        local d = dud_at(arm, lx, ly, lz, lpath, wx, wy, wz, p[3], hx, hy, hz)
+        N.draw_ground_mark(hx, hy, hz, 'feet', d and N.GREY or N.RED, x0, y0, not d and blast or nil, 'drop') marked = true mkx, mky, mkz = hx, hy, hz
+      end
     end
     -- (2.4.9, luka: the Crossbow's zone didn't show near him, so he couldn't tell he was close enough to hurt
     -- himself: with a blast known, the mark from 3 m, on sure ground only there (12_ground's gate). 2.4.11: and
@@ -370,7 +477,10 @@ local function draw_drop(tid)
     -- dropped 10 cm, 14 m out)
     if mark and not marked and lx and (lpath >= from or (blast and lpath >= 3)) then
       local gx, gy, gz, conf = mark(lx, ly, lz, wx, wy, wz, x0, y0, mst, blast and 3 or (from == 3 and 7 or 20))
-      if gx then N.draw_ground_mark(gx, gy, gz, conf, nil, x0, y0, blast, 'drop') marked = true mkx, mky, mkz = gx, gy, gz end
+      if gx then
+        local d = dud_at(arm, lx, ly, lz, lpath, wx, wy, wz, p[3], gx, gy, gz)
+        N.draw_ground_mark(gx, gy, gz, conf, d and N.GREY or nil, x0, y0, not d and blast or nil, 'drop') marked = true mkx, mky, mkz = gx, gy, gz
+      end
     end
     -- (2.1.2) the line begins at `from` exactly: the segment it falls in is cut there (the flight's points sit at
     -- different paths at different pitches, so a start at the next point wandered with the aim)
@@ -383,7 +493,17 @@ local function draw_drop(tid)
       local ax, ay, az = N.across(cam, lx, ly, lz, wx, wy, wz)
       if not ax then ax, ay, az = crx, cry, 0 end
       -- (each line a pixel or so beside the last, centred on the flight: 12_decal's N.line_piece)
-      n = n + N.line_piece(lst, cam, lx, ly, lz, wx, wy, wz, ax, ay, az, lines, c, dk, cfun)
+      if arm and lpath < arm and p[3] > arm then
+        -- (2.6.1) the segment that crosses the arming point: grey up to it, the line's colour from it
+        local t = (arm - lpath) / (p[3] - lpath)
+        local mx, my, mz = lx + (wx - lx) * t, ly + (wy - ly) * t, lz + (wz - lz) * t
+        n = n + N.line_piece(lst, cam, lx, ly, lz, mx, my, mz, ax, ay, az, lines, cdud, dkdud, cfun and cfdud)
+        n = n + N.line_piece(lst, cam, mx, my, mz, wx, wy, wz, ax, ay, az, lines, c, dk, cfun)
+      elseif dud then
+        n = n + N.line_piece(lst, cam, lx, ly, lz, wx, wy, wz, ax, ay, az, lines, cdud, dkdud, cfun and cfdud)
+      else
+        n = n + N.line_piece(lst, cam, lx, ly, lz, wx, wy, wz, ax, ay, az, lines, c, dk, cfun)
+      end
     end
     lx, ly, lz, lpath = wx, wy, wz, p[3]
   end

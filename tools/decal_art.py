@@ -12,7 +12,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = 512
-CREAM, RED, DARK = (236, 229, 206), (226, 74, 64), (0, 0, 0)
+CREAM, RED, GREY, DARK = (236, 229, 206), (226, 74, 64), (150, 150, 150), (0, 0, 0)   # (GREY 2.6.1: a dud's pin)
 
 
 def _radius(size, ss):
@@ -82,7 +82,7 @@ def pictures():
     return {
         'zone_cream': zone(CREAM), 'zone_red': zone(RED),
         'ring_cream': ring(CREAM), 'ring_red': ring(RED),
-        'pin_cream': pin(CREAM), 'pin_red': pin(RED),
+        'pin_cream': pin(CREAM), 'pin_red': pin(RED), 'pin_grey': pin(GREY),
     }
 
 

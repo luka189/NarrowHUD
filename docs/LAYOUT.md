@@ -47,6 +47,7 @@ An element left out, or a field left out, takes Under's look's value — so a fi
 | `pin` | which side of that part (with `after`): `right`, `left`, `above` or `below`, `gap` pixels between them; `align` says which edges line up (right / left: `bottom_*` bottoms level, `top_*` tops, `left` / `right` / `center` middles; above / below: `*_left` left edges, `*_right` right edges, `bottom` / `top` / `center` middles); `x` and `y` then nudge it from there (scaled with Size and the part's size, as the gap is, so the group keeps its shape at every Size). `none`: the old way (files from before 1.5.53): only `x` follows, from that part's right edge, `y` stays the part's own | `none` |
 | `gap` | pixels between the two (at 1440p, Medium), with `after`; can be negative; -500 to 500 | 8 |
 | `hold` | `true`: while the part has nothing to show for the moment (the weapon put away, a stratagem ball in hand, no gun seated), it keeps the place it had, so the parts pinned to it stay where they are. `false`: they take its place, as they do for a part that's Off or one this loadout never has (no backpack, no charge meter). Under's look has it on for the ammo bar, the count, health and stamina — the parts that only vanish for a moment (1.5.72, 1.5.75) | false |
+| `color` | (2.6.8) the part's own colour at rest, `'RRGGBB'` (a `#` in front is fine): its text, bar, squares, ticks and icons. Low and Empty (orange, red) stay the palette's, so a low magazine still reads as one. Left out: the Colours tab's Text / Bars | none |
 | `side` | which way F9's **Spread** and **Aim spread** sliders move the part (1.5.53): `left` or `right` (the two sides of the crosshair apart), `up` or `down` (2.2.9: the part vertically — the horizontal layout's free parts are `down`, so the whole stack moves down while you aim), `none`, or `auto` (left or right by the part's `x` from the `center` anchor; a part on another anchor is `none`). A pinned part goes with the part it's pinned to | `auto` |
 
 Sizes are in pixels at 1440p for Medium; they scale with the screen's height and Size.
@@ -85,6 +86,8 @@ in the horizontal look; with digits fixed (the default) the count's box is the f
 | `vertical` | a straight bar, up and down | from the bottom |
 | `curved_left` | a `(`: a piece of a circle bulging left, for the left of the crosshair | from the bottom |
 | `curved_right` | a `)`: a piece of a circle bulging right, for the right of the crosshair | from the bottom |
+| `curved_up` | (2.6.10) a `∩`: a piece of a circle bulging up | from the left |
+| `curved_down` | (2.6.10) a `∪`: a piece of a circle bulging down | from the left |
 
 A bar's look (1.5.53), two fields apart: `edge` — `none`, `outline` (a line around the whole bar, the fill inside it)
 or `brackets` (square brackets at the two ends, as the game draws its own health and stamina) — and `shade` — `on`
@@ -92,11 +95,29 @@ or `brackets` (square brackets at the two ends, as the game draws its own health
 edges", "shade behind the bars"), so one F9 choice styles every bar unless a bar says otherwise.
 
 For the curved ones, `length` runs along the curve, `thickness` across it, and `radius` is the circle's (its middle
-line's): a smaller radius curves more. The curve covers at most 300 degrees, however long it is. The element's box
+line's): a smaller radius curves more. The curve covers at most 360 degrees: a `length` of 2π × `radius` closes it
+into a circle (2.6.10; 300 degrees before), its two ends meeting where the fill starts. The element's box
 (what `align` and `anchor` place) is the box around the curve, so for a pair around the crosshair use
 `align = 'right'` for the `(` and `align = 'left'` for the `)`, with `x` set to how far out each one sits.
 Where Chef Shared Loader can't draw triangles, the curved ones are drawn `vertical` instead.
 
+
+## `colors` (2.6.8): the palette from the file
+
+The Colours tab's roles, set in the file instead; any given here wins over the tab's row, so one file carries the
+whole look. The same `'RRGGBB'` strings; a role left out keeps the tab's.
+
+```lua
+return {
+  _v = 1,
+  colors = { text = 'ECE5CE', bars = 'ECE5CE', low = 'F0AA5A', empty = 'D25048', mode_a = '82CDF5', mode_b = '50DCAF',
+             lines = 'ECE5CE', stamina = '82BEEB' },
+  elements = { ... },
+}
+```
+
+`lines` is drawn in the world, where each planet's light shifts a colour: pure colours (white, blue, red, green)
+or the cream read as meant; anything else won't.
 
 ## `struct_parts` (for testing the red mark)
 
