@@ -10,7 +10,7 @@ local learned = { grip = {}, mag = {}, heat = {}, rest = {}, charge2 = {}, up = 
 -- The learned file: what each kind holds per type id (8 hex digits), and the file's version (_v). Entries that don't
 -- fit (a damaged or hand-edited file) are dropped and counted in the log; a file from a newer NarrowHUD is read for
 -- what fits.
-local LEARNED_VERSION = 1
+local LEARNED_VERSION = 2   -- (2 from 3.0.1: the shell-by-shell weapons' sizes dropped once, see below)
 local LEARNED_SHAPE = { grip = 'number', mag = 'number', heat = 'number', rest = 'number', charge2 = 'number',
   up = 'number', down = 'number', modes = 'string', rpms = 'string', pack = 'number', options1 = 'string',
   packres = 'boolean', rest2 = 'number', poses = 'string', packshow = 'boolean', rpmadj = 'boolean',
@@ -58,6 +58,21 @@ do
     local v = tonumber(t._v) or 0
     if v > LEARNED_VERSION then log('learned file: from a newer NarrowHUD (version %d): read what fits', v) end
     if dropped > 0 then log('learned file: %d entries kept, %d that didn\'t fit dropped', kept, dropped) end
+    if v < 2 then
+      -- (3.0.1) 3.0.0 saved the shell-by-shell weapons (a tube, no magazine field: the Evictor, the Sweeper, the
+      -- shotguns) one round too big, and a saved size never shrinks: those are dropped once here; the first frame
+      -- of the next mission learns them right (a full tube at the drop is the size)
+      local tube = {}
+      for _, ty in ipairs(N.TYPES) do if ty.has and ty.has.slot0 and not ty.has.rounds then tube[ty.id] = true end end
+      local n = 0
+      for _, kind in ipairs({ 'mag', 'kitmag' }) do
+        for key in pairs(learned[kind]) do
+          if tube[string.sub(key, 1, 8)] then learned[kind][key] = nil n = n + 1 end
+        end
+      end
+      if n > 0 then log('learned file: %d shell-by-shell magazine sizes dropped (3.0.0 saved them one too big); learned again at the next drop', n) end
+      N.learned_rewrite = true
+    end
   elseif why and not string.find(tostring(why), 'none saved') and not string.find(tostring(why), 'no such file')
       and not string.find(tostring(why), 'missing') then
     log('learned file: not read (%s): starting from the shipped knowledge', tostring(why))

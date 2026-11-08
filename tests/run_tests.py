@@ -56,7 +56,7 @@ def setup(rt, game_font=True, chef11=False, seeded=False):
     arc = [n for t, n, roles in re.findall(r'(\w{8}) (\S+) (\w*)', DATA.split('weapons =')[1].split('backpacks =')[0])
            if 'y' in roles and 'k' in roles and not set('rahl') & set(roles)][0]
     g.TYPE_NAMES = rt.table_from(dict(re.findall(r'^(\w{8}) (\S+) ', DATA.split('weapons = "')[1].split('"')[0].replace('\\n', '\n'), re.M)))
-    g.NAMES = rt.table_from({'stalwart': type_name('521229d8'), 'gl': type_name('8c0aee6e'), 'rr': type_name('b2bfd847'), 'crem': type_name('15f1a9f0'), 'crempack': type_name('6c17c3b1'), 'pack2': type_name('447380d4'), 'verdict': type_name('c7dfd9eb'), 'seaf': type_name('aca39ec2'), 'dog': type_name('530e19df'), 'arc': arc, 'commando': type_name('3d538455'), 'spear': type_name('83d1036e'), 'rail': type_name('26acc614'), 'rr': type_name('b2bfd847'), 'ac': type_name('7bfb2e06'), 'acfed': type_name('903649ec'), 'acpack': type_name('94ff3b20'), 'scythe': type_name('42a6b5ba'), 'c4': type_name('6b2c3bed'), 'c4pack': type_name('66d03a73'), 'laser': type_name('d100e0c8'), 'warrant': type_name('c920c2d3'), 'unk2': unk2, 'ub2': ub2[1], 'ub2id': ub2[0], 'fed': type_name('b3246bb7'), 'pack': 'raqnyi', 'ubgl': type_name('16425925'), 'ubsg': type_name('da0f356e'), 'player': type_name('803159b3') if False else 'un6y1d', 'avatar': 'vvhx8ga',
+    g.NAMES = rt.table_from({'stalwart': type_name('521229d8'), 'gl': type_name('8c0aee6e'), 'rr': type_name('b2bfd847'), 'crem': type_name('15f1a9f0'), 'crempack': type_name('6c17c3b1'), 'pack2': type_name('447380d4'), 'verdict': type_name('c7dfd9eb'), 'seaf': type_name('aca39ec2'), 'dog': type_name('530e19df'), 'arc': arc, 'commando': type_name('3d538455'), 'spear': type_name('83d1036e'), 'rail': type_name('26acc614'), 'rr': type_name('b2bfd847'), 'ac': type_name('7bfb2e06'), 'evictor': type_name('17b02218'), 'acfed': type_name('903649ec'), 'acpack': type_name('94ff3b20'), 'scythe': type_name('42a6b5ba'), 'c4': type_name('6b2c3bed'), 'c4pack': type_name('66d03a73'), 'laser': type_name('d100e0c8'), 'warrant': type_name('c920c2d3'), 'unk2': unk2, 'ub2': ub2[1], 'ub2id': ub2[0], 'fed': type_name('b3246bb7'), 'pack': 'raqnyi', 'ubgl': type_name('16425925'), 'ubsg': type_name('da0f356e'), 'player': type_name('803159b3') if False else 'un6y1d', 'avatar': 'vvhx8ga',
                              'arb': type_name('8fcdd35c'), 'nova': type_name('17783758'), 'de': type_name('960653cb'), 'talon': type_name('4e87d68d'), 'unk': unknown_name})
     rt.execute(r"""
 T = 0
@@ -1114,6 +1114,25 @@ def main():
           t52a, rk.eval('M.debug_learned("kitmag", "c7dfd9eb:d4d4d4d4d4d4d4d4")'), t52d, t53b, t53c, rk.eval('M.debug_learned("kitmag", "c7dfd9eb:e5e5e5e5e5e5e5e5")'), t53d),
           t52a == 8 and rk.eval('M.debug_learned("kitmag", "c7dfd9eb:d4d4d4d4d4d4d4d4")') == 8 and t52d == 8 and t53b == 7 and t53c == 8
           and rk.eval('M.debug_learned("kitmag", "c7dfd9eb:e5e5e5e5e5e5e5e5")') == 8 and t53d == 8)
+    # (3.0.1, luka's Evictor and Sweeper at MARK 1 and 2: "one more max ammo than they can carry") a shell-by-shell
+    # weapon's count is its slot with the chambered shell in it: 4 + 1 at a start is 5, not 6
+    rk.execute('''WORLD = 13 OBJ[54] = { name = NAMES.evictor, fields = { hpinuxg = {} } } local f = OBJ[54].fields f[ROLE.slot0] = 4 f[ROLE.slot1] = 0 f[ROLE.selected] = 0
+      f[ROLE.chamber] = false f[ROLE.spare] = 31 f[ROLE.carry] = 0 f[ROLE.reload_stage] = 0 GRIP = 80 run(3)''')
+    t54, v54 = rk.eval('M.debug_top()')[0], rk.eval('texts()')
+    rk.execute('OBJ[54] = nil GRIP = 36 run(1)')
+    check('the Evictor at a start, 4 in the tube and one chambered: 5 of 5 (top %s, %s)' % (t54, v54), t54 == 5 and v54.startswith('5 |'))
+    # (3.0.1) a learned file from 3.0.0 (no _v 2) with the Evictor's size saved one too big: dropped once on load — the
+    # Verdict's (a magazine) kept — and said; the file is written back as version 2
+    rm = lua51.LuaRuntime()
+    setup(rm)
+    rm.execute('''saved = { _v = 1, kitmag = { ["17b02218:e77897b40ac50268+a57694699f3ffd97"] = 5, ["c7dfd9eb:0"] = 12 }, mag = { ["17b02218"] = 5, ["c7dfd9eb"] = 15 } }
+      M = (function(...) ''' + SRC + ''' end)(chef) run(6)''')
+    said = [l for l in rm.eval('logs').values() if 'shell-by-shell' in l]
+    check('a 3.0.0 learned file: the Evictor\'s saved sizes dropped (%s, %s), the Verdict\'s kept (%s, %s), said (%s)' % (
+          rm.eval('M.debug_learned("kitmag", "17b02218:e77897b40ac50268+a57694699f3ffd97")'), rm.eval('M.debug_learned("mag", "17b02218")'),
+          rm.eval('M.debug_learned("kitmag", "c7dfd9eb:0")'), rm.eval('M.debug_learned("mag", "c7dfd9eb")'), said),
+          rm.eval('M.debug_learned("kitmag", "17b02218:e77897b40ac50268+a57694699f3ffd97")') is None and rm.eval('M.debug_learned("mag", "17b02218")') is None
+          and rm.eval('M.debug_learned("kitmag", "c7dfd9eb:0")') == 12 and rm.eval('M.debug_learned("mag", "c7dfd9eb")') == 15 and len(said) == 1 and '2 shell-by-shell' in said[0])
     # the next mission, 40 s in (no "full at the start"): kit B half fired shows over 10, an unknown kit over the type's 15
     rk.execute('''OBJ[41] = nil run(1) WORLD = 4 GRIP = 10 run(40)
       OBJ[42] = { name = NAMES.verdict, fields = { hpinuxg = { 'a1a1a1a1a1a1a1a1', 'b2b2b2b2b2b2b2b2' } } } OBJ[42].fields[ROLE.rounds] = 6
@@ -4371,7 +4390,7 @@ def main():
     check('a damaged learned file: what fits kept, the rest dropped %s' % [l for l in rt16.eval('logs').values() if 'learned file' in l],
           any("entries kept, 4 that didn't fit dropped" in l for l in rt16.eval('logs').values()) and '45' in rt16.eval('texts()'))
     rt16.execute('OBJ[3].fields[ROLE.rounds] = 40 run(6)')
-    check('saved with its version (%s)' % rt16.eval('saved._v'), rt16.eval('saved._v') == 1)
+    check('saved with its version (%s)' % rt16.eval('saved._v'), rt16.eval('saved._v') == 2)   # (3.0.1: version 2)
     # forgetting: the weapon in hand (its pose gone: not shown till it fires), everything (pressed twice)
     rt16.execute("OBJ[4] = nil BINDS.forget_weapon = true run(1 / 60) BINDS.forget_weapon = false run(1)")
     check('forgot the weapon in hand: logged, the message [%s]' % rt16.eval('texts()'),

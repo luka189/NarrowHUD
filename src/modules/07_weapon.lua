@@ -338,6 +338,7 @@ local function shown(s, goid, t, w, o)
     d.kind = 'ammo'
     local n = tonumber(w.rounds) or 0
     d.mag = n                                                     -- the magazine alone (its size is learned from it)
+    d.mag_alone = true                                            -- (3.0.1: the chambered round is over it, so it can lift the size)
     if t.has.chamber and w.chamber == false then n = n + 1 end   -- a round in the chamber
     d.value = n
   elseif t.has.slot0 and TWO_TUBES[t.id] then
@@ -393,7 +394,9 @@ local function shown(s, goid, t, w, o)
         -- player sees is that total, so the chambered round lifts the size by one in those two moments — never
         -- after a tactical reload (the +1 stays in the chamber)
         local at_start = blocked.since ~= nil and chef.time() - blocked.since < 30
-        local chambered = t.has.chamber and w.chamber == false
+        -- (3.0.1, luka's Evictor and Sweeper "one more than they can carry": a shell-by-shell weapon's count comes
+        -- from its slots with the chamber already in it, so there's nothing to lift — only a magazine field is one short)
+        local chambered = d.mag_alone and t.has.chamber and w.chamber == false
         if o.mag_max == nil then
           o.mag_max = d.mag
           o.mag_full = at_start or d.mag >= (kmag or learned.mag[t.id] or 0)

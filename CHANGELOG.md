@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.1
+
+- Shell-by-shell weapons (the Evictor, the Sweeper, the shotguns) dropped into missions one round over what they
+  hold since 3.0.0; fixed, and the sizes 3.0.0 saved for them are dropped once so they learn again at the next drop.
+
 ## 3.0.0
 
 - **NEW: your own colours.** The Colours tab in F9: Text, Bars, Low, Empty, the two mode colours, Lines and Stamina
