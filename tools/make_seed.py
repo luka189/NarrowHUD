@@ -50,6 +50,9 @@ EXTRA = { 'zoom': { '30294946': True, 'a4eff4fa': True },   # a scope with zeroi
     'bd5f17dd': 16,       # pump_shotgun_dragon: both tubes (2.3.3; luka's own file learned one tube's 8)
 } }
 
+# the underbarrel weapons' types (07_weapon's UNDERBARREL_SPRITES): the One-Two's launcher, the Arbitrator's shotgun, the Stoker's flamer
+UNDERBARRELS = ('16425925', 'da0f356e', '2166c7a1')
+
 
 def main():
     data = to_py(lua51.LuaRuntime().execute(open(sys.argv[1], encoding='utf-8').read()))
@@ -60,6 +63,11 @@ def main():
         for k in list(table):
             if k in drop:
                 del table[k]
+    # (3.0.12: an underbarrel has no hand pose of its own — the Stoker's flamer was in luka's file from before the
+    # mod knew, and every session began with "type 2166c7a1 is an underbarrel: its hand pose forgotten")
+    for kind in ('grip', 'poses'):
+        for k in UNDERBARRELS:
+            data.get(kind, {}).pop(k, None)
     for kind, extra in EXTRA.items():
         # (a hand pose learned in play wins over a grip from a log; the other kinds are corrections and always win)
         data.setdefault(kind, {}).update({k: v for k, v in extra.items() if kind != 'grip' or k not in data.get('poses', {})})

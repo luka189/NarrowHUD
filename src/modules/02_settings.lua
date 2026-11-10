@@ -9,7 +9,7 @@ local cfg = { size = 1, off_x = 0, off_y = 0, custom = true, builtin = 'horizont
               show_stims = true, show_grenades = true, pack = true, font = true,
               research = false, any_build = false, opacity = 1, idle = 1, idle_secs = 4, show_rpm = true, show_fmode = true,
               show_mode = true, palette = 1, fire = 1, wheel = 1, health = 2, stamina = 2, stim_timer = false, stim_secs = 1, warn = false, low_ammo = 0.25,
-              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, hide_terminal = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 1, throw_line = true, landing_mark = true, mark_size = 0.5, struct_mark = true, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
+              reload_line = false, hide_strat = true, hide_emote = true, hide_wheel = true, hide_terminal = true, map_pin = true, death_mark = true, drop_line = 2, drop_len = 150, drop_from = 10, drop_thick = 1, throw_line = true, landing_mark = true, mark_size = 0.5, struct_mark = true, rock_stop = true, ink_align = true, ring_alpha = 100, line_alpha = 0.30, reticle = true, reticle_always = false, reticle_fp = true, reticle_flame = false, icon_tex = N.CHEF14 and 5 or 7, builtin = nil }
 N.apply_palette = nil                                  -- (set with the colours, below)
 local MOUSE_BUTTONS = { 'left', 'right', 'middle', 'extra_1', 'extra_2' }
 if chef.has and chef.has('menu') then
@@ -158,6 +158,9 @@ if chef.has and chef.has('menu') then
   cfg.mode_icons = cfg.vis.icons ~= 1 and 3 or 1
   chef.on_change('vis_icons', function(v) cfg.mode_icons = (TEXT_MAP[v or 2] or 2) ~= 1 and 3 or 1 end)
   rule('vis_rpm', 'rpm', 'Rate of fire', true, 'show_rpm', nil, 'The rate-of-fire setting (640 RPM ...). ' .. TEXT_HINT)
+  -- (3.0.7, luka) the icon apart from the number: off, the number moves into the icon's place. (3.0.8, luka: "most
+  -- people will show one and hide the other") a rule of its own, not a toggle under the number's rule
+  rule('vis_rpmicon', 'rpmicon', 'Rate of fire icon', true, nil, nil, 'The game\'s low / medium / high icon for the rate of fire. Off: the number in its place. ' .. TEXT_HINT)
   rule('vis_stims', 'stims', 'Stims', false, 'show_stims')
   -- (2.5.3, luka) the range part: off by default; a layout places it (after the grenades in the built-in ones)
   -- (2.5.5, luka) its own rule: shown except while the chevron carries the number, so it isn't shown twice
@@ -224,8 +227,10 @@ if chef.has and chef.has('menu') then
   choice('count_digits', 'Count digits', { 'Fixed', 'Tight' }, 1, function(v) cfg.count_tight = v == 2 end,
     'Fixed: the count sits right-aligned in a box as wide as a full magazine, so it and the parts after it never slide. Tight: the box is the number\'s own width. A layout can set its own.')
   -- (2.6.1, luka: "the text outline for bright planets")
+  -- (3.0.10, luka) the icon parts placed by their drawn pixels, not the padded squares the game's sprites come in
+  toggle('ink_align', 'Icons by their ink', true, 'The mode, fire-mode, zeroing and rate-of-fire icons take up only what they draw, so they line up by the picture, not by the sprite\'s padding. Off: the old squares, for a layout tuned to them.')
   toggle('text_outline', 'Text outline', false, 'A dark outline all round the count and the words, for bright planets.')
-  toggle('mode_colors', 'Modes in colour', false, 'The fire and weapon modes (words and icons) each in a colour of their own, so a switch is easy to see.')
+  toggle('mode_colors', 'Modes in colour', false, 'The fire and weapon modes (words and icons), the zeroing and the rate-of-fire icon each in a colour of their own (low / medium / high), so a switch is easy to see.')
   -- (2.4.5, luka) where ammo turns low: the bar, the count and an ammo backpack orange (and the one flash) at this share
   slider('low_ammo', 'Low ammo at, %', 5, 50, 5, 25, function(v) cfg.low_ammo = v / 100 end,
     'The ammo bar and count turn orange, with one flash as they do, at this much of a magazine or less; an ammo backpack too.')
@@ -287,7 +292,10 @@ if chef.has and chef.has('menu') then
     'Always: with the rifle out, aimed or not (third person only; in first person the scope is up).')
   -- (2.5.1) the crosshair on the game's own aim, a larger ring marking the centre; or static at the centre
   choice('reticle_at', '   Crosshair at', { 'The centre', 'The reticle' }, 2, function(v) cfg.reticle_at = v end,
-    'The reticle: the ring and dot follow where the game aims, lagging the view in a turn and swaying as the reticle does, with a larger ring marking the centre. The centre: the crosshair static in the middle.')
+    'The reticle: the ring and dot follow where the game aims, lagging the view in a turn and swaying as it does, with a larger ring marking the centre. The centre: the crosshair static in the middle.')
+  -- (3.0.11, luka) the centre ring's opacity alone: 0 hides it, the crosshair unchanged
+  slider('ring_alpha', '   Centre ring opacity, %', 0, 100, 10, 100, function(v) cfg.ring_alpha = v end,
+    'With Crosshair at: The reticle — the larger ring at the screen\'s middle, from invisible (0) to full. The ring and dot that follow the aim keep their own.')
   toggle('reticle_fp', 'Maxigun crosshair', true, 'The same ring and dot for the Maxigun in first person, where the game draws none.')
   toggle('reticle_flame', 'Flamethrower crosshair', false, 'The ring and dot for the flamethrowers in first person, where the game draws none. Off: a flamethrower is aimed by its stream.')
   slider('reticle_px', '   Crosshair size, px', 8, 64, 1, 17, function(v) cfg.reticle_px = v end,
@@ -312,6 +320,8 @@ if chef.has and chef.has('menu') then
   toggle('mark_range', '   Distance by the chevron', true, 'The metres to the landing, small, to the right of the chevron.')
   slider('mark_size', '   Mark size, m', 0.3, 1, 0.1, 0.5, function(v) cfg.mark_size = v end, 'The landing mark\'s width: the ring and the arrow over it.')
   toggle('struct_mark', 'Structure hits', true, 'The mark turns red where the shot or throw would hit an enemy structure (a bug hole, a fabricator, a warp ship) before the ground.')
+  -- (3.1, luka) the lines end on the rocks, walls and logs they'd hit (12_rock: the shapes from the models)
+  toggle('rock_stop', 'Lines stop on rocks', true, 'The drop and throw lines end on the rock, cliff, wall or log they would hit, with the mark there, instead of passing into it and marking the ground beyond.')
   -- (2.6.1, luka) duds: the line grey up to a launcher round's arming distance, a landing inside it a grey chevron
   toggle('duds', 'Duds', true, 'A launcher round landing closer than it arms (the GL-21 7 m, the GL-28 5 m, the GP-31 4 m...) bounces: the line is grey up to there, and a landing inside gets a grey chevron and no blast zone.')
   choice('drop_thick', '   Lines', { 'Thin', 'Medium', 'Thick' }, 1, function(v) cfg.drop_thick = v end, 'The drop and throw lines\' thickness.')
@@ -339,9 +349,12 @@ if chef.has and chef.has('menu') then
     toggle('census', 'Ground census', false, 'For the ground seed (the mod\'s maker): every unit kind the ground walk meets, in narrowhud_ground.log. Needs the research log on.')
     if N.research_types then N.research_types() end
     -- (2.5.13, luka) the structures' boxes drawn in the world, to see the model against the game
-    toggle('struct_boxes', 'Draw structure boxes', false, 'The boxes the red mark tests, drawn in red lines in the world (the parts the shot hits brighter). For checking them against the game.')
+    toggle('struct_boxes', 'Draw structure boxes', false, 'The boxes the red mark tests, in red lines in the world (the parts the shot hits brighter), and one box round each thing a line stops on, the nearest 60. For checking them in game.')
     -- (2.6.1) a test: every weapon's round carries your movement, not only the Ultimatum's and the Crossbow's
     toggle('carry_all', 'Rounds carry movement: all', false, 'For a test: every weapon\'s round leaves with your velocity added, not only the Ultimatum\'s and the Crossbow\'s. Fire while strafing and see which chevron the shot follows.')
+    -- (3.0.14) the crash trace (14_trace): for a player whose game crashes or hangs with the mod on
+    choice('crash_trace', 'Crash trace', { 'Off', 'Reads', 'Reads and draws' }, 1, function(v) cfg.crash_trace = v end,
+           'For a crash or a hang: each call into the game is named in narrowhud_lastcall.txt before it is made, and the next start says in narrowhud.log where the last one ended. Costs frame time.')
     toggle('any_build', 'Any game version', false, 'Run on a game version the mod wasn\'t made for. It may crash the game.')
     -- (1.5.38) the host's objects are never listed, sorted or read: with them, a client lost its host 12 to 17
     -- minutes into every mission (luka's three drops, the reporters'); without them, none in 44 minutes (the

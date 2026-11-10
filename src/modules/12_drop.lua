@@ -439,7 +439,6 @@ local function draw_drop(tid)
   -- thickness: the line drawn again beside itself, offset across the view by a share of its distance from the
   -- camera (the same width on the screen at any distance); the engine's lines are one pixel wide
   local lines = cfg.drop_thick or 1                 -- (Thin 1, Medium 2, Thick 3 lines side by side)
-  local cx, cy, cz = cam.x, cam.y, cam.z
   local crx, cry = cam.fy, -cam.fx                  -- the camera's right (horizontal)
   local cl = math.sqrt(crx * crx + cry * cry)
   if cl < 1e-4 then lines = 1 else crx, cry = crx / cl, cry / cl end
@@ -457,9 +456,21 @@ local function draw_drop(tid)
   local mkx, mky, mkz = nil, nil, nil             -- (2.2.4 research: where the mark went)
   local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the shot hits one
   local sst = shit and {}
+  -- (3.1, luka) the rocks, walls and logs (12_rock): the line ends where the shot would hit one, the mark there
+  local rhit = cfg.rock_stop and N.rock_hit
+  local rst = rhit and {}
+  local cut = false
   for i = 1, #pts do
     local p = pts[i]
     local wx, wy, wz = world(p)
+    if rhit and not marked and lx and lpath >= math.min(from, 3) then
+      local hx, hy, hz = rhit(lx, ly, lz, wx, wy, wz, rst, 'drop')
+      if hx then
+        local d = dud_at(arm, lx, ly, lz, lpath, wx, wy, wz, p[3], hx, hy, hz)
+        N.draw_ground_mark(hx, hy, hz, 'feet', d and N.GREY or nil, x0, y0, not d and blast or nil, 'drop') marked = true mkx, mky, mkz = hx, hy, hz
+        wx, wy, wz, cut = hx, hy, hz, true           -- (the line to the rock and no further)
+      end
+    end
     -- (2.0.13) where the flight meets the ground (12_ground's guess): a ring there; the line runs on to its end
     -- (2.0.14, luka: the game's own depth test hides the part under the ground, and a ring a little off keeps a
     -- whole line rather than a cut one); never within 20 m of you (7 m for the Ultimatum's lob)
@@ -506,6 +517,7 @@ local function draw_drop(tid)
       end
     end
     lx, ly, lz, lpath = wx, wy, wz, p[3]
+    if cut then break end
   end
   n = n + N.line_end(lst, cam, lines, c, dk, cfun)
   N.drop_lines = n

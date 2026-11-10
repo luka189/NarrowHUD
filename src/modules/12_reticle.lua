@@ -19,6 +19,8 @@ local SNIPERS = { b697955d = 'APW-1 Anti-Materiel Rifle', ['30294946'] = 'R-40 S
 local FIRST_PERSON = { b3246bb7 = { 'Maxigun', 'reticle_fp' } }
 for id, name in string.gmatch('15f1a9f0=Cremator def25ee4=Flamethrower 2ddd091d=Sterilizer 104184f7=Torcher 0fe87029=Crisper', '(%x+)=(%a+)') do FIRST_PERSON[id] = { name, 'reticle_flame' } end
 local rt = { on = false, said = nil }
+local AROUND = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }   -- (the dark backing: a copy a pixel off each way)
+local BLACK = { 0, 0, 0 }
 local BLEND = 0.25                                   -- (2.5.9) the crosshair's hand-over between the reticle and the centre, s
 local function first_person()
   local cam = chef.camera()
@@ -102,20 +104,22 @@ local function draw_reticle(d, now)
   local drawn = false
   if N.icon_texture then
     local x0, y0 = sx - math.floor(iw / 2), sy - math.floor(S / 2)
-    for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
-      N.icon_texture('reticle', x0 + o[1], y0 + o[2], S, { 0, 0, 0 }, 0.7, L - 1)
+    for _, o in ipairs(AROUND) do
+      N.icon_texture('reticle', x0 + o[1], y0 + o[2], S, BLACK, 0.7, L - 1)
     end
     drawn = N.icon_texture('reticle', x0, y0, S, INK, 1.09, L)
-    if ring and drawn then
+    -- (3.0.11, luka) F9 "Centre ring opacity": the ring alone, 0 to 100 in tens; 0 draws none, 100 is the 2.5.1 look
+    local ra = (cfg.ring_alpha or 100) / 100
+    if ring and drawn and ra > 0 then
       -- the centre ring: 1.6 times the crosshair, at the screen's middle, a little dimmer
       local S2 = math.floor(S * 1.6 + 0.5)
       local iw2 = math.floor(S2 * 0.875 + 0.5)
       local cx, cy = math.floor(w / 2 + 0.5), math.floor(h / 2 + 0.5)
       local x1, y1 = cx - math.floor(iw2 / 2), cy - math.floor(S2 / 2)
-      for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
-        N.icon_texture('ring', x1 + o[1], y1 + o[2], S2, { 0, 0, 0 }, 0.6, L - 1)
+      for _, o in ipairs(AROUND) do
+        N.icon_texture('ring', x1 + o[1], y1 + o[2], S2, BLACK, 0.6 * ra, L - 1)
       end
-      N.icon_texture('ring', x1, y1, S2, INK, 0.85, L)
+      N.icon_texture('ring', x1, y1, S2, INK, 0.85 * ra, L)
     end
   end
   if drawn then return end

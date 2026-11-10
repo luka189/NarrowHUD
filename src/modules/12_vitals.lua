@@ -178,7 +178,8 @@ local function read_state(s, now)
     st8.ads = ads
   end
   -- (the armour: your player object's armor_set, once a second, for the stim duration)
-  if me.player and now - st8.armor_at >= 1 then
+  -- (3.0.12: the player object checked first, like every other object read — the one read that went without)
+  if me.player and now - st8.armor_at >= 1 and alive(s, me.player, TYPES[1]) then
     st8.armor_at = now
     local v = call('player.armor', 'GameSession.game_object_field', s, me.player, 'armor_set')
     if type(v) == 'number' then st8.armor = string.format('%08x', v % 4294967296) end

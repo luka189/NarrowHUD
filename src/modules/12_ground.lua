@@ -281,7 +281,7 @@ local function sample_feet(now)
   local nv = 0
   if vwatch and vwatch.items then
     for _, it in ipairs(vwatch.items) do
-      if chef.unit_alive(it.unit) then
+      if N.unit_ready(it.unit) and chef.unit_alive(it.unit) then     -- (3.0.13: not a vehicle in its first 3 s)
         local vx, vy = chef.unit_position(it.unit)
         if vx then
           vpos[nv * 2 + 1], vpos[nv * 2 + 2] = vx, vy nv = nv + 1 vkind[nv] = it.kind
@@ -292,7 +292,7 @@ local function sample_feet(now)
   end
   for _, it in ipairs(watch.items) do
     local u = it.unit
-    if chef.unit_alive(u) then
+    if N.unit_ready(u) and chef.unit_alive(u) then
       local x, y, z = chef.unit_position(u)
       if x and x == x and y == y and z == z then
         local last = gr.last[u]
@@ -398,6 +398,7 @@ local function skip_kind(k, count)
   end
   -- (2.5.6: an unnamed structure kind — the warp ship, by hash — is never skipped, whatever its count)
   if N.struct_kind and N.struct_kind(k) then return false end
+  if N.rock_kind and N.rock_kind(k) then return false end   -- (3.1: a rock kind by hash, whatever its count)
   return (count or 0) < 10
 end
 -- one frame's share of the walk
@@ -413,11 +414,13 @@ local function walk(now)
       return
     end
     wk.units, wk.i, wk.counts, wk.started, wk.spent, wk.fails = units, 0, {}, now, 0, 0
-    wk.stats, wk.nowhere, wk.gn, wk.structs, wk.unnamed, wk.still = {}, 0, 0, {}, {}, 0
+    wk.late, wk.hold, wk.total = {}, nil, 0
+    wk.stats, wk.nowhere, wk.gn, wk.structs, wk.unnamed, wk.still, wk.rocks = {}, 0, 0, {}, {}, 0, {}
     -- (the kinds' counts, for the 10-unit rule: from the last walk; the first walk counts as it goes and asks
     -- the unnamed kinds only from the second on)
     return
   end
+  if wk.hold then if now < wk.hold then return end wk.hold = nil end
   local t0 = clock()
   -- (a world's first walk only counts the kinds, 300 a frame, so the 10-unit rule has its counts; the second
   -- walk, straight after at 100 a frame, asks the positions; every walk after at 20 — the map doesn't move, the
@@ -429,13 +432,20 @@ local function walk(now)
   for i = wk.i + 1, last do
     local u = wk.units[i]
     local k = kind_cache[u]
-    if k == nil then
+    -- (3.0.13) a unit this walk is the first to see may have spawned this frame: nothing is asked of it yet, it
+    -- goes on the list for a second pass (below)
+    local late = k == nil and not N.unit_ready(u)
+    if late then
+      wk.late[#wk.late + 1] = u
+    elseif k == nil then
       local nm = call('ground.alive', 'Unit.alive', u) == true and call('ground.name', 'Unit.debug_name', u) or nil
       k = type(nm) == 'string' and string.match(nm, '#ID%[(%x+)%]')
       k = k and k:lower() or false
       kind_cache[u] = k
     end
-    if k then
+    if late then
+      -- (not counted, not asked)
+    elseif k then
       counts[k] = (counts[k] or 0) + 1
       local pc = pos_cache[u]
       local struct = N.struct_kind and N.struct_kind(k)
@@ -461,6 +471,7 @@ local function walk(now)
           end
           unit_sample(k, x, y, z)
           if struct then N.struct_seen(wk.structs, u, k, x, y, z) end
+          if N.rock_kind and N.rock_kind(k) then N.rock_seen(wk.rocks, u, k, x, y, z) end   -- (3.1: the rocks the lines stop on)
           if cfg.research and not UNIT_NAMES[k] and #wk.unnamed < 4000 then wk.unnamed[#wk.unnamed + 1] = { k, x, y, z } end
           local st = wk.stats[k]
           if not st then st = { n = 0, nc = 0, cells = {} } wk.stats[k] = st end
@@ -497,10 +508,18 @@ local function walk(now)
   wk.i = last
   wk.spent = wk.spent + (clock() - t0)
   if wk.i < #wk.units then return end
+  -- (3.0.13) the units new this walk: a second pass over them once the last of them has been known 3 s (a world's
+  -- first walk is all of them: it starts 3 s in). In a later walk they are the few that spawned since the last
+  if #wk.late > 0 then
+    wk.total = wk.total + #wk.units
+    wk.units, wk.i, wk.late, wk.hold = wk.late, 0, {}, now + N.fresh_s() + 0.05
+    return
+  end
   -- the walk is done
   gr.walks = gr.walks + 1
   gr.counts = counts
   if not first and N.struct_listed then N.struct_listed(wk.structs, wk.unnamed) end   -- (2.0.16: the structures the lines test)
+  if not first and N.rock_listed then N.rock_listed(wk.rocks) end
   if cfg.research then
     local kinds, trusted, named = 0, 0, 0
     for k in pairs(counts) do kinds = kinds + 1 if UNIT_NAMES[k] then named = named + 1 end end
@@ -510,7 +529,7 @@ local function walk(now)
     local mk = 0
     for _, v in pairs(moving) do if v then mk = mk + 1 end end
     log('research: ground walk %d: %d units of %d kinds (%d named, %d unreadable, %d nowhere; %d from the cache, %d moving kinds), %.1f ms over %d frames; %d trusted kinds; the grid %d cells: %d feet, %d props',
-      gr.walks, #wk.units, kinds, named, wk.fails, wk.nowhere, wk.still or 0, mk, wk.spent * 1000, math.ceil(#wk.units / per), trusted, gr.n, feet, props)
+      gr.walks, wk.total + #wk.units, kinds, named, wk.fails, wk.nowhere, wk.still or 0, mk, wk.spent * 1000, math.ceil((wk.total + #wk.units) / per), trusted, gr.n, feet, props)
     if cfg.census and (gr.walks == 2 or gr.walks % 5 == 0) then   -- (2.5.4: the census to its own log, with its own row)
       local rows = {}
       for k, st in pairs(wk.stats) do rows[#rows + 1] = { k, st } end
@@ -541,6 +560,7 @@ local function ground_update(now)
   if not held then sample_feet(now) end
   sample_look(now)
   if N.struct_update and not held then N.struct_update(now) end
+  if N.rock_update and not held then N.rock_update(now) end
   -- (the walk in a fence: an error in it is logged once and ends the walk for the session, the feet grid and the
   -- HUD unharmed; Chef switches a mod off after 20 update errors)
   if not wk.dead and not held then
@@ -609,6 +629,7 @@ local function ground_reset()
   kind_cache = setmetatable({}, { __mode = 'k' })
   pos_cache, moving = setmetatable({}, { __mode = 'k' }), {}   -- (2.5.3: a new world's units and kinds)
   if N.struct_reset then N.struct_reset() end
+  if N.rock_reset then N.rock_reset() end
 end
 N.ground_reset = ground_reset
 

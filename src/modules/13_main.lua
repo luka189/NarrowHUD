@@ -12,7 +12,6 @@ local shown, notice, layout, load_layout, draw = N.shown, N.notice, N.layout, N.
 
 local next_scan, next_read, next_items = 0, 0, 0
 local shown_now, items_now = nil, nil
-local session_ok = false
 
 local world_seen = nil
 -- (research log: where NarrowHUD's time goes, once a minute. os.clock counts in 1 ms steps on Windows, but its sums
@@ -105,7 +104,7 @@ local function mates_sig()
   local mine = N.my_unit and N.my_unit()
   local parts = {}
   for _, it in ipairs(w.items) do
-    if it.unit ~= mine then
+    if it.unit ~= mine and N.unit_ready(it.unit) then     -- (3.0.13: not a teammate's unit in its first 3 s)
       local x, y, z = chef.unit_position(it.unit)
       if x then parts[#parts + 1] = string.format('%.1f %.1f %.1f', x, y, z) end
     end
@@ -316,7 +315,7 @@ local function build_gate(now)
   if game_build.known == false and not cfg.any_build then
     check_step()
     if check.state ~= 'ok' then
-      local wid = chef.world_id and chef.world_id()
+      local wid = N.world_id()
       if wid ~= flash.build_wid then flash.build_wid, flash.build_at = wid, now end
       if check.state == 'failed' and now - flash.build_at < 25 then
         notice('NarrowHUD is off: the game was updated since it was made (F9 menu to run it anyway)')
@@ -469,7 +468,7 @@ function M.update(dt)
   -- A new world (each mission, the ship) starts its object ids over: an id of ours can be one that was something else
   -- last mission, and its old type was kept (an id found to be nothing of ours was never looked at again: our weapons
   -- went unseen for whole missions). Everything about objects is forgotten on a new world.
-  local wid = chef.world_id and chef.world_id()
+  local wid = N.world_id()
   if wid ~= world_seen then
     world_seen = wid
     layout.els = nil                                 -- (the layout file read again each mission)
@@ -491,6 +490,7 @@ function M.update(dt)
     if N.stim then N.stim.prev_s, N.stim.at = nil, nil end   -- (a new mission's stim count isn't a stim used)
     if N.reload_reset then N.reload_reset() end
     if N.markers_reset then N.markers_reset() end
+    if N.units_forget then N.units_forget() end     -- (3.0.13: a new world's units are all new)
     if N.ground_reset then N.ground_reset() end
     next_scan = now
   end
@@ -502,7 +502,7 @@ function M.update(dt)
     scan(s, peer)
     scan_vitals(s, now)
     -- once a mission, 8 s in: what this session looks like (for games hosted by someone else)
-    local wid = chef.world_id and chef.world_id()
+    local wid = N.world_id()
     if wid ~= session.wid then session.wid, session.at = wid, now end
     if session.at and now - session.at >= 8 then
       session.at = nil
@@ -915,6 +915,7 @@ function M.debug_learned(kind, id) return learned[kind] and learned[kind][id] en
 function M.debug_my_unit() return N.my_unit and N.my_unit(call('session', 'Network.game_session')) end   -- (tests)
 function M.debug_hide() return hand.hidef, hand.vhidef end   -- (tests, 2.2.9)
 function M.debug_top() local d = N.shown_d return d and d.top, d and d.kind end
+function M.debug_charge() local d = N.shown_d local o = d and d.o return o and { t0 = o.charge_t0 or false, wait = o.charge_wait or false, sim = o.sim or false, anim = d.charge_anim or false, from = d.charge_from or false, h_last = o.h_last or false } or nil end   -- (tests, 3.0.2)
 function M.debug_reload_line() local d = N.shown_d return d and d.reload_line == true or false end   -- (tests, 2.6.11)   -- (tests, 2.1.12: the shown bar's top)
 function M.shutdown()
   if N.dirty_at then save_learned() end

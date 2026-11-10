@@ -24,6 +24,7 @@ Checks (each miss printed with its time):
   count      the count shown agrees with the in-hand weapon's rounds (or slot) field when it changes
 A session with no misses is one the current build handles as the player would expect.
 """
+import os
 import re
 import sys
 from pathlib import Path
@@ -135,6 +136,9 @@ def replay(session, verbose=False, learned=None):
     if learned:                            # (the player's own learned file, as NarrowHUD would read it)
         r.execute('saved = (function() ' + learned + ' end)()')
     r.execute('for k in pairs(OBJ) do if k > 2 then OBJ[k] = nil end end FIRE = false GRIP = 0')
+    # (3.0.13) NARROWHUD_FRESH=1: with the 3 s rule for new units on, as in the game (the suite's baseline is without)
+    if os.environ.get('NARROWHUD_FRESH') == '1':
+        r.execute('FRESH_REAL = true')
     g = r.globals()
     objs = {}                              # log goid -> (mock goid, tid, label)
     by_type = {}                           # (label, tid) and tid -> log goid

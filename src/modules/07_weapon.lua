@@ -10,41 +10,50 @@ local MODE_NAMES = { [1] = 'AUTO', [2] = 'SEMI', [3] = 'BURST', [4] = 'VOLLEY', 
 -- content/ui/mission/hud/weapon_function/firemode_single is 3efff09cd12fb89a). Each entry: the page texture's id
 -- and the sprite's uv rectangle on it; drawn with chef.bitmap_uv, nothing shipped. The rectangles move when
 -- Arrowhead repacks an atlas: rerun the tool after a patch and compare.
+-- (3.0.10, luka: "the bounding boxes for these icons are 2x the size of the icons they show" — alignment by ink)
+-- ink = { l, t, r, b }: the drawn pixels' bounds as fractions of the sprite's square, from the top-left (the mode
+-- sprites carry a lot of padding: a fire mode's bullets fill 0.48 x 0.17 of theirs). Measured from the atlas
+-- pictures (research/atlas/named.png, 64 px a sprite, so a 64th); 10_custom places an icon part by its ink
 N.ATLAS = {
   -- weapon_function/* (128 px) on the mission atlas page f9a3f2 (4096x2048 BC1, 13 mips), the page 10a081
   -- (2048x1024 BC1, 4 mips) and 7b1eef (256x256); the sixth value is the sprite's id (the path's murmur64), which
   -- also names the game's own icon material for it (the mask shader: black is empty, R and G the icon's white, B
   -- its shadow; HD2Runtime's finding). Drawn in game 2026-10-28: every one of these, through that material.
-  AUTO     = { 'f9a3f22a93eedcbd', 0.223388671875, 0.2265625, 0.254638671875, 0.2890625, '6115051c9558c50e' },
-  SEMI     = { 'f9a3f22a93eedcbd', 0.943115234375, 0.1640625, 0.974365234375, 0.2265625, '3efff09cd12fb89a' },
-  BURST    = { 'f9a3f22a93eedcbd', 0.786865234375, 0.1640625, 0.818115234375, 0.2265625, '131742904d846798' },
-  VOLLEY   = { 'f9a3f22a93eedcbd', 0.634521484375, 0.0078125, 0.665771484375, 0.0703125, '16413ee2e6725687' },
+  AUTO     = { 'f9a3f22a93eedcbd', 0.223388671875, 0.2265625, 0.254638671875, 0.2890625, '6115051c9558c50e', ink = { 0.250, 0.266, 0.734, 0.734 } },
+  SEMI     = { 'f9a3f22a93eedcbd', 0.943115234375, 0.1640625, 0.974365234375, 0.2265625, '3efff09cd12fb89a', ink = { 0.250, 0.422, 0.734, 0.594 } },
+  BURST    = { 'f9a3f22a93eedcbd', 0.786865234375, 0.1640625, 0.818115234375, 0.2265625, '131742904d846798', ink = { 0.250, 0.375, 0.734, 0.625 } },
+  VOLLEY   = { 'f9a3f22a93eedcbd', 0.634521484375, 0.0078125, 0.665771484375, 0.0703125, '16413ee2e6725687', ink = { 0.250, 0.203, 0.750, 0.812 } },
   -- (2.0.19) the Variable's TOTAL (all barrels): the sprite's id from its path (weapon_function/firemode_all_barrels)
   -- — the game's icon material by that id draws nothing (luka, 2.0.19: "+" in the log, no icon on screen), so this
   -- one is our own texture (art/icons/all_barrels.svg, tex: 08_draw_kit's icon_texture, as the stim's), 2.0.20
-  ALL_BARRELS = { 'f9a3f22a93eedcbd', 0, 0, 0, 0, 'ad2ec8830fa5a193', tex = 'all_barrels' },
-  UNDERBARREL = { 'f9a3f22a93eedcbd', 0.301513671875, 0.2265625, 0.332763671875, 0.2890625, 'b019df1ca8b6d4a2' },
-  UNDERBARREL_SHOTGUN = { 'f9a3f22a93eedcbd', 0.947021484375, 0.0859375, 0.978271484375, 0.1484375, '067bb0962f896bbb' },
-  UNDERBARREL_FLAMER = { 'f9a3f22a93eedcbd', 0.340576171875, 0.2265625, 0.371826171875, 0.2890625, 'cd87fdddec2a6bfc' },
-  APHET    = { 'f9a3f22a93eedcbd', 0.379638671875, 0.1484375, 0.410888671875, 0.2109375, 'f8ede5f922c05cb6' },
-  FLAK     = { 'f9a3f22a93eedcbd', 0.457763671875, 0.1484375, 0.489013671875, 0.2109375, '9dcc0312a14e11e6' },
-  FRAG     = { 'f9a3f22a93eedcbd', 0.496826171875, 0.1484375, 0.528076171875, 0.2109375, '8dc0ec9ce217ab7f' },
-  HEAT     = { 'f9a3f22a93eedcbd', 0.630615234375, 0.1640625, 0.661865234375, 0.2265625, '4b867645db9f364e' },
-  HE       = { 'f9a3f22a93eedcbd', 0.535888671875, 0.1484375, 0.567138671875, 0.2109375, '081dcaf42dc2ecbb' },
-  FLECHETTE = { 'f9a3f22a93eedcbd', 0.712646484375, 0.0859375, 0.743896484375, 0.1484375, '3b975896bc689499' },
-  STUN     = { 'f9a3f22a93eedcbd', 0.708740234375, 0.1640625, 0.739990234375, 0.2265625, '2d9268907fb9420e' },
-  LASER    = { 'f9a3f22a93eedcbd', 0.829833984375, 0.0078125, 0.861083984375, 0.0703125, 'c1028550c62fc4fa' },
-  NO_LASER = { 'f9a3f22a93eedcbd', 0.790771484375, 0.0078125, 0.822021484375, 0.0703125, 'a9f9bf81827c51e5' },
-  GUIDED   = { '10a0814c0fad8650', 0.6328125, 0.578125, 0.6953125, 0.703125, '7db70e669d8034c9' },
-  UNGUIDED = { '10a0814c0fad8650', 0.7109375, 0.578125, 0.7734375, 0.703125, 'bc7975e05284cf57' },
-  DEPLOY   = { '10a0814c0fad8650', 0.8671875, 0.578125, 0.9296875, 0.703125, '38adabc6a32af014' },
-  DETONATE = { '10a0814c0fad8650', 0.7890625, 0.578125, 0.8515625, 0.703125, '55374383474193f8' },
-  AIRSTRIKE = { '10a0814c0fad8650', 0.2421875, 0.578125, 0.3046875, 0.703125, 'f83f6f461ed94e4b' },
-  BURST_FIRE = { '7b1eef337fc5f1bf', 0.0625, 0.0625, 0.5625, 0.5625, '62d0512daebb0be0' },
+  ALL_BARRELS = { 'f9a3f22a93eedcbd', 0, 0, 0, 0, 'ad2ec8830fa5a193', tex = 'all_barrels', ink = { 0.172, 0.227, 0.832, 0.785 } },
+  UNDERBARREL = { 'f9a3f22a93eedcbd', 0.301513671875, 0.2265625, 0.332763671875, 0.2890625, 'b019df1ca8b6d4a2', ink = { 0.156, 0.297, 0.859, 0.688 } },
+  UNDERBARREL_SHOTGUN = { 'f9a3f22a93eedcbd', 0.947021484375, 0.0859375, 0.978271484375, 0.1484375, '067bb0962f896bbb', ink = { 0.203, 0.375, 0.797, 0.625 } },
+  UNDERBARREL_FLAMER = { 'f9a3f22a93eedcbd', 0.340576171875, 0.2265625, 0.371826171875, 0.2890625, 'cd87fdddec2a6bfc', ink = { 0.281, 0.203, 0.703, 0.797 } },
+  APHET    = { 'f9a3f22a93eedcbd', 0.379638671875, 0.1484375, 0.410888671875, 0.2109375, 'f8ede5f922c05cb6', ink = { 0.234, 0.375, 0.766, 0.625 } },
+  FLAK     = { 'f9a3f22a93eedcbd', 0.457763671875, 0.1484375, 0.489013671875, 0.2109375, '9dcc0312a14e11e6', ink = { 0.344, 0.250, 0.672, 0.750 } },
+  FRAG     = { 'f9a3f22a93eedcbd', 0.496826171875, 0.1484375, 0.528076171875, 0.2109375, '8dc0ec9ce217ab7f', ink = { 0.250, 0.250, 0.750, 0.750 } },
+  HEAT     = { 'f9a3f22a93eedcbd', 0.630615234375, 0.1640625, 0.661865234375, 0.2265625, '4b867645db9f364e', ink = { 0.250, 0.281, 0.750, 0.719 } },
+  HE       = { 'f9a3f22a93eedcbd', 0.535888671875, 0.1484375, 0.567138671875, 0.2109375, '081dcaf42dc2ecbb', ink = { 0.281, 0.250, 0.719, 0.750 } },
+  FLECHETTE = { 'f9a3f22a93eedcbd', 0.712646484375, 0.0859375, 0.743896484375, 0.1484375, '3b975896bc689499', ink = { 0.375, 0.266, 0.625, 0.734 } },
+  STUN     = { 'f9a3f22a93eedcbd', 0.708740234375, 0.1640625, 0.739990234375, 0.2265625, '2d9268907fb9420e', ink = { 0.297, 0.172, 0.703, 0.766 } },
+  LASER    = { 'f9a3f22a93eedcbd', 0.829833984375, 0.0078125, 0.861083984375, 0.0703125, 'c1028550c62fc4fa', ink = { 0.250, 0.438, 0.750, 0.594 } },
+  NO_LASER = { 'f9a3f22a93eedcbd', 0.790771484375, 0.0078125, 0.822021484375, 0.0703125, 'a9f9bf81827c51e5', ink = { 0.250, 0.422, 0.750, 0.578 } },
+  GUIDED   = { '10a0814c0fad8650', 0.6328125, 0.578125, 0.6953125, 0.703125, '7db70e669d8034c9', ink = { 0.219, 0.219, 0.781, 0.766 } },
+  UNGUIDED = { '10a0814c0fad8650', 0.7109375, 0.578125, 0.7734375, 0.703125, 'bc7975e05284cf57', ink = { 0.219, 0.219, 0.781, 0.766 } },
+  DEPLOY   = { '10a0814c0fad8650', 0.8671875, 0.578125, 0.9296875, 0.703125, '38adabc6a32af014', ink = { 0.328, 0.234, 0.688, 0.781 } },
+  DETONATE = { '10a0814c0fad8650', 0.7890625, 0.578125, 0.8515625, 0.703125, '55374383474193f8', ink = { 0.234, 0.234, 0.781, 0.781 } },
+  AIRSTRIKE = { '10a0814c0fad8650', 0.2421875, 0.578125, 0.3046875, 0.703125, 'f83f6f461ed94e4b', ink = { 0.250, 0.234, 0.734, 0.766 } },
+  BURST_FIRE = { '7b1eef337fc5f1bf', 0.0625, 0.0625, 0.5625, 0.5625, '62d0512daebb0be0', ink = { 0.328, 0.234, 0.672, 0.766 } },
   -- (1.5.47) a scope's zeroing step (weapon_function/zeroing_low, _medium, _high on the mission HUD page)
-  ZEROING_LOW    = { 'f9a3f22a93eedcbd', 0.223388671875, 0.1484375, 0.254638671875, 0.2109375, '6be28cced767bb52' },
-  ZEROING_MEDIUM = { 'f9a3f22a93eedcbd', 0.262451171875, 0.1484375, 0.293701171875, 0.2109375, '46271d0b4ce4136c' },
-  ZEROING_HIGH   = { 'f9a3f22a93eedcbd', 0.591552734375, 0.09375, 0.622802734375, 0.15625, 'a2ab43e85546f79a' },
+  ZEROING_LOW    = { 'f9a3f22a93eedcbd', 0.223388671875, 0.1484375, 0.254638671875, 0.2109375, '6be28cced767bb52', ink = { 0.234, 0.234, 0.766, 0.766 } },
+  ZEROING_MEDIUM = { 'f9a3f22a93eedcbd', 0.262451171875, 0.1484375, 0.293701171875, 0.2109375, '46271d0b4ce4136c', ink = { 0.234, 0.234, 0.766, 0.766 } },
+  ZEROING_HIGH   = { 'f9a3f22a93eedcbd', 0.591552734375, 0.09375, 0.622802734375, 0.15625, 'a2ab43e85546f79a', ink = { 0.234, 0.234, 0.766, 0.766 } },
+  -- (3.0.6, luka) the rate-of-fire setting's step (weapon_function/rof_low, _medium, _high, the same page;
+  -- research/atlas/sprites.json)
+  ROF_LOW    = { 'f9a3f22a93eedcbd', 0.907958984375, 0.0078125, 0.939208984375, 0.0703125, '52bbfc5a70359393', ink = { 0.312, 0.406, 0.703, 0.578 } },
+  ROF_MEDIUM = { 'f9a3f22a93eedcbd', 0.947021484375, 0.0078125, 0.978271484375, 0.0703125, 'c7546fc9c7b6db4e', ink = { 0.266, 0.406, 0.734, 0.578 } },
+  ROF_HIGH   = { 'f9a3f22a93eedcbd', 0.868896484375, 0.0078125, 0.900146484375, 0.0703125, 'f03c671b15d01a6b', ink = { 0.250, 0.422, 0.766, 0.594 } },
   -- unnamed sprites that look like the HUD's stim, stims and grenade icons (the stim page isn't loaded in a mission)
   stim     = { '18edbed388a3d706', 0.155517578125, 0.89208984375, 0.171142578125, 0.92333984375, 'a0e91aa5aab7b94d' },   -- 64 px
   stims    = { '1667261d881bd08a', 0.94921875, 0.4169921875, 0.98046875, 0.4482421875, '55decfa1c7de5d20' },             -- 128 px
@@ -65,16 +74,22 @@ local ub_said = {}
 -- a sprite entry with the word it stands for (the icon takes the word's colour, as the text does); made once per
 -- sprite and word
 local worded = {}
-local function with_word(e, word)
-  local key = e[6] .. word
+-- (3.0.7) tone: the step's tone for a low / medium / high icon (1, 2, 3), the mode colours' when they're on
+local function with_word(e, word, tone)
+  local key = e[6] .. word .. (tone or '')
   local w = worded[key]
   if not w then
-    w = { e[1], e[2], e[3], e[4], e[5], e[6], word = word, tex = e.tex }   -- (2.0.22: tex kept — the all-barrels icon drew the game's empty material)
+    w = { e[1], e[2], e[3], e[4], e[5], e[6], word = word, tex = e.tex, tone = tone, ink = e.ink }   -- (2.0.22: tex kept — the all-barrels icon drew the game's empty material; 3.0.10: ink)
     worded[key] = w
   end
   return w
 end
 N.FIRE_WORD = function(word) return word == 'ZOOM' or FIRE_SPRITES[word] ~= nil end   -- (1.5.57: the icons apart)
+-- (3.0.6) the rate-of-fire icon for what's shown: the setting's step among the type's known settings (d.rof)
+N.rof_icon = function(d)
+  local name = d and d.rof and ({ low = 'ROF_LOW', medium = 'ROF_MEDIUM', high = 'ROF_HIGH' })[d.rof]
+  return name and with_word(N.ATLAS[name], 'RPM', ({ low = 1, medium = 2, high = 3 })[d.rof]) or nil
+end
 N.mode_icons = function()
   local d = N.shown_d
   if not d then return nil end
@@ -92,7 +107,7 @@ N.mode_icons = function()
   -- (1.5.47) the scope's zeroing step, for a weapon learned to have one: the game's low / medium / high icon
   if d.zoom then
     local name = ({ [0] = 'ZEROING_LOW', 'ZEROING_MEDIUM', 'ZEROING_HIGH' })[d.zoom]
-    if name then out[#out + 1] = with_word(N.ATLAS[name], 'ZOOM') end
+    if name then out[#out + 1] = with_word(N.ATLAS[name], 'ZOOM', d.zoom + 1) end   -- (3.0.7: the step's tone)
   end
   if d.underbarrel then
     local name = UNDERBARREL_SPRITES[d.tid]
@@ -131,7 +146,7 @@ end
 -- setting again), and the planet's measured cooling (x1.5) says so too.
 local cold = { wid = nil, on = false }
 local function is_cold()
-  local wid = chef.world_id and chef.world_id()
+  local wid = N.world_id()
   if wid ~= cold.wid then cold.wid, cold.on = wid, false end
   return cold.on or planet.factor == 1.5
 end
@@ -154,23 +169,36 @@ local function rpm_setting(id, v)
 end
 local rpm_last = {}
 local function setting_label(t, w)
-  local parts = {}
+  local parts, rof = {}, nil
   local rpm = tonumber(w.rpm)
   if rpm and rpm > 0 and not t.has.heat then                  -- (heat weapons: the field isn't a rate of fire)
     -- (another rate in the same fire mode: a rate of fire setting. Not across missions, and not one 0.9 of the other:
     -- Extreme Cold's 10 %, the Sightliner's 40 and 36 on two planets taught it a setting it doesn't have)
-    local wid = chef.world_id and chef.world_id()
+    local wid = N.world_id()
     local last = rpm_last[t.id]
     if last and last.wid ~= wid then last = nil end
     local cold_pair = last and (math.abs(rpm - last.rpm * 0.9) <= 1.5 or math.abs(last.rpm - rpm * 0.9) <= 1.5)
     if last and last.fm == w.fire_mode and last.rpm ~= rpm and last.rpm > 0 and not cold_pair and not learned.rpmadj[t.id] then
       log('learned: type %s has a rate of fire setting', t.id)
       learn('rpmadj', t.id, true)
+      -- (3.0.6) the rate before this one is a setting too: known from the start, so the icon's step is right at once
+      if not learned.rpmbase[t.id] then learn('rpmbase', t.id, tostring(math.floor(last.rpm + 0.5))) end
     end
     rpm_last[t.id] = { fm = w.fire_mode, rpm = rpm, wid = wid }
-    if learned.rpmadj[t.id] then parts[#parts + 1] = rpm_setting(t.id, math.floor(rpm + 0.5)) .. ' RPM' end
+    if learned.rpmadj[t.id] then
+      local v = rpm_setting(t.id, math.floor(rpm + 0.5))
+      parts[#parts + 1] = v .. ' RPM'
+      -- (3.0.6, luka: the game's rate-of-fire icons) the setting's step among the type's settings seen so far: the
+      -- lowest is low, the highest high, any between medium (two known: low and high; a setting is only shown
+      -- once two are known, so there's always a lowest and a highest)
+      local vals, n = {}, 0
+      for x in string.gmatch(learned.rpmbase[t.id] or '', '[^,]+') do local nx = tonumber(x) if nx then n = n + 1 vals[n] = nx end end
+      local lo, hi = v, v
+      for i = 1, n do if vals[i] < lo then lo = vals[i] end if vals[i] > hi then hi = vals[i] end end
+      rof = lo == hi and 'medium' or (math.abs(v - lo) <= 1.5 and 'low' or (math.abs(v - hi) <= 1.5 and 'high' or 'medium'))
+    end
   end
-  return #parts > 0 and table.concat(parts, '  ') or nil
+  return #parts > 0 and table.concat(parts, '  ') or nil, rof
 end
 
 -- A weapon's own mode is in its options field, two bits per setting (seen in the research log, 2026-10-24): the bits at
@@ -224,7 +252,7 @@ local CHARGE_METER = {
 -- what to show for a weapon state
 local function shown(s, goid, t, w, o)
   local d = { kind = nil }
-  d.setting = setting_label(t, w)
+  d.setting, d.rof = setting_label(t, w)
   d.fmode = fire_mode_label(t, w)
   -- (most weapon types declare the underbarrel field; one is fitted only when it holds an object)
   local ub_bit = type(w.fire_mode) == 'number' and math.floor(w.fire_mode / 8) % 2 == 1
@@ -321,8 +349,10 @@ local function shown(s, goid, t, w, o)
     -- a charge weapon while charging: the heat field stays put until the shot, so the bar rises over the charge time
     local secs = learned.charge2[t.id]
     if secs and w.charging == true and o and o.charge_t0 then
-      d.charge_anim, d.charge_secs, d.charge_from = true, secs, h   -- (run every frame, below)
-      h = h + (top - h) * math.min(1, (chef.time() - o.charge_t0) / secs)
+      -- (3.0.2: from the bar's own value, the model's — the field can be a step behind as the charge starts)
+      local from = o.sim or h
+      d.charge_anim, d.charge_secs, d.charge_from = true, secs, from   -- (run every frame, below)
+      h = from + (top - from) * math.min(1, (chef.time() - o.charge_t0) / secs)
     end
     d.top_raw, d.tid, d.t, d.goid = top, t.id, t, goid
     d.top = top - rest
@@ -454,13 +484,9 @@ local function shown(s, goid, t, w, o)
     -- (1.5.51: a mounted gun with no magazines (the emplacements' belts) shows its rounds alone, not "x0")
   elseif d.kind == 'ammo' then
     -- (not for a heat weapon: the Nova and the Scythe showed the Guard Dog's magazines as theirs)
-    for pgoid, o in pairs(objs) do
-      local pt = o.t and TYPES[o.t]
-      if pt and pt.pack and o.on and pt.has.remaining then
-        local r = field(s, pgoid, pt, 'remaining')
-        if type(r) == 'number' then d.reserve = r break end
-      end
-    end
+    -- (3.0.12: your own backpack, as everywhere else: this took the first worn pack found, with none of
+    -- pack_ammo's checks — its owner, a pack the map came with)
+    d.reserve = pack_ammo(s)
   end
   return d
 end

@@ -24,8 +24,11 @@ local ALIGNS = { bottom_left = { 0, 0 }, bottom = { 0.5, 0 }, bottom_right = { 1
 -- the elements in drawing order, each field: { kind, default, min / choices, max }
 -- after: right after another part (drawn before it), gap pixels (at 1440p, Medium) from its right edge, its x then
 -- not used: a count that grows ("100%") pushes the magazines along instead of running over them
+-- (3.0.8: a hidden icon part keeps a size for the parts pinned to it; 3.0.10: its ink's — the usual icon's fractions
+-- of the square: a mode or fire-mode icon about half of it, the zeroing's 0.53, the rate-of-fire bar 0.52 x 0.19)
+local ICON_PARTS = { icon1 = { 0.5, 0.5 }, icon2 = { 0.48, 0.47 }, zoomicon = { 0.53, 0.53 }, rpmicon = { 0.52, 0.19 } }
 local AFTER = { none = 1, bar = 1, charge = 1, count = 1, mags = 1, rpm = 1, stims = 1, grenades = 1, range = 1, pack = 1,
-  health = 1, stamina = 1, stim = 1, mode1 = 1, mode2 = 1, icon1 = 1, icon2 = 1, zoom = 1, zoomicon = 1 }
+  health = 1, stamina = 1, stim = 1, mode1 = 1, mode2 = 1, icon1 = 1, icon2 = 1, zoom = 1, zoomicon = 1, rpmicon = 1 }
 -- (1.5.53) pin: how a part sits against the one it's after — none: the old way (its x from that part's right edge
 -- plus the gap, its y its own); right / left / above / below: its whole place from that part's box (the gap between
 -- them, the align choosing the edge they line up on, x / y then small nudges). A part that isn't drawn (off, or
@@ -86,6 +89,8 @@ local ELEMENTS = {
   { id = 'icon1', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
   { id = 'icon2', fields = { style = { 'choice', 'line', { line = 1, stacked = 1 } } } },
   { id = 'rpm', fields = {} },
+  -- (3.0.6, luka) the rate-of-fire setting as the game's own icon (low / medium / high), beside or instead of the number
+  { id = 'rpmicon', fields = {} },
   { id = 'stims', fields = {} },
   { id = 'grenades', fields = {} },
   -- (2.5.3, luka) the range: the metres to the landing chevron while a line is up, else to where the game's reticle
@@ -111,10 +116,13 @@ local DEFAULT_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   zoom = { anchor = 'center', x = -9.7, y = -8.5, align = 'right' },
   mode2 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoom', pin = 'left', gap = 8 },
   mode1 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'mode2', pin = 'left', gap = 8 },
-  zoomicon = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoom', pin = 'below', gap = 2 },
-  icon2 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoomicon', pin = 'left', gap = 4 },
-  icon1 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'icon2', pin = 'left', gap = 4 },
-  rpm = { anchor = 'center', x = 0, y = 0, align = 'bottom_left', after = 'count', pin = 'below', gap = 6 },
+  zoomicon = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoom', pin = 'below', gap = 16 },
+  icon2 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'zoomicon', pin = 'left', gap = 32 },
+  icon1 = { anchor = 'center', x = 0, y = 0, align = 'bottom_right', after = 'icon2', pin = 'left', gap = 32 },
+  -- (3.0.7, luka) the rate-of-fire icon in the number's place, the number pinned right of it: the icon off (F9 or
+  -- the layout), the number takes the icon's place
+  rpmicon = { anchor = 'center', x = 0, y = 0, align = 'bottom_left', after = 'count', pin = 'below', gap = 20 },
+  rpm = { anchor = 'center', x = 0, y = 0, align = 'left', after = 'rpmicon', pin = 'right', gap = 18 },
   stims = { anchor = 'center', x = -9, y = -9.6, align = 'top_left' },
   grenades = { anchor = 'center', x = 0, y = 0, align = 'top_left', after = 'stims', pin = 'right', gap = 8 },
   range = { anchor = 'center', x = 0, y = 0, align = 'top_left', after = 'grenades', pin = 'right', gap = 10 },
@@ -138,10 +146,11 @@ local VERTICAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   pack = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 20, pin = 'left', side = 'auto', hold = false, style = 'vertical', length = 80, thickness = 5, radius = 150, edge = 'auto', shade = 'auto' },
   count = { on = true, anchor = 'center', x = 0, y = -0.9, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 9, pin = 'right', side = 'auto', hold = true },
   mags = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'count', gap = 6, pin = 'right', side = 'auto', hold = false, style = 'number', empty = 'shown', divider = true },
-  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 10, pin = 'above', side = 'auto', hold = false },
-  icon2 = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = -3, pin = 'right', side = 'auto', hold = false, style = 'line' },
-  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = -21, pin = 'below', side = 'auto', hold = false, style = 'line' },
-  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon1', gap = -24, pin = 'below', side = 'auto', hold = false },
+  rpmicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 24, pin = 'above', side = 'auto', hold = false },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'rpmicon', gap = 18, pin = 'right', side = 'auto', hold = false },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 11, pin = 'right', side = 'auto', hold = false, style = 'line' },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = 7, pin = 'below', side = 'auto', hold = false, style = 'line' },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon1', gap = 4, pin = 'below', side = 'auto', hold = false },
   mode1 = { on = false, anchor = 'center', x = 9.8, y = 7.6, align = 'top_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'auto', hold = false },
   mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 4, pin = 'below', side = 'auto', hold = false },
   zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
@@ -162,10 +171,11 @@ local ARCS_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   mode1 = { on = false, anchor = 'center', x = 0, y = 0.5, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 14, pin = 'right', side = 'auto', hold = false },
   mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 4, pin = 'below', side = 'auto', hold = false },
   zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
-  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'below', side = 'auto', hold = false },
-  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'above', side = 'auto', hold = false, style = 'line' },
-  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = -6, pin = 'right', side = 'auto', hold = false, style = 'line' },
-  rpm = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = -15, pin = 'right', side = 'auto', hold = false },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = 14, pin = 'below', side = 'auto', hold = false },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = 14, pin = 'above', side = 'auto', hold = false, style = 'line' },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'right', side = 'auto', hold = false, style = 'line' },
+  rpmicon = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = -1, pin = 'right', side = 'auto', hold = false },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'rpmicon', gap = 18, pin = 'right', side = 'auto', hold = false },
   stims = { on = true, anchor = 'center', x = -1.35, y = -6.45, align = 'center', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'stims', gap = 10, pin = 'right', side = 'none', hold = false },
   range = { on = true, anchor = 'center', x = 0, y = -8.6, align = 'center', size = 1, opacity = 100, after = 'none', gap = 13, pin = 'none', side = 'auto', hold = false },   -- (2.5.24, luka)
@@ -184,10 +194,11 @@ local HORIZONTAL_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   mode1 = { on = false, anchor = 'center', x = 0, y = 0, align = 'right', size = 1, opacity = 100, after = 'mode2', gap = 8, pin = 'left', side = 'auto' },
   mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'right', size = 1, opacity = 100, after = 'zoom', gap = 8, pin = 'left', side = 'auto' },
   zoom = { on = false, anchor = 'center', x = -10.1, y = -10.62, align = 'right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'down' },
-  zoomicon = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = -2, pin = 'right', side = 'auto' },
-  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'left', side = 'auto', style = 'line' },
-  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 1, pin = 'left', side = 'auto', style = 'line' },
-  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 2, pin = 'below', side = 'auto' },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0.8, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 12, pin = 'right', side = 'auto' },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_right', size = 1, opacity = 100, after = 'icon2', gap = 14, pin = 'left', side = 'auto', style = 'line' },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 15, pin = 'left', side = 'auto', style = 'line' },
+  rpmicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 16, pin = 'below', side = 'auto' },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'rpmicon', gap = 18, pin = 'right', side = 'auto' },
   stims = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'below', side = 'auto' },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
   range = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom', size = 1, opacity = 100, after = 'stamina', gap = 10, pin = 'above', side = 'auto', hold = false },   -- (2.5.24, luka)
@@ -202,13 +213,14 @@ local BLOCK_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   charge = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'bar', gap = 8, pin = 'left', side = 'auto', style = 'vertical', length = 107, thickness = 4, radius = 150, edge = 'auto', shade = 'auto' },
   count = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 9, pin = 'right', side = 'auto', hold = true },
   mags = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'right', side = 'auto', style = 'number', empty = 'shown', divider = false },
-  mode1 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'zoomicon', gap = 8, pin = 'right', side = 'auto' },
+  mode1 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'zoomicon', gap = 22, pin = 'right', side = 'auto' },
   mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 8, pin = 'right', side = 'auto' },
   zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 8, pin = 'right', side = 'auto' },
-  icon2 = { on = true, anchor = 'center', x = -0.8, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = -3, pin = 'above', side = 'auto', style = 'line' },
-  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -20, pin = 'right', side = 'auto', style = 'line' },
-  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon1', gap = -20, pin = 'right', side = 'auto' },
-  rpm = { on = true, anchor = 'center', x = 1, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -7, pin = 'above', side = 'auto' },
+  icon2 = { on = true, anchor = 'center', x = -0.8, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'count', gap = 11, pin = 'above', side = 'auto', style = 'line' },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = 8, pin = 'right', side = 'auto', style = 'line' },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon1', gap = 8, pin = 'right', side = 'auto' },
+  rpmicon = { on = true, anchor = 'center', x = 1, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = 21, pin = 'above', side = 'auto' },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'rpmicon', gap = 18, pin = 'right', side = 'auto' },
   stims = { on = true, anchor = 'center', x = 0.4, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'count', gap = 8, pin = 'below', side = 'auto' },
   grenades = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'stims', gap = 8, pin = 'right', side = 'auto' },
   range = { on = true, anchor = 'center', x = 0.2, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'pack', gap = 7, pin = 'below', side = 'auto', hold = false },   -- (2.5.24, luka)
@@ -229,10 +241,11 @@ local CAKE_LAYOUT = { _v = LAYOUT_VERSION, elements = {
   mode1 = { on = false, anchor = 'center', x = 0, y = 0.5, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 14, pin = 'right', side = 'auto', hold = false },
   mode2 = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode1', gap = 4, pin = 'below', side = 'auto', hold = false },
   zoom = { on = false, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'mode2', gap = 4, pin = 'below', side = 'auto', hold = false },
-  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'below', side = 'auto', hold = false },
-  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = -14, pin = 'above', side = 'auto', hold = false, style = 'line' },
-  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 6, pin = 'right', side = 'auto', hold = false, style = 'line' },
-  rpm = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 3, pin = 'right', side = 'auto', hold = false },
+  zoomicon = { on = true, anchor = 'center', x = 0, y = 0, align = 'top_left', size = 1, opacity = 100, after = 'icon2', gap = 14, pin = 'below', side = 'auto', hold = false },
+  icon1 = { on = true, anchor = 'center', x = 0, y = 0, align = 'bottom_left', size = 1, opacity = 100, after = 'icon2', gap = 14, pin = 'above', side = 'auto', hold = false, style = 'line' },
+  icon2 = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'bar', gap = 20, pin = 'right', side = 'auto', hold = false, style = 'line' },
+  rpmicon = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'top_left', size = 1, opacity = 100, after = 'bar', gap = 17, pin = 'right', side = 'auto', hold = false },
+  rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', size = 1, opacity = 100, after = 'rpmicon', gap = 18, pin = 'right', side = 'auto', hold = false },
   stims = { on = true, anchor = 'center', x = -1, y = -8.1, align = 'top_right', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
   grenades = { on = true, anchor = 'center', x = 1, y = -8.1, align = 'top_left', size = 1, opacity = 100, after = 'none', gap = 8, pin = 'none', side = 'none', hold = false },
   range = { on = true, anchor = 'center', x = 0, y = -11.6, align = 'center', size = 1, opacity = 100, after = 'none', gap = -67, pin = 'none', side = 'auto', hold = false },
@@ -742,7 +755,7 @@ end
 -- (2.4.4) a mode word that changes cross-fades (luka's pick): the old one out as the new one comes in over 100 ms
 -- (Motion's scale), on the same weapon; a new weapon, or the part back after a moment away, shows at once
 local word_fades = {}
-local function mode_text(parts, k, x, y, dry, key, d)
+local function mode_text(parts, k, x, y, dry, key, d, tone)   -- (3.0.7: tone, the zeroing's step, over the words' own)
   if #parts == 0 then return nil end
   local small = math.max(7, math.floor(16 * k + 0.5))
   local str = table.concat(parts, '  ')
@@ -760,10 +773,10 @@ local function mode_text(parts, k, x, y, dry, key, d)
     if f then f.at = now end
     if p >= 1 then
       if f then f.old = nil end
-      txt_modes(x, y, str, small, 200, L_CUSTOM)
+      txt_modes(x, y, str, small, 200, L_CUSTOM, nil, tone)
     else
-      txt_modes(x, y, f.old, small, math.floor(200 * (1 - p) + 0.5), L_CUSTOM)
-      txt_modes(x, y, str, small, math.floor(200 * p + 0.5), L_CUSTOM)
+      txt_modes(x, y, f.old, small, math.floor(200 * (1 - p) + 0.5), L_CUSTOM, nil, tone)
+      txt_modes(x, y, str, small, math.floor(200 * p + 0.5), L_CUSTOM, nil, tone)
     end
   end
   return txt_width(str, small), small
@@ -785,7 +798,7 @@ end
 -- (1.5.65) the zeroing as text on its own (whenever the weapon's scope is known: the part being on is the choice)
 function EL_DRAW.zoom(e, k, d, x, y, dry)
   if not d or not d.zoom_word then return nil end
-  return mode_text({ d.zoom_word }, k, x, y, dry, 'zoom', d)
+  return mode_text({ d.zoom_word }, k, x, y, dry, 'zoom', d, d.zoom + 1)   -- (3.0.7: the step's tone, as its icon)
 end
 function EL_DRAW.rpm(e, k, d, x, y, dry)
   if not d or not d.setting then return nil end
@@ -827,12 +840,28 @@ end
 -- old one out as the new one comes in; a new weapon, or the part back after a moment away, at once. (Whether the
 -- game's icon material takes the colour's alpha isn't proven: the tint is, 1.5.20; if not, both show for 100 ms)
 local icon_fades = {}
+-- (3.0.10, luka: "the bounding boxes for these icons are 2x the size of the icons they show": alignment by ink) the
+-- part's box is the icons' drawn pixels (each sprite's `ink` fractions, 07_weapon's atlas), not the padded square
+-- the sprite is drawn in: pins and gaps go by what's seen, and parts at one edge line up by it. The square is
+-- still drawn, offset so its ink lands in the box. F9 Look "Icons by their ink" off: the squares, as before
+local function ink_box(it, tw)
+  local ink = cfg.ink_align ~= false and it.ink
+  if not ink then return tw, tw, 0, 0 end
+  local iw, ih = math.max(1, math.floor(tw * (ink[3] - ink[1]) + 0.5)), math.max(1, math.floor(tw * (ink[4] - ink[2]) + 0.5))
+  -- the sprite's square from the ink box: its left is ink.l of tw left of the box, its bottom (1 - ink.b) of tw below
+  return iw, ih, -math.floor(tw * ink[1] + 0.5), -math.floor(tw * (1 - ink[4]) + 0.5)
+end
 local function icon_list(e, k, list, x, y, dry, key, d)
   local tw = N.icon_px(k)
   local gap = math.floor(4 * k)
   local n = #list
-  local w, h
-  if e.style == 'stacked' then w, h = tw, n * tw + (n - 1) * gap else w, h = n * tw + (n - 1) * gap, tw end
+  local w, h = 0, 0
+  local iws, ihs = {}, {}
+  for i = 1, n do
+    iws[i], ihs[i] = ink_box(list[i], tw)
+    if e.style == 'stacked' then w, h = math.max(w, iws[i]), h + ihs[i] + (i > 1 and gap or 0)
+    else w, h = w + iws[i] + (i > 1 and gap or 0), math.max(h, ihs[i]) end
+  end
   if dry then return w, h end
   local keys = {}
   local now = N.now or chef.time()
@@ -841,10 +870,21 @@ local function icon_list(e, k, list, x, y, dry, key, d)
   local fades = key and icon_fades[key]
   if key and (not fades or fades.goid ~= goid or now - fades.at > 0.25) then fades = { goid = goid, slots = {} } icon_fades[key] = fades end
   if fades then fades.at = now end
+  local run = 0   -- (the icons' boxes laid along the line or the stack, middles level across it)
   for i = 1, n do
-    local ex, ey
-    if e.style == 'stacked' then ex, ey = x, y + h - i * tw - (i - 1) * gap else ex, ey = x + (i - 1) * (tw + gap), y end
     local it = list[i]
+    local iw, ih, ox, oy = iws[i], ihs[i], select(3, ink_box(it, tw))
+    local ex, ey
+    if e.style == 'stacked' then
+      ex, ey = x + math.floor((w - iw) / 2), y + h - run - ih
+      run = run + ih + gap
+    else
+      ex, ey = x + run, y + math.floor((h - ih) / 2)
+      run = run + iw + gap
+    end
+    -- (the sprite's square, so its ink fills the box; a cross-fade's old sprite in the same square — its own ink
+    -- may differ a little, a frame or two)
+    ex, ey = ex + ox, ey + oy
     local sl = fades and fades.slots[i]
     if fades then
       if not sl then sl = { cur = it } fades.slots[i] = sl
@@ -873,6 +913,12 @@ local function without_zoom(list)
   return out
 end
 -- (1.5.65) the zeroing icon on its own
+-- (3.0.6) the rate-of-fire icon, a square as the mode icons, the game's rof_low / _medium / _high
+function EL_DRAW.rpmicon(e, k, d, x, y, dry)
+  local it = N.rof_icon and N.rof_icon(d)
+  if not it then return nil end
+  return icon_list(e, k, { it }, x, y, dry, 'rpmicon', d)
+end
 function EL_DRAW.zoomicon(e, k, d, x, y, dry)
   if not d or not (cfg.mode_icons and cfg.mode_icons > 1) or not N.mode_icons then return nil end
   local list = N.mode_icons()
@@ -1139,6 +1185,19 @@ local function resolve(els, w, h, sizes, last, offsets, pass)
   -- with the follower's own size, so a 56 px icon pinned right of an empty icon with tops level sits where that
   -- icon would, not 56 px down in the count (the hidden slot has no height to line up with). A chain of hidden
   -- parts passes the size along.
+  -- (3.0.8, luka: the rate-of-fire icon under the count with a gap of -21 for the sprite's padding; the icon off,
+  -- the number pinned right of it landed inside the count) a hidden icon part has a size all the same — a square
+  -- of the icon's width — so a part pinned to it is put inside that square by its own align (middles level: the
+  -- number at the icon's middle), not at the icon's slot with its own 12 px height, 21 px up into the count
+  local function nominal(id)
+    if not ICON_PARTS[id] then return nil end
+    local e = els[id]
+    local tw = N.icon_px and N.icon_px((h / 1440) * cfg.size * e.size) or 0
+    if tw <= 0 then return nil end
+    if cfg.ink_align == false then return tw, tw end
+    local f = ICON_PARTS[id]
+    return math.max(1, math.floor(tw * f[1] + 0.5)), math.max(1, math.floor(tw * f[2] + 0.5))
+  end
   local function place(id, aw, ah)
     if not aw and boxes[id] then return boxes[id] end
     local e = els[id]
@@ -1163,7 +1222,10 @@ local function resolve(els, w, h, sizes, last, offsets, pass)
       local tb = place(target)
       ax, ay = tb.ax or 0, tb.ay or 0                            -- (with its target)
       if e.pin == 'none' then local _, oay = aim_of(e) ay = oay end   -- (y its own: a free point)
-      if tb.hidden and not hidden then tb = place(target, ew, eh) end   -- (takes its place: see above)
+      if tb.hidden and not hidden then   -- (takes its place: see above; an icon part's square when it has one)
+        local nw, nh = nominal(target)
+        if nw then tb = place(target, nw, nh) tb.nominal = true else tb = place(target, ew, eh) end
+      end
       visiting[id] = nil
       local k = (h / 1440) * cfg.size * e.size
       local gap = tb.hidden and 0 or math.floor(e.gap * k + 0.5)
@@ -1172,6 +1234,8 @@ local function resolve(els, w, h, sizes, last, offsets, pass)
       local ns = (e.pin ~= 'none') and (cfg.size * e.size) or 1
       local nx, ny = math.floor(h * e.x / 100 * ns + 0.5), math.floor(h * e.y / 100 * ns + 0.5)
       if tb.hidden then x, y = tb.x, tb.y   -- (a hidden part with nothing to show at all, no last box: its point)
+      elseif tb.taken and tb.nominal then   -- (inside the hidden icon's square, by this part's align)
+        x, y = math.floor(tb.x + (tb.w - ew) * al[1] + 0.5), math.floor(tb.y + (tb.h - eh) * al[2] + 0.5)
       elseif tb.taken then x, y = tb.x, tb.y   -- (the hidden part's place, with this part's size)
       elseif e.pin == 'none' then
         local _, py = free_point(e)
@@ -1234,7 +1298,7 @@ local function draw_custom(d, items, vitals)
       drawn[el.id] = nil
       local e = els[el.id]
       sizes[el.id] = false
-      if e.on and e.opacity > 0 then
+      if e.on and e.opacity > 0 and not f9_off(el.id) then   -- (3.0.8: a part Off in F9 has no size, so its followers take its place)
         local c0 = el_clock and el_clock()
         local k = (h / 1440) * cfg.size * e.size
         local ew, eh, acx, acy = EL_DRAW[el.id](e, k, d, 0, 0, true, items, vitals)

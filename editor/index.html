@@ -297,6 +297,7 @@ textarea { width: 100%; min-height: 90px; background: var(--raise); border: 1px 
       <label class="chk" for="o-spread">Spread <input type="number" id="o-spread" min="-30" max="30" step="0.5" value="0" style="width:64px"> % <span class="muted">(the two sides closer or farther apart)</span></label>
       <label class="chk"><input type="checkbox" id="o-snap" checked> Snap to parts when dragging <span class="muted">(pins them; hold Ctrl while dragging not to)</span></label>
       <label class="chk"><input type="checkbox" id="o-modecol"> Modes in their own colours</label>
+      <label class="chk"><input type="checkbox" id="o-ink" checked> Icons by their ink <span class="muted">(F9 Look: the icon parts take up what they draw, not the sprite's padding)</span></label>
       <label class="chk"><input type="checkbox" id="o-cb"> Colourblind colours <span class="muted">(F9's preset, for the preview)</span></label>
       <label class="chk"><input type="checkbox" id="o-guides" checked> Anchor points</label>
       <details class="roles" id="roles">
@@ -369,7 +370,7 @@ const BAR_STYLES = ['horizontal', 'vertical', 'curved_left', 'curved_right', 'cu
 const COMMON = { on: ['boolean', true], anchor: ['choice', 'center', Object.keys(ANCHORS)], x: ['number', 0, -100, 100],
   y: ['number', 0, -100, 100], align: ['choice', 'bottom_left', Object.keys(ALIGNS)], size: ['number', 1, 0.3, 4],
   opacity: ['number', 100, 0, 100],
-  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'rpm', 'stims', 'grenades', 'range', 'pack', 'health', 'stamina', 'stim', 'mode1', 'mode2', 'icon1', 'icon2', 'zoom', 'zoomicon']],
+  after: ['choice', 'none', ['none', 'bar', 'charge', 'count', 'mags', 'rpm', 'stims', 'grenades', 'range', 'pack', 'health', 'stamina', 'stim', 'mode1', 'mode2', 'icon1', 'icon2', 'zoom', 'zoomicon', 'rpmicon']],
   gap: ['number', 8, -500, 500],
   // (1.5.53) pin: how a part sits against the one it's after: none the old way (x from that part's right edge, y its
   // own), else its whole place from that part's box, on that side; side: left or right of the crosshair, for F9's Spread
@@ -407,6 +408,7 @@ const ELEMENTS = [
   { id: 'icon1', name: 'Weapon mode icon', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
   { id: 'icon2', name: 'Fire mode icon', fields: { style: ['choice', 'line', ['line', 'stacked']] } },
   { id: 'rpm', name: 'Rate of fire', fields: {} },
+  { id: 'rpmicon', name: 'Rate of fire icon', fields: {} },
   { id: 'stims', name: 'Stims', fields: {} },
   { id: 'grenades', name: 'Grenades', fields: {} },
   // (2.5.3) the range: the metres to the landing chevron, else to where the reticle points ("-" on the sky); off unless F9's Range rule is on
@@ -429,10 +431,11 @@ const UNDER = { _v: 1, elements: {
   zoom: { anchor: 'center', x: -9.7, y: -8.5, align: 'right' },
   mode2: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoom', pin: 'left', gap: 8 },
   mode1: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'mode2', pin: 'left', gap: 8 },
-  zoomicon: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoom', pin: 'below', gap: 2 },
-  icon2: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoomicon', pin: 'left', gap: 4 },
-  icon1: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'icon2', pin: 'left', gap: 4 },
-  rpm: { anchor: 'center', x: 0, y: 0, align: 'bottom_left', after: 'count', pin: 'below', gap: 6 },
+  zoomicon: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoom', pin: 'below', gap: 16 },
+  icon2: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'zoomicon', pin: 'left', gap: 32 },
+  icon1: { anchor: 'center', x: 0, y: 0, align: 'bottom_right', after: 'icon2', pin: 'left', gap: 32 },
+  rpmicon: { anchor: 'center', x: 0, y: 0, align: 'bottom_left', after: 'count', pin: 'below', gap: 20 },
+  rpm: { anchor: 'center', x: 0, y: 0, align: 'left', after: 'rpmicon', pin: 'right', gap: 18 },
   stims: { anchor: 'center', x: -9, y: -9.6, align: 'top_left' },
   grenades: { anchor: 'center', x: 0, y: 0, align: 'top_left', after: 'stims', pin: 'right', gap: 8 },
   range: { anchor: 'center', x: 0, y: 0, align: 'top_left', after: 'grenades', pin: 'right', gap: 10 },
@@ -450,10 +453,11 @@ const PRESETS = [
   mode1: { on: false, anchor: 'center', x: 0, y: 0, align: 'right', size: 1, opacity: 100, after: 'mode2', gap: 8, pin: 'left', side: 'auto' },
   mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'right', size: 1, opacity: 100, after: 'zoom', gap: 8, pin: 'left', side: 'auto' },
   zoom: { on: false, anchor: 'center', x: -10.1, y: -10.62, align: 'right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'down' },
-  zoomicon: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: -2, pin: 'right', side: 'auto' },
-  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'left', side: 'auto', style: 'line' },
-  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 1, pin: 'left', side: 'auto', style: 'line' },
-  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 2, pin: 'below', side: 'auto' },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 12, pin: 'right', side: 'auto' },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_right', size: 1, opacity: 100, after: 'icon2', gap: 14, pin: 'left', side: 'auto', style: 'line' },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 15, pin: 'left', side: 'auto', style: 'line' },
+  rpmicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 16, pin: 'below', side: 'auto' },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'rpmicon', gap: 18, pin: 'right', side: 'auto' },
   stims: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'below', side: 'auto' },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
   range: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom', size: 1, opacity: 100, after: 'stamina', gap: 10, pin: 'above', side: 'auto', hold: false },
@@ -469,10 +473,11 @@ const PRESETS = [
   mode1: { on: false, anchor: 'center', x: 0, y: 0.5, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 14, pin: 'right', side: 'auto', hold: false },
   mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 4, pin: 'below', side: 'auto', hold: false },
   zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
-  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'below', side: 'auto', hold: false },
-  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'above', side: 'auto', hold: false, style: 'line' },
-  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: -6, pin: 'right', side: 'auto', hold: false, style: 'line' },
-  rpm: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: -15, pin: 'right', side: 'auto', hold: false },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: 14, pin: 'below', side: 'auto', hold: false },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: 14, pin: 'above', side: 'auto', hold: false, style: 'line' },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'right', side: 'auto', hold: false, style: 'line' },
+  rpmicon: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: -1, pin: 'right', side: 'auto', hold: false },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'rpmicon', gap: 18, pin: 'right', side: 'auto', hold: false },
   stims: { on: true, anchor: 'center', x: -1.35, y: -6.45, align: 'center', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'stims', gap: 10, pin: 'right', side: 'none', hold: false },
   range: { on: true, anchor: 'center', x: 0, y: -8.6, align: 'center', size: 1, opacity: 100, after: 'none', gap: 13, pin: 'none', side: 'auto', hold: false },
@@ -486,10 +491,11 @@ const PRESETS = [
   pack: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 20, pin: 'left', side: 'auto', hold: false, style: 'vertical', length: 80, thickness: 5, radius: 150, edge: 'auto', shade: 'auto' },
   count: { on: true, anchor: 'center', x: 0, y: -0.9, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 9, pin: 'right', side: 'auto', hold: true },
   mags: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'count', gap: 6, pin: 'right', side: 'auto', hold: false, style: 'number', empty: 'shown', divider: true },
-  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 10, pin: 'above', side: 'auto', hold: false },
-  icon2: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: -3, pin: 'right', side: 'auto', hold: false, style: 'line' },
-  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: -21, pin: 'below', side: 'auto', hold: false, style: 'line' },
-  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon1', gap: -24, pin: 'below', side: 'auto', hold: false },
+  rpmicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 24, pin: 'above', side: 'auto', hold: false },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'rpmicon', gap: 18, pin: 'right', side: 'auto', hold: false },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0.8, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 11, pin: 'right', side: 'auto', hold: false, style: 'line' },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: 7, pin: 'below', side: 'auto', hold: false, style: 'line' },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon1', gap: 4, pin: 'below', side: 'auto', hold: false },
   mode1: { on: false, anchor: 'center', x: 9.8, y: 7.6, align: 'top_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'auto', hold: false },
   mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 4, pin: 'below', side: 'auto', hold: false },
   zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
@@ -504,13 +510,14 @@ const PRESETS = [
   charge: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'bar', gap: 8, pin: 'left', side: 'auto', style: 'vertical', length: 107, thickness: 4, radius: 150, edge: 'auto', shade: 'auto' },
   count: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 9, pin: 'right', side: 'auto', hold: true },
   mags: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'right', side: 'auto', style: 'number', empty: 'shown', divider: false },
-  mode1: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'zoomicon', gap: 8, pin: 'right', side: 'auto' },
+  mode1: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'zoomicon', gap: 22, pin: 'right', side: 'auto' },
   mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 8, pin: 'right', side: 'auto' },
   zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 8, pin: 'right', side: 'auto' },
-  icon2: { on: true, anchor: 'center', x: -0.8, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: -3, pin: 'above', side: 'auto', style: 'line' },
-  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -20, pin: 'right', side: 'auto', style: 'line' },
-  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon1', gap: -20, pin: 'right', side: 'auto' },
-  rpm: { on: true, anchor: 'center', x: 1, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -7, pin: 'above', side: 'auto' },
+  icon2: { on: true, anchor: 'center', x: -0.8, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'count', gap: 11, pin: 'above', side: 'auto', style: 'line' },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: 8, pin: 'right', side: 'auto', style: 'line' },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon1', gap: 8, pin: 'right', side: 'auto' },
+  rpmicon: { on: true, anchor: 'center', x: 1, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: 21, pin: 'above', side: 'auto' },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'rpmicon', gap: 18, pin: 'right', side: 'auto' },
   stims: { on: true, anchor: 'center', x: 0.4, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'count', gap: 8, pin: 'below', side: 'auto' },
   grenades: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'stims', gap: 8, pin: 'right', side: 'auto' },
   range: { on: true, anchor: 'center', x: 0.2, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'pack', gap: 7, pin: 'below', side: 'auto', hold: false },
@@ -526,10 +533,11 @@ const PRESETS = [
   mode1: { on: false, anchor: 'center', x: 0, y: 0.5, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 14, pin: 'right', side: 'auto', hold: false },
   mode2: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode1', gap: 4, pin: 'below', side: 'auto', hold: false },
   zoom: { on: false, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'mode2', gap: 4, pin: 'below', side: 'auto', hold: false },
-  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'below', side: 'auto', hold: false },
-  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: -14, pin: 'above', side: 'auto', hold: false, style: 'line' },
-  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 6, pin: 'right', side: 'auto', hold: false, style: 'line' },
-  rpm: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 3, pin: 'right', side: 'auto', hold: false },
+  zoomicon: { on: true, anchor: 'center', x: 0, y: 0, align: 'top_left', size: 1, opacity: 100, after: 'icon2', gap: 14, pin: 'below', side: 'auto', hold: false },
+  icon1: { on: true, anchor: 'center', x: 0, y: 0, align: 'bottom_left', size: 1, opacity: 100, after: 'icon2', gap: 14, pin: 'above', side: 'auto', hold: false, style: 'line' },
+  icon2: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'bar', gap: 20, pin: 'right', side: 'auto', hold: false, style: 'line' },
+  rpmicon: { on: true, anchor: 'center', x: 0, y: -0.6, align: 'top_left', size: 1, opacity: 100, after: 'bar', gap: 17, pin: 'right', side: 'auto', hold: false },
+  rpm: { on: true, anchor: 'center', x: 0, y: 0, align: 'left', size: 1, opacity: 100, after: 'rpmicon', gap: 18, pin: 'right', side: 'auto', hold: false },
   stims: { on: true, anchor: 'center', x: -1, y: -8.1, align: 'top_right', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
   grenades: { on: true, anchor: 'center', x: 1, y: -8.1, align: 'top_left', size: 1, opacity: 100, after: 'none', gap: 8, pin: 'none', side: 'none', hold: false },
   range: { on: true, anchor: 'center', x: 0, y: -11.6, align: 'center', size: 1, opacity: 100, after: 'none', gap: -67, pin: 'none', side: 'auto', hold: false },
@@ -721,7 +729,7 @@ function viewRect() {
   const l = Math.max(0, Math.min(SCR.W - w, view.vx - w / 2)), t = Math.max(0, Math.min(SCR.H - h, view.vy - h / 2));
   return { l, t, w, h };
 }
-const cfg = { size: 1, edge: 1, shade: true, spread: 0, mode_colors: false, palette: 1, opacity: 1, off_x: 0, off_y: 0 };
+const cfg = { size: 1, edge: 1, shade: true, spread: 0, mode_colors: false, palette: 1, opacity: 1, off_x: 0, off_y: 0, ink_align: true };
 // (2.6.9) the colours as the mod's roles: the F9 preset (Standard / Colourblind, a preview setting here) under the
 // file's own colors = {}; a part's own colour swaps the rest colours around its draw, as the mod does
 const PRESET_COLORS = { 1: { text: 'ECE5CE', bars: 'ECE5CE', low: 'F0AA5A', empty: 'D25048', mode_a: '82CDF5', mode_b: '50DCAF', stamina: '82BEEB', yellow: 'ECD660' },
@@ -812,12 +820,14 @@ function packTicks(st, x, y, w, h, vert, k, edge, shade) {
 }
 const MODE_TONE = { SEMI: 1, AUTO: 2, BURST: 3, VOLLEY: 3, SAFE: 1, UNSAFE: 2, TOTAL: 3, GUIDED: 1, UNGUIDED: 2, APHET: 1, FLAK: 2,
   CLUSTER: 3, HE: 2, DEPLOY: 1, DETONATE: 2, ARTILLERY: 2, LASER: 2, 'NO LASER': 1, FLECHETTE: 1, STUN: 2 };
-function txtModes(x, y, s, cap, a) {
+// (3.0.7) tone: a step's tone (1, 2, 3) for every word, over the words' own (the zeroing's "100 M")
+function toneColor(n) { return n === 3 ? P.MODE3 : (n === 2 ? P.MODE2 : P.CREAM); }
+function txtModes(x, y, s, cap, a, tone) {
   if (!cfg.mode_colors) { txt(x, y, s, cap, col(P.CREAM, a)); return; }
   const parts = s.split('  ').filter(Boolean);
   const sep = txtWidth('  ', cap);
   for (const w of parts) {
-    const n = MODE_TONE[w] || 1;
+    const n = tone || MODE_TONE[w] || 1;
     txt(x, y, w, cap, col(n === 3 ? P.MODE3 : (n === 2 ? P.MODE2 : P.CREAM), a));
     x += txtWidth(w, cap) + sep;
   }
@@ -865,12 +875,37 @@ function drawMask(name, x, y, S, c) {
 }
 // the game's own mode icons stand in as two glyphs of our own (the fire mode, the ammo kind): the editor can't
 // carry the game's artwork; their size and spacing are the game's
-function modeGlyph(kind, x, y, tw, c) {
+// (3.0.10) the game's sprites' drawn pixels as fractions of their square (the mod's 07_weapon atlas has them per
+// sprite; here by what the preview shows): an icon part's box is its ink, the glyph drawn to fill it
+const INK = { fire: { AUTO: [0.48, 0.47], SEMI: [0.48, 0.17], BURST: [0.48, 0.25], VOLLEY: [0.5, 0.61], SAFE: [0.48, 0.17], UNSAFE: [0.48, 0.25], TOTAL: [0.66, 0.56], _: [0.48, 0.47] },
+  mode: { APHET: [0.53, 0.25], FLAK: [0.33, 0.5], HE: [0.44, 0.5], HEAT: [0.5, 0.44], STUN: [0.41, 0.59], FLECHETTE: [0.25, 0.47], FRAG: [0.5, 0.5], LASER: [0.5, 0.16], 'NO LASER': [0.5, 0.16], GUIDED: [0.56, 0.55], UNGUIDED: [0.56, 0.55], _: [0.5, 0.5] },
+  zoom: { _: [0.53, 0.53] }, rof: { low: [0.39, 0.17], medium: [0.47, 0.17], high: [0.52, 0.17], _: [0.52, 0.19] } };
+function inkOf(kind, word) { const t = INK[kind] || INK.mode; return (word && t[word]) || t._; }
+// the glyph drawn into a box of iw x ih at x, y (bottom-left), as the sprite's ink would fill it
+function modeGlyph(kind, x, y, tw, c, iw, ih) {
+  if (iw !== undefined) {
+    // (by ink: the padded square the glyph was designed in, scaled so its drawn part fills the box)
+    g.save();
+    const m = 0.28, fx = iw / (tw * (1 - 2 * m)), fy = ih / (tw * (1 - 2 * m));
+    const sx = x - m * tw * fx, sy = SCR.H - y - ih - m * tw * fy;   // (the square's top-left on the canvas)
+    g.translate(sx, sy); g.scale(fx, fy); g.translate(-0, -(SCR.H - tw));
+    modeGlyph(kind, 0, 0, tw, c);
+    g.restore();
+    return;
+  }
   const m = tw * 0.28, cx = x + tw / 2, top = SCR.H - y - tw;
   g.fillStyle = c; g.beginPath();
   if (kind === 'fire') {
     const w = tw - 2 * m, bx = cx - w / 2, by = top + m, h = tw - 2 * m;
     g.moveTo(bx, by + h); g.lineTo(bx, by + h * 0.4); g.quadraticCurveTo(bx, by, cx, by); g.quadraticCurveTo(bx + w, by, bx + w, by + h * 0.4); g.lineTo(bx + w, by + h); g.closePath();
+  } else if (kind.startsWith('rof_')) {
+    // (the rate of fire: a gauge, its needle low, in the middle or high)
+    const r = (tw - 2 * m) / 2, cy = top + tw / 2 + r * 0.3, lw = Math.max(1, tw * 0.08);
+    g.strokeStyle = c; g.lineWidth = lw;
+    g.arc(cx, cy, r, Math.PI, 2 * Math.PI); g.stroke();
+    const a = Math.PI * ({ rof_low: 1.15, rof_medium: 1.5, rof_high: 1.85 })[kind];
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * 0.85 * Math.cos(a), cy + r * 0.85 * Math.sin(a)); g.stroke();
+    g.beginPath(); g.arc(cx, cy, lw, 0, Math.PI * 2);
   } else if (kind === 'zoom') {
     // (the scope's zeroing: a ring with a short post under it, as the game's icon reads at a glance)
     const r = (tw - 2 * m) / 2, cy = top + tw / 2, lw = Math.max(1, tw * 0.07);
@@ -1108,11 +1143,23 @@ const EL_DRAW = {
     if (only === 'zoom') { kinds.length = 0; if (d.zoom !== undefined) kinds.push('zoom'); }
     if (!kinds.length) return null;
     const tw = Math.max(1, fl(4 * STIM[0].length * iconScale(k) + 0.5)), gap = fl(4 * k), n = kinds.length;   // (1.5.77: smooth with Size)
-    const w = e.style === 'stacked' ? tw : n * tw + (n - 1) * gap, h = e.style === 'stacked' ? n * tw + (n - 1) * gap : tw;
+    // (3.0.10) each icon's box is its ink (the sprite's drawn part), middles level across the line or stack
+    const sizes = kinds.map(kind => {
+      if (!cfg.ink_align) return [tw, tw];
+      const f = inkOf(kind, kind === 'fire' ? d.fmode : (kind === 'mode' ? d.mode : undefined));
+      return [Math.max(1, fl(tw * f[0] + 0.5)), Math.max(1, fl(tw * f[1] + 0.5))];
+    });
+    let w = 0, h = 0;
+    sizes.forEach(([iw, ih], i) => { if (e.style === 'stacked') { w = Math.max(w, iw); h += ih + (i ? gap : 0); } else { w += iw + (i ? gap : 0); h = Math.max(h, ih); } });
     if (dry) return [w, h];
+    let run = 0;
     kinds.forEach((kind, i) => {
-      const ex = e.style === 'stacked' ? x : x + i * (tw + gap), ey = e.style === 'stacked' ? y + h - (i + 1) * tw - i * gap : y;
-      modeGlyph(kind, ex, ey, tw, col(P.CREAM, 220));
+      const [iw, ih] = sizes[i];
+      const ex = e.style === 'stacked' ? x + fl((w - iw) / 2) : x + run, ey = e.style === 'stacked' ? y + h - run - ih : y + fl((h - ih) / 2);
+      run += (e.style === 'stacked' ? ih : iw) + gap;
+      // (3.0.7) the zeroing icon in its step's tone with Modes in colour, as the mode icons take their word's
+      const tone = kind === 'zoom' && cfg.mode_colors ? toneColor(d.zoom + 1) : (cfg.mode_colors && MODE_TONE[kind === 'fire' ? d.fmode : d.mode] ? toneColor(MODE_TONE[kind === 'fire' ? d.fmode : d.mode]) : P.CREAM);
+      if (cfg.ink_align) modeGlyph(kind, ex, ey, tw, col(tone, 220), iw, ih); else modeGlyph(kind, ex, ey, tw, col(tone, 220));
     });
     return [w, h];
   },
@@ -1138,12 +1185,22 @@ const EL_DRAW = {
   zoom(e, k, d, x, y, dry) {
     if (!d || d.zoom === undefined) return null;
     const small = Math.max(7, fl(16 * k + 0.5)), s = ['50 M', '100 M', '200 M'][d.zoom];
-    if (!dry) txtModes(x, y, s, small, 200);
+    if (!dry) txtModes(x, y, s, small, 200, d.zoom + 1);
     return [txtWidth(s, small), small];
   },
   zoomicon(e, k, d, x, y, dry, items) { return EL_DRAW.icons(Object.assign({ style: 'line' }, e), k, d, x, y, dry, items, 'zoom'); },
   icon1(e, k, d, x, y, dry, items) { return EL_DRAW.icons(e, k, d, x, y, dry, items, 'mode'); },
   icon2(e, k, d, x, y, dry, items) { return EL_DRAW.icons(e, k, d, x, y, dry, items, 'fire'); },
+  // (3.0.6) the rate-of-fire setting's step as the game's icon (low / medium / high): a gauge glyph here
+  rpmicon(e, k, d, x, y, dry) {
+    if (!d || !d.rof) return null;
+    const tw = Math.max(1, fl(4 * STIM[0].length * iconScale(k) + 0.5));
+    const tone = cfg.mode_colors ? toneColor({ low: 1, medium: 2, high: 3 }[d.rof]) : P.CREAM;
+    if (!cfg.ink_align) { if (!dry) modeGlyph('rof_' + d.rof, x, y, tw, col(tone, 220)); return [tw, tw]; }
+    const f = inkOf('rof', d.rof), iw = Math.max(1, fl(tw * f[0] + 0.5)), ih = Math.max(1, fl(tw * f[1] + 0.5));   // (3.0.10: by ink)
+    if (!dry) modeGlyph('rof_' + d.rof, x, y, tw, col(tone, 220), iw, ih);
+    return [iw, ih];
+  },
   rpm(e, k, d, x, y, dry) {
     if (!d || !d.setting) return null;
     const tiny = Math.max(6, fl(12 * k + 0.5));
@@ -1256,9 +1313,9 @@ function packState(items, d) {
 
 // what's in hand (examples)
 const SAMPLES = [
-  { id: 'all', name: 'Every part at once', make: (f) => ({ d: { kind: 'ammo', top: 30, value: Math.round(30 * f), reserve: 5, resmax: 8, mode: 'APHET', fmode: 'AUTO', setting: '640 RPM', charge_frac: f, charge_mark: 0.83, zoom: 1 }, items: { s: 4, g: 3, pack: Math.round(8 * f), pack_top: 8 } }) },
-  { id: 'apex', name: 'AMW-20 Apex (sniper, zeroing)', make: (f) => ({ d: { kind: 'ammo', top: 5, value: Math.round(5 * f), reserve: 4, resmax: 6, fmode: 'SEMI', setting: '36 RPM', zoom: 1 }, items: { s: 4, g: 4 } }) },
-  { id: 'lib', name: 'Liberator (45 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 45, value: Math.round(45 * f), reserve: 6, resmax: 8, fmode: 'AUTO', setting: '640 RPM' }, items: { s: 4, g: 4 } }) },
+  { id: 'all', name: 'Every part at once', make: (f) => ({ d: { kind: 'ammo', top: 30, value: Math.round(30 * f), reserve: 5, resmax: 8, mode: 'APHET', fmode: 'AUTO', setting: '640 RPM', rof: 'high', charge_frac: f, charge_mark: 0.83, zoom: 1 }, items: { s: 4, g: 3, pack: Math.round(8 * f), pack_top: 8 } }) },
+  { id: 'apex', name: 'AMW-20 Apex (sniper, zeroing)', make: (f) => ({ d: { kind: 'ammo', top: 5, value: Math.round(5 * f), reserve: 4, resmax: 6, fmode: 'SEMI', setting: '36 RPM', rof: 'low', zoom: 1 }, items: { s: 4, g: 4 } }) },
+  { id: 'lib', name: 'Liberator (45 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 45, value: Math.round(45 * f), reserve: 6, resmax: 8, fmode: 'AUTO', setting: '640 RPM', rof: 'high' }, items: { s: 4, g: 4 } }) },
   { id: 'sen', name: 'Senator (6 rounds)', make: (f) => ({ d: { kind: 'ammo', top: 6, value: Math.round(6 * f), reserve: 4, resmax: 6 }, items: { s: 4, g: 4 } }) },
   { id: 'scy', name: 'Scythe (heat)', make: (f) => ({ d: { kind: 'heat', top: 100, value: Math.round(100 * f) }, items: { s: 4, g: 4 } }) },
   { id: 'lc', name: 'Laser Cannon (heat, 2 heat sinks)', make: (f) => ({ d: { kind: 'heat', top: 100, value: Math.round(100 * f), reserve: 2, resmax: 3 }, items: { s: 4, g: 4 } }) },
@@ -1330,6 +1387,7 @@ function sideOf(e) {
   const al = ALIGNS[e.align];
   return al[0] === 1 ? 'left' : (al[0] === 0 ? 'right' : 'none');
 }
+const ICON_PARTS = { icon1: [0.5, 0.5], icon2: [0.48, 0.47], zoomicon: [0.53, 0.53], rpmicon: [0.52, 0.19] };   // (3.0.8: a hidden icon keeps a size; 3.0.10: its ink's fractions of the square)
 let loopNote = '';                           // (a loop of pins, named for the readout)
 function resolve(sizes) {
   const W = SCR.W, H = SCR.H, out = {}, visiting = new Set();
@@ -1360,14 +1418,23 @@ function resolve(sizes) {
     if (target) {
       visiting.add(id);
       let tb = place(target);
-      if (tb.hidden && !hidden) tb = place(target, ew, eh);
+      if (tb.hidden && !hidden) {
+        // (3.0.8) a hidden icon part keeps a square of the icon's width: the follower sits inside it by its own align
+        if (ICON_PARTS[target]) {
+          const tw = Math.max(1, fl(4 * STIM[0].length * iconScale((H / 1440) * cfg.size * els[target].size) + 0.5));
+          const f = cfg.ink_align ? ICON_PARTS[target] : [1, 1];   // (3.0.10: the usual icon's ink)
+          tb = place(target, Math.max(1, fl(tw * f[0] + 0.5)), Math.max(1, fl(tw * f[1] + 0.5))); tb.nominal = true;
+        }
+        else tb = place(target, ew, eh);
+      }
       visiting.delete(id);
       const gap = tb.hidden ? 0 : fl(e.gap * k + 0.5);
       const pin = e.pin || 'none';
       // (1.5.70: a pinned part's nudges scale with Size and its own size, as the gap does; a free part's x / y are a place)
       const ns = pin !== 'none' ? cfg.size * e.size : 1;
       const nx = fl(H * e.x / 100 * ns + 0.5), ny = fl(H * e.y / 100 * ns + 0.5);
-      if (tb.hidden || tb.taken) { x = tb.x; y = tb.y; }
+      if (tb.taken && tb.nominal) { x = fl(tb.x + (tb.w - ew) * al[0] + 0.5); y = fl(tb.y + (tb.h - eh) * al[1] + 0.5); }
+      else if (tb.hidden || tb.taken) { x = tb.x; y = tb.y; }
       else if (pin === 'none') { const [, py] = freePoint(e); x = tb.x + tb.w + gap; y = fl(py - eh * al[1] + 0.5); }
       else if (pin === 'right') { x = tb.x + tb.w + gap + nx; y = fl(tb.y + (tb.h - eh) * al[1] + 0.5) + ny; }
       else if (pin === 'left') { x = tb.x - gap - ew + nx; y = fl(tb.y + (tb.h - eh) * al[1] + 0.5) + ny; }
@@ -2180,6 +2247,7 @@ $('o-edge').addEventListener('change', () => { cfg.edge = Number($('o-edge').val
 $('o-shade').addEventListener('change', () => { cfg.shade = $('o-shade').checked; render(); });
 $('o-spread').addEventListener('change', () => { cfg.spread = Math.max(-30, Math.min(30, Number($('o-spread').value) || 0)); render(); });
 $('o-modecol').addEventListener('change', () => { cfg.mode_colors = $('o-modecol').checked; render(); });
+$('o-ink').addEventListener('change', () => { cfg.ink_align = $('o-ink').checked; render(); });
 $('o-cb').addEventListener('change', () => { cbPreset = $('o-cb').checked ? 2 : 1; render(); });
 $('o-guides').addEventListener('change', render);
 function syncOffsets() { $('o-useoff').checked = useOffsets; $('o-offx').disabled = !useOffsets; $('o-offy').disabled = !useOffsets; }

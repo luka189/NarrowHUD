@@ -81,7 +81,8 @@ end
 local function slide(key, x, y, ms, far)
   local s = scale()
   local e = slides[key]
-  if s == 0 or not e then slides[key] = { x = x, y = y, fx = x, fy = y, tx = x, ty = y, t0 = now_s(), ms = 0 } return x, y end
+  if not e then slides[key] = { x = x, y = y, fx = x, fy = y, tx = x, ty = y, t0 = now_s(), ms = 0 } return x, y end
+  if s == 0 then e.x, e.y, e.fx, e.fy, e.tx, e.ty, e.ms = x, y, x, y, x, y, 0 return x, y end   -- (3.0.12: Motion off: the entry kept, not a new table a part a frame)
   if x ~= e.tx or y ~= e.ty then
     if far and (math.abs(x - e.x) > far or math.abs(y - e.y) > far) then e.x, e.y = x, y end
     e.fx, e.fy, e.tx, e.ty, e.t0, e.ms = e.x, e.y, x, y, now_s(), ms * s / 1000
@@ -221,7 +222,6 @@ local function events(d, items, vit, goid)
     sweeps.mags = nil
     prev.goid, prev.value, prev.reserve, prev.hot = goid, nil, nil, nil
   end
-  local t_now = now_s()
   if d and d.kind == 'ammo' and type(d.value) == 'number' then
     local same = prev.tid == d.tid and (prev.mode == d.mode or prev.mode == nil) and prev.ub == (d.underbarrel and true or false)
     if prev.value ~= nil then

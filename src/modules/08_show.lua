@@ -11,7 +11,7 @@
 -- what they share: imported as locals below when set once, used as N.x when it changes later)
 local cfg = N.cfg
 
-local PARTS = { 'bar', 'count', 'mags', 'charge', 'mode', 'fmode', 'rpm', 'icons', 'stims', 'grenades', 'pack', 'health', 'stamina' }
+local PARTS = { 'bar', 'count', 'mags', 'charge', 'mode', 'fmode', 'rpm', 'rpmicon', 'icons', 'stims', 'grenades', 'pack', 'health', 'stamina' }
 local state = {}                                   -- part -> { sig, changed_at, not_full }
 for _, p in ipairs(PARTS) do state[p] = { changed_at = -100, not_full = false } end
 local most = { stims = 0, grenades = 0 }           -- the most stims / grenades seen this session (the "full")
@@ -42,6 +42,7 @@ local function track(d, items, vit, now)
     note('mode', tostring(d.mode) .. tostring(d.ub_label) .. tid, false, now)
     note('fmode', tostring(d.fmode) .. tostring(d.zoom) .. tid, false, now)
     note('rpm', tostring(d.setting) .. tid, false, now)
+    note('rpmicon', tostring(d.rof) .. tid, false, now)   -- (3.0.8: the icon's own rule)
     note('icons', tostring(d.mode) .. tostring(d.fmode) .. tostring(d.zoom) .. tostring(d.ub_label) .. tid, false, now)
   end
   if items then
@@ -87,7 +88,7 @@ local function step(d, items, vit, now)
   end
 end
 -- a layout element's factor (the modes element shows both mode words: the stronger of the two rules)
-local EL_PART = { bar = 'bar', count = 'count', mags = 'mags', charge = 'charge', mode1 = 'mode', mode2 = 'fmode', rpm = 'rpm',
+local EL_PART = { bar = 'bar', count = 'count', mags = 'mags', charge = 'charge', mode1 = 'mode', mode2 = 'fmode', rpm = 'rpm', rpmicon = 'rpmicon',
   icon1 = 'icons', icon2 = 'icons', zoom = 'fmode', zoomicon = 'icons', stims = 'stims', grenades = 'grenades', pack = 'pack', health = 'health', stamina = 'stamina' }
 local function el_alpha(id)
   if id == 'health' or id == 'stamina' then return 1 end   -- (through vit.show_h / show_s)

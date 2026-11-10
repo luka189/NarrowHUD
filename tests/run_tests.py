@@ -97,7 +97,7 @@ OBJ[5].fields[ROLE.carry] = 0; OBJ[5].fields[ROLE.magazines] = 0
 local function rec(t) draws[#draws + 1] = t end
 -- (2.6.2) a Chef colour lives for the frame it was made in (the loader's docs): the mocks refuse one from an earlier
 -- frame, as the game drew 2.6.1's cached outline colour white
-local function cc(c) if type(c) == 'table' and c.t ~= nil and c.t ~= T then error('a colour made in another frame (Chef colours live one frame): made at ' .. tostring(c.t) .. ', now ' .. tostring(T)) end return c end
+local function cc(c) if type(c) ~= 'table' then error('a colour that is no colour (' .. type(c) .. ' ' .. tostring(c) .. '): the game cannot draw with it') end if c.t ~= nil and c.t ~= T then error('a colour made in another frame (Chef colours live one frame): made at ' .. tostring(c.t) .. ', now ' .. tostring(T)) end return c end
 chef = {
   log = function(fmt, ...) logs[#logs + 1] = string.format(fmt, ...) end,
   own_log = function(name) LOG_NAME = name chef.log = function(fmt, ...) local ok, s = pcall(string.format, fmt, ...) logs[#logs + 1] = ok and s or tostring(fmt) if LOG_BY then LOG_BY[#LOG_BY + 1] = name end end return true end,
@@ -285,7 +285,7 @@ chef = {
     if name == 'Quaternion.from_elements' then return { s, a, b, c } end
     if name == 'Material.set_vector4' then VECS = VECS or {} VECS[#VECS + 1] = { a, b } return true end
     -- Gui.bitmap_uv(gui, material, uv00, uv11, pos, size, color)
-    if name == 'Gui.bitmap_uv' then rec({ 'bitmap', d[1], d[2], e[1], e[2], 0, 0, 0, 0, tex = a, uv = true, own = true }) return true end
+    if name == 'Gui.bitmap_uv' then local c7 = cc(f) rec({ 'bitmap', d[1], d[2], e[1], e[2], type(c7) == 'table' and c7[1] or 0, type(c7) == 'table' and c7[2] or 0, type(c7) == 'table' and c7[3] or 0, type(c7) == 'table' and c7[4] or 0, tex = a, uv = true, own = true }) return true end   -- (3.0.7: the colour kept, as the lines')
     -- (2.0.4) the ground census: every unit in the world and its kind; UNITS = { { 'U', '4d1c334d294dfa97' }, ... }
     if name == 'World.units' then if UNITS == nil then return nil, 'none' end local l = {} for _, u in ipairs(UNITS) do l[#l + 1] = u[1] end return l end
     -- (2.5.8) Chef asks Unit.alive before every Unit call and answers nil for a dead unit (loader 1.5: unit_ask); but a
@@ -304,7 +304,9 @@ chef = {
     if name == 'Unit.debug_name' then for _, u in ipairs(UNITS or {}) do if u[1] == s then return '#ID[' .. u[2] .. ']' end end return nil end
     if name == 'Unit.world_position' then if a ~= 1 then error('Unit.world_position without the node index (2.0.11)') end POSREADS = POSREADS or {} POSREADS[s] = (POSREADS[s] or 0) + 1 for _, u in ipairs(UNITS or {}) do if u[1] == s and u[3] then return { u[3], u[4], u[5] } end end return nil end
     if name == 'Unit.alive' and UNITS then for _, u in ipairs(UNITS) do if u[1] == s then return u.dead ~= true end end return false end
-    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s then if u.dead then error('Unit.box of a destroyed unit (ends the game)') end if u.box then return (u.boxc and { boxc = u.boxc } or 'POSE'), { u.box[1], u.box[2], u.box[3] } end end end return nil end   -- (2.5.17: boxc = the box's middle in the world, read through Matrix4x4.translation)
+    if name == 'Unit.box' then for _, u in ipairs(UNITS or {}) do if u[1] == s then if u.dead then error('Unit.box of a destroyed unit (ends the game)') end if u.box then return ((u.boxc or u.axes) and { boxc = u.boxc, axes = u.axes } or 'POSE'), { u.box[1], u.box[2], u.box[3] } end end end return nil end   -- (2.5.17: boxc = the box's middle in the world, read through Matrix4x4.translation; 3.1: axes = the unit's x, y, z in the world, through Matrix4x4.x/y/z)
+    if name == 'Matrix4x4.x' or name == 'Matrix4x4.y' or name == 'Matrix4x4.z' then if type(s) == 'table' and s.axes then return s.axes[({ x = 1, y = 2, z = 3 })[name:sub(-1)]] end return nil, 'missing' end
+    if name == 'Unit.world_rotation' or name:sub(1, 11) == 'Quaternion.' then return nil, 'missing' end   -- (3.1: the rocks' fallbacks, not in the mock game)
     if name == 'Vector3.to_elements' and type(s) == 'table' and #s == 3 then return s[1], s[2], s[3] end
     error('unexpected call ' .. name)
   end,
@@ -314,6 +316,8 @@ function run(seconds)
   local n = math.floor(seconds * 60)
   -- (2.0.3: the reads level has no menu row; OPTS.read_level sets it as the row did)
   if M and M.debug_read_level and OPTS.read_level then M.debug_read_level(OPTS.read_level) end
+  -- (3.0.13: a unit's first 3 s, in which nothing is asked of it: off in the tests but the rule's own, FRESH_REAL)
+  if M and M.debug_fresh then M.debug_fresh(FRESH_REAL and 3 or 0) end
   if M and M.debug_cfg and OPTS.world_tone ~= nil then M.debug_cfg('world_tone', OPTS.world_tone) end   -- (2.0.17: the world lines' tone correction, off in the tests but one)
   for i = 1, n do draws = {} T = T + 1 / 60 M.update(1 / 60) end
 end
@@ -436,8 +440,22 @@ def main():
     p5a = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
     rn.execute('run(0.8)')
     p5b = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
-    check('Nova held through the overheat (charging true all along): the bar follows the field down %s, and stays down once cooled (%d%% then %d%%)' % (held, p5a, p5b),
-          all(held[i] > held[i + 1] for i in range(len(held) - 1)) and held[-1] <= 30 and p5b <= p5a + 2 and p5b < 15)
+    # (3.0.2, luka: held on through the overheat, the game charges again as soon as it has cooled — his log's second
+    # shot 1.9 s after the heat reached rest; 2.1.1 had the bar stay down, which was the half of it)
+    check('Nova held through the overheat (charging true all along): the bar follows the field down %s, then charges again once cooled (%d%% at 0.5 s, %d%% at 1.3 s)' % (held, p5a, p5b),
+          all(held[i] > held[i + 1] for i in range(len(held) - 1)) and held[-1] <= 30 and 15 < p5a < 50 and p5b > p5a + 25)
+    rn.execute('OBJ[5].fields[ROLE.charging] = false OBJ[5].fields[ROLE.heat] = 100 OBJ[5].fields[ROLE.overheated] = true run(0.5) OBJ[5].fields[ROLE.overheated] = false')
+    # (3.0.2, luka: "pressed while it cools, it gains a bit of heat") the field cooling in its half-second steps as
+    # the game's does; pressed at 36: the bar keeps cooling to rest first (no rise for the second that takes), then charges
+    for h in (84, 68, 52, 36):
+        rn.execute('OBJ[5].fields[ROLE.heat] = %d run(0.5)' % h)
+    rn.execute('OBJ[5].fields[ROLE.charging] = true run(0.3)')
+    q1 = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
+    rn.execute('OBJ[5].fields[ROLE.heat] = 20 run(0.4)')
+    q2 = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
+    rn.execute('OBJ[5].fields[ROLE.heat] = 5 run(1.2)')
+    q3 = int([x for x in rn.eval('texts()').split(' | ') if x.endswith('%')][0][:-1])
+    check('Nova pressed while cooling at 36: the bar still falls (%d%% then %d%%), then charges once at rest (%d%% 1.2 s later)' % (q1, q2, q3), q2 < q1 < 40 and q3 > 60)
     rn.execute('OBJ[5].fields[ROLE.charging] = false run(0.5)')
     # cooling with the field changing only twice a second: the bar moves every frame in between
     rt.execute('OBJ[5].fields[ROLE.heat] = 90 run(0.5) OBJ[5].fields[ROLE.heat] = 74 run(0.5) OBJ[5].fields[ROLE.heat] = 58 run(0.2)')
@@ -1357,6 +1375,50 @@ def main():
           '150' not in rt6.eval('texts()') and any('lies on the ground (pickup 404)' in l for l in rt6.eval('logs').values()))
     rt6.execute('OBJ[41].fields[ROLE.floor] = 32767 run(1)')
     check('picked up: shown again [%s]' % rt6.eval('texts()'), rt6.eval('texts()').startswith('150 |'))
+    # (3.0.18, a user's report and luka's log: "if you pick up a weapon that's in a crate or in a flier it fails to
+    # register on the hud") a weapon the map placed keeps its pickup link in your hand (b697955d: pickup 358 from
+    # the world's start, through the pick-up, in hand and firing). Linked and on you by its carry: out, until its
+    # model is at your hand — then it is the weapon you hold
+    rt6.execute('OBJ[41].fields[ROLE.floor] = 404 OBJ[41].fields[ROLE.rounds] = 149 run(2.5)')
+    t_lying = rt6.eval('texts()')
+    rt6.execute("WPOS = WPOS or {} WPOS.U = { 10, 20, 1 } MODELS = { { unit = 'W1', kind = 'a6a735accb4a327f' } } WPOS.W1 = { 10.05, 20.05, 1.05 } run(1.5)")
+    t_held = rt6.eval('texts()')
+    took = [l for l in rt6.eval('logs').values() if 'taken as the one you hold' in l]
+    check('a weapon linked to its pickup still: out while it lies (%s); its model at your hand: shown (%s; %s)' % (t_lying[:12], t_held[:12], took[-1:]),
+          '149' not in t_lying and t_held.startswith('149 |') and len(took) == 1)
+    # ... and it stays shown with the model out of sight (holstered and drawn again, a model not read for a while)
+    rt6.execute('WPOS.W1 = { 50, 20, 1 } OBJ[41].fields[ROLE.rounds] = 148 run(4)')
+    t_kept = rt6.eval('texts()')
+    # the link changes (dropped at a death: a new pickup), the model nowhere near: it lies again
+    rt6.execute('OBJ[41].fields[ROLE.floor] = 405 OBJ[41].fields[ROLE.rounds] = 147 run(2.5)')
+    t_dropped = rt6.eval('texts()')
+    # lifted again, then off your body (carry 2) and back to 0 with no model at the hand: a pick-up alone lifts nothing
+    rt6.execute('WPOS.W1 = { 10.05, 20.05, 1.05 } run(1.5)')
+    t_again = rt6.eval('texts()')
+    rt6.execute('WPOS.W1 = { 50, 20, 1 } OBJ[41].fields[ROLE.carry] = 2 run(2.5) OBJ[41].fields[ROLE.carry] = 0 OBJ[41].fields[ROLE.rounds] = 146 run(2.5)')
+    t_carry = rt6.eval('texts()')
+    check('lifted: kept with the model away (%s); the link changed: lies again (%s); lifted once more (%s); off your body and back, no model at the hand: out (%s)' % (
+          t_kept[:10], t_dropped[:10], t_again[:10], t_carry[:10]),
+          t_kept.startswith('148 |') and '147' not in t_dropped and t_again.startswith('147 |') and '146' not in t_carry)
+    # a new life (another Helldiver object of yours): what was lifted lies again — the weapon is at the old body
+    rt6.execute('WPOS.W1 = { 10.05, 20.05, 1.05 } run(1.5)')
+    t_life0 = rt6.eval('texts()')
+    rt6.execute("""WPOS.W1 = { 50, 20, 1 } OBJ[9] = { name = NAMES.avatar, fields = { du7kbt = 4, ei6_t2 = 5 } } OBJ[1].fields.u4d1h9a = 9 OBJ[2] = nil
+      OBJ[41].fields[ROLE.rounds] = 145 run(4)""")
+    t_life1 = rt6.eval('texts()')
+    check('lifted (%s), then a new life: it lies again (%s)' % (t_life0[:10], t_life1[:10]), t_life0.startswith('146 |') and '145' not in t_life1)
+    # the takeover the link rule was made for stays out: another weapon's model at your hand (the Verdict's) never
+    # lifts the linked Stalwart
+    rt6.execute("""OBJ[40] = { name = NAMES.verdict, fields = {} } OBJ[40].fields[ROLE.rounds] = 10 OBJ[40].fields[ROLE.magazines] = 6 OBJ[40].fields[ROLE.chamber] = true
+      OBJ[40].fields[ROLE.carry] = 0 MODELS = { { unit = 'W2', kind = '1a437158e1b8d2a1' } } WPOS.W2 = { 10.05, 20.05, 1.05 } GRIP = 10 run(4)""")
+    t_other = rt6.eval('texts()')
+    n_took = len([l for l in rt6.eval('logs').values() if 'taken as the one you hold' in l])
+    check('another weapon\'s model at your hand: the linked Stalwart is not taken (%s; lifted %d times in all)' % (t_other[:10], n_took), '145' not in t_other and n_took == 3)
+    # a crate's weapon on a pose it has not been seen on, which another weapon of yours has (the Verdict's 36, the
+    # Verdict on you): its model at your hand shows it, not the Verdict
+    rt6.execute("""MODELS = { { unit = 'W1', kind = 'a6a735accb4a327f' } } WPOS.W1 = { 10.05, 20.05, 1.05 } WPOS.W2 = nil GRIP = 36 run(4)""")
+    t_pose = rt6.eval('texts()')
+    check('a linked weapon on another weapon\'s pose, its model at your hand: shown, not the other (%s)' % t_pose[:12], t_pose.startswith('145 |'))
 
     # (2.3.4) the shell flash (2.3.6: on by default): a round fired throws the emptied tick out of the bar, square to it
     # and away from the crosshair, in the bar's colour; nothing with the row off, nothing at a reload. Shells are the
@@ -1988,6 +2050,30 @@ def main():
     logs = list(r.eval('logs').values())
     check('Nova charge let go: a gun firing just after not learned [%s]' % r.eval('texts()'),
           not any('learned: type aca39ec2' in l for l in logs) and 'HEAT' in r.eval('texts()'))
+    # (3.0.3, a user's M-1000 Maximum "hidden as not his gun") a fed weapon on pose 50, learned; a SEAF rifle (aca39ec2,
+    # a weapon of its own ammo) comes up on the same pose and fires as you do: 3.0.2 forgot the fed weapon's pose as
+    # "shared with a weapon of its own" and blocked it for the session, then found the rifle aims by itself and took
+    # its pose — leaving pose 50 with nothing, the Maximum hidden. Now the rifle proving someone else's gives the fed
+    # weapon's pose back and lifts the block: the fed weapon shown again
+    rf = lua51.LuaRuntime()
+    setup(rf)
+    rf.execute('''OBJ[3] = nil M = (function(...) ''' + SRC + ''' end)(chef) run(12)
+      OBJ[9] = { name = NAMES.pack, fields = {} } OBJ[9].fields[ROLE.remaining] = 300 OBJ[9].fields[ROLE.carry] = 0
+      OBJ[10] = { name = NAMES.fed, fields = {} } OBJ[10].fields[ROLE.carry] = 0 OBJ[10].fields[ROLE.fire_mode] = 1 OBJ[10].fields[ROLE.reload_stage] = 0
+      GRIP = 50 run(2) FIRE = true run(0.2) OBJ[9].fields[ROLE.remaining] = 290 run(0.5) OBJ[9].fields[ROLE.remaining] = 280 run(0.5) FIRE = false run(1)''')
+    shown_before = rf.eval('texts()')
+    rf.execute('''OBJ[88] = { name = NAMES.seaf, fields = {} } local f = OBJ[88].fields f[ROLE.rounds] = 30 f[ROLE.magazines] = 5
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 f[ROLE.held] = false f.h_maw9a = 0 run(4)
+      for i = 1, 3 do FIRE = true f[ROLE.held] = true run(0.1) f[ROLE.rounds] = 30 - i run(0.2) FIRE = false f[ROLE.held] = false run(0.5) end run(0.5)''')
+    logs_mid = list(rf.eval('logs').values())
+    rf.execute('''local f = OBJ[88].fields f.h_maw9a = 0.31 run(0.3) f.h_maw9a = 0.35 run(0.3) f.h_maw9a = 0.29 run(0.4) run(1)
+      FIRE = true run(0.2) OBJ[9].fields[ROLE.remaining] = 270 run(0.5) FIRE = false run(1)''')
+    logs = list(rf.eval('logs').values())
+    shown_after = rf.eval('texts()')
+    check('a fed weapon\'s pose taken by a soldier\'s rifle (%s), given back when the rifle proves someone else\'s (%s): the fed weapon back (%s → %s)' % (
+          sum('forgotten (shared with a weapon of its own' in l for l in logs_mid), sum('given back' in l for l in logs), shown_before, shown_after),
+          shown_before.startswith('280') and sum('forgotten (shared with a weapon of its own' in l for l in logs_mid) == 1 and sum('given back' in l for l in logs) == 1
+          and shown_after.startswith('270'))
     # 1.2.5: a gun that aims by itself (the aim field 6f3ab277 off 0, as SEAF soldiers' rifles do) is someone else's at
     # once, even firing as you hold the Scythe's beam; a pose its type had learned (from a saved file) is forgotten
     r = lua51.LuaRuntime()
@@ -2249,6 +2335,22 @@ def main():
     check('a grenade out: an arc of %d segments from the hand (y %.1f), rising to %.1f then down (%d from a gun)' % (
           len(ls), ls[0][3] if ls else 0, top, r.eval('n_gun')),
           r.eval('n_gun') == 0 and 20 <= len(ls) <= 40 and 1.5 < ls[0][3] < 2.5 and top > 0.5 and ls[-1][4] < -10)   # (2.4.13: a piece every 1.2 m, not every step)
+    # (3.1) the throw line too: a wall across the arc (a rock kind by hash, 12_rock) ends it on the wall's face, the
+    # landing mark there
+    rw = lua51.LuaRuntime()
+    setup(rw)
+    rw.execute('''function lines() local l = {} for _, d in ipairs(draws) do if d[1] == 'line' then l[#l + 1] = d end end return l end
+      OPTS.throw_line = true OPTS.landing_mark = true OPTS.drop_thick = 1 WPOS = { U = { 0, 2, 0 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'W', 'abababababababab', 0, 12, 0, box = { 3, 0.5, 6 }, boxc = { 0, 12, 3 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } } }
+      M = (function(...) ''' + SRC + ''' end)(chef)
+      M.debug_rock('abababababababab', { name = "test_wall", box = { 3, 0.5, 6, 0, 0, 3 }, stop = { { 3, 0.5, 6, 0, 0, 3 } } })
+      GRIP = 10 run(2) GRIP = 41 run(0.5)''')
+    lw = list(rw.eval('lines()').values())
+    arc = [l for l in lw if l[10] == 170]
+    ring = [l for l in lw if abs(l.z2 - l[4]) < 1e-9 and l[10] == 200 and l[7] == 236]
+    far = max(max(l[3], l[6]) for l in arc) if arc else 0
+    check('a wall across the throw: the arc ends on its face at y 11.5 (farthest %.1f, %d pieces), the mark there (%d level segments at y %.1f)' % (far, len(arc), len(ring), ring[0][3] if ring else 0),
+          arc and 11.4 < far < 11.6 and len(ring) == 19 and abs(ring[0][3] - 11.5) < 0.05)
     # 1.5.16: the same grenade with Servo-Assisted armour (SA-12, armor_set f2b7d3f5): a longer arc
     def landing(lines_):
         # the distance along the throw where the arc comes back down to the hand's height (a line's start: x y z)
@@ -2410,6 +2512,72 @@ def main():
     seen = list(r.eval('seen').values())
     check('key 3 on a shared pose before the pose changes: no Stalwart on the way %s' % seen[:5],
           not any(t.startswith('250') for t in seen) and seen[-1].endswith('| 5 | 4') and 'HEAT' in seen[-1])
+    # (3.0.6, luka) the rate-of-fire icon part: the setting's step among the weapon's known settings as the game's
+    # rof_low / _medium / _high sprite, drawn through the sprite's own material (way 3) as the mode icons are; the
+    # rate before the one that taught the setting counts as known, so the first icon is already low or high
+    r = lua51.LuaRuntime()
+    setup(r)
+    r.execute('''M = (function(...) ''' + SRC + ''' end)(chef) OBJ[3].fields[ROLE.rpm] = 640 run(3) CHANGE.layout(5) run(0.5)''')
+    def rof_drawn():
+        return [d['tex'] for d in r.eval('draws').values() if d[1] == 'bitmap' and d['own'] and str(d['tex']).startswith('id:')]
+    none = rof_drawn()
+    r.execute('OBJ[3].fields[ROLE.rpm] = 460 run(0.3)')
+    low = rof_drawn()
+    r.execute('OBJ[3].fields[ROLE.rpm] = 640 run(0.3)')
+    high = rof_drawn()
+    r.execute('OBJ[3].fields[ROLE.rpm] = 550 run(0.3)')
+    mid = rof_drawn()
+    check('the rate-of-fire icon: none before a setting is known (%s); 460 of {460, 640} low (%s), 640 high (%s), 550 of three medium (%s); the setting text beside it (%s)' % (
+          none, low, high, mid, r.eval('texts()')),
+          none == [] and low == ['id:52bbfc5a70359393'] and high == ['id:f03c671b15d01a6b'] and mid == ['id:c7546fc9c7b6db4e'] and '550 RPM' in r.eval('texts()'))
+    bxs = r.eval('M.debug_boxes()')
+    # (3.0.7, luka) the icon in the number's old place, the number pinned right of it
+    check('the icon in the number\'s place, the number pinned right of it (%s | %s)' % (bxs['rpmicon'], bxs['rpm']),
+          'hidden' not in bxs['rpmicon'] and int(bxs['rpm'].split(',')[0]) > int(bxs['rpmicon'].split(',')[0]))
+    icon_x = int(bxs['rpmicon'].split(',')[0])
+    # (3.0.7) F9 Parts "Rate of fire icon" off: no icon, the number takes its place; Modes in colour: the icon in its
+    # step's tone (high: the third mode colour), the zeroing icon and text in theirs
+    r.execute('CHANGE.vis_rpmicon(1) run(0.5)')
+    bxs = r.eval('M.debug_boxes()')
+    check('the icon off in F9: none drawn (%s), the number where the icon was (%s, icon was at x %d)' % (rof_drawn(), bxs['rpm'], icon_x),
+          rof_drawn() == [] and 'hidden' in bxs['rpmicon'] and int(bxs['rpm'].split(',')[0]) == icon_x)
+    r.execute('CHANGE.vis_rpmicon(2) M.debug_cfg("mode_colors", true) OBJ[3].fields[ROLE.rpm] = 640 run(0.5)')
+    hi = [(d['tex'], d[6], d[7], d[8]) for d in r.eval('draws').values() if d[1] == 'bitmap' and d['own'] and str(d['tex']).startswith('id:')]
+    r.execute('OBJ[3].fields[ROLE.rpm] = 460 run(0.5)')
+    lo = [(d['tex'], d[6], d[7], d[8]) for d in r.eval('draws').values() if d[1] == 'bitmap' and d['own'] and str(d['tex']).startswith('id:')]
+    check('Modes in colour: the high icon in the third mode colour, the low one cream (%s; %s)' % (hi, lo),
+          len(hi) == 1 and hi[0][1:] != (236, 229, 206) and len(lo) == 1 and lo[0][1:] == (236, 229, 206))
+    # (3.0.8, luka's layout: the icon under the count with a gap of -21 for the sprite's padding, the number pinned
+    # right of it) the icon off, the number landed inside the count: a hidden icon part keeps a square of the icon's
+    # width now, and the number sits inside it by its own align (middles level) — below the count, where the icon was
+    r.execute('''M.debug_cfg("mode_colors", false) LAYOUT = { _v = 1, elements = { bar = { on = true, anchor = 'center', x = 0, y = -12.2, align = 'bottom', style = 'horizontal' },
+        count = { on = true, anchor = 'center', x = 0, y = -0.6, align = 'bottom_left', after = 'bar', gap = 8, pin = 'right' },
+        rpmicon = { on = true, anchor = 'center', x = 0.2, y = 0, align = 'top_left', after = 'count', gap = 2, pin = 'below' },
+        rpm = { on = true, anchor = 'center', x = 0, y = 0, align = 'left', after = 'rpmicon', gap = 4, pin = 'right' } } }
+      BINDS.reload_layout = true run(0.1) BINDS.reload_layout = false OBJ[3].fields[ROLE.rpm] = 640 run(1)''')
+    def box(id):
+        b = r.eval('M.debug_boxes()')[id]
+        p, sz = b.split(' ')[0], b.split(' ')[1]
+        x, y = (int(v) for v in p.split(',')); w, h = (int(v) for v in sz.split('x'))
+        return x, y, w, h, 'hidden' in b
+    cnt, icon, num = box('count'), box('rpmicon'), box('rpm')
+    r.execute('CHANGE.vis_rpmicon(1) run(0.5)')
+    cnt2, icon2, num2 = box('count'), box('rpmicon'), box('rpm')
+    # (3.0.10: the icon's box is its ink, 29 x 10 px for the rate-of-fire bar at Medium, so the gap is a plain 2 now)
+    check('luka\'s layout, the icon on: under the count, its box the ink (count %s, icon %s, number %s); the icon off: the number at the icon\'s middle, clear of the count (%s)' % (cnt, icon, num, num2),
+          not icon[4] and icon[1] + icon[3] <= cnt[1] and icon[2] < 40 and icon[3] < 16 and num[0] > icon[0]
+          and num2[0] == icon[0] and num2[1] == icon[1] + (icon[3] - num2[3]) // 2 and num2[1] + num2[3] <= cnt[1])
+    # the F9 Look toggle off: the old 56 px square
+    r.execute('CHANGE.vis_rpmicon(2) M.debug_cfg("ink_align", false) run(0.5)')
+    sq = box('rpmicon')
+    r.execute('M.debug_cfg("ink_align", true) run(0.5)')
+    check('Icons by their ink off: the icon\'s box the sprite\'s square again (%s)' % (sq,), sq[2] == 56 and sq[3] == 56)
+    r.execute('CHANGE.vis_rpmicon(2)')
+    # (3.0.8, luka) the number's rule Off and the icon's on: the icon stays, no number
+    r.execute('CHANGE.vis_rpm(1) run(0.5)')
+    check('the number off in F9, the icon on: the icon drawn (%s), no RPM text (%s)' % (rof_drawn(), r.eval('texts()')),
+          rof_drawn() == ['id:f03c671b15d01a6b'] and 'RPM' not in r.eval('texts()'))
+    r.execute('CHANGE.vis_rpm(2)')
     # a rate that's 0.9 of the last (Extreme Cold), or in another mission: not a rate of fire setting (the Sightliner's
     # 40 and 36); one learned so before is dropped at the start
     r = lua51.LuaRuntime()
@@ -2577,6 +2745,10 @@ def main():
     check('Chef 1.4 menu: labels without the group word (%s, %s, %s)' % (labels.get('vis_bar'), labels.get('fire'), labels.get('research')),
           labels.get('vis_bar') == 'Ammo / heat bar' and labels.get('fire') == 'Fire button' and labels.get('research') == 'Research log' and labels.get('swap_primary') == 'Swap to primary')
     long = [(x.id, len(x.hint)) for x in sp if x.hint and len(x.hint) > 200]
+    # (3.0.12) and none cut to fit: a hint over 200 is cut with "..." and the cut said in the log; two had grown past
+    # it unseen (one from 3.0.10), since the check above sees them after the cut
+    cuts = [l for l in r.eval('logs').values() if 'characters, cut to 200' in l]
+    check('Chef 1.4 menu: no hint cut to fit (%s)' % cuts, not cuts)
     check('Chef 1.4 menu: every hint within Chef\'s 200 characters (2.0.0 lost five rows to longer ones) %s' % long, not long and all(x.id in labels for x in sp) and all(k in labels for k in ('vis_bar', 'vis_count', 'vis_mags', 'vis_charge', 'vis_pack')))
     # (2.5.23, luka: the motion rows a group of their own; Visibility split into Parts (each part's rule) and
     # Visibility (the rules for all and the hiding rows, which were after the stratagem key under Keys); the
@@ -2656,6 +2828,19 @@ def main():
     rings = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RING]
     check('the centre ring: 1.6 times the crosshair (the square %s wide against %s), at the middle (%s), five of it' % (rings and rings[-1][4], ret and ret[-1][4], rings and (rings[-1][2] + rings[-1][4] / 2, rings[-1][3] + rings[-1][5] / 2)),
           len(rings) == 5 and ret and rings[-1][4] == 30 and abs(rings[-1][2] + rings[-1][4] / 2 - 1720) < 2 and abs(rings[-1][3] + rings[-1][5] / 2 - 720) < 2)
+    # (3.0.11, luka) the centre ring's own opacity: 50 halves its alpha (the crosshair's unchanged), 0 draws no ring
+    def alpha_of(bits): return sorted(set(d[9] for d in bits))
+    full = alpha_of(rings)
+    r.execute('CHANGE.ring_alpha(50) run(0.3)')
+    half_r = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RING]
+    half_ret = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    r.execute('CHANGE.ring_alpha(0) run(0.3)')
+    none_r = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RING]
+    none_ret = [d for d in r.eval('draws').values() if d[1] == 'bitmap' and d.tex == RET]
+    r.execute('CHANGE.ring_alpha(100) run(0.3)')
+    check('Centre ring opacity: 100 %s, 50 the ring at half (%s), the crosshair as before (%d bitmaps); 0 no ring (%d), the crosshair still (%d)' % (
+          full, alpha_of(half_r), len(half_ret), len(none_r), len(none_ret)),
+          len(half_r) == 5 and max(alpha_of(half_r)) < max(full) * 0.6 and len(half_ret) == 5 and len(none_r) == 0 and len(none_ret) == 5)
     # the crosshair on the game's aim: the reticle point 3.5 m right at 20 m projects 175 px right of the middle; the
     # ring stays; "Crosshair at: The centre": no ring, the crosshair in the middle
     r.execute('OBJ[2].fields.npqf7xc = { 3.5, 20, 1 } run(0.3)')
@@ -3302,6 +3487,345 @@ def main():
     check('a hole destroyed after its box was cached: the mark was red (%d lines), then no ray (%s), no error (%s), the mark cream again (%d red)' % (
           red_before, rd.eval('RAYS'), err or 'none', red_after),
           red_before > 0 and err is None and rd.eval('RAYS') == 0 and red_after == 0)
+    # (3.1, luka: "Lines stop on rocks, walls and trunks") a rock kind by hash (12_rock, src/rock_parts_generated.lua):
+    # its stop box in the shot's path ends the line there, with the landing mark on the rock, not the ground beyond.
+    # The unit's pose from Unit.box (asked once): its middle, its axes (Matrix4x4.x/y/z) and the engine's half sizes
+    # over the mesh's for the scale. A stop box 3 x 0.5 x 3 m (half sizes) at the mesh's middle, the unit at y 20
+    def rock_run(unit, kind='{ name = "test_rock", box = { 3, 0.5, 3, 0, 0, 1.5 }, stop = { { 3, 0.5, 3, 0, 0, 1.5 } } }', extra=''):
+        rr = lua51.LuaRuntime()
+        setup(rr)
+        rr.execute('''OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.drop_thick = 1 WPOS = { U = { 0.4, 36, 0.4 } }
+          UNITS = { { 'U', '4d1c334d294dfa97' }, ''' + unit + ''' }
+          OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+          f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } ''' + extra + ''' M = (function(...) ''' + SRC + ''' end)(chef)
+          M.debug_rock('abababababababab', ''' + kind + ''')
+          GRIP = 40 run(2) WPOS = { U = { 0.4, 3, 0.4 } } HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(3)''')
+        lines_all = [d for d in rr.eval('draws').values() if d[1] == 'line']
+        level = [d for d in lines_all if abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]
+        drop = [d for d in lines_all if d[10] == 170]
+        logs = list(rr.eval('logs').values())
+        return rr, level, drop, logs
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }")
+    far = max(max(d[3], d[6]) for d in drop) if drop else 0
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    listed = [l for l in logs if l.startswith('research: rocks:')]
+    check('a rock across the shot\'s path: the mark on its face, 19.5 m out (%d level segments at y %.1f), the line ends there (its farthest y %.1f); the rock listed (%s); its pose asked once, scale 1 from the pose (%s)' % (
+          len(level), level[0][3] if level else 0, far, listed[:1], poses),
+          len(level) == 19 and level and abs(level[0][3] - 19.5) < 0.05 and 19.4 < far < 19.6 and len(listed) == 1 and 'test_rock x1' in listed[0]
+          and len(poses) == 1 and 'scale 1.00 1.00 1.00' in poses[0] and 'from the pose' in poses[0])
+    # the same rock turned 90 degrees about the up axis (its long side along the shot now): the hit 3 m before its middle
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 0, 1, 0 }, { -1, 0, 0 }, { 0, 0, 1 } } }")
+    far = max(max(d[3], d[6]) for d in drop) if drop else 0
+    check('the rock turned 90 degrees: the hit at 17 m (mark at y %.1f, the line\'s farthest %.1f)' % (level[0][3] if level else 0, far),
+          level and abs(level[0][3] - 17) < 0.05 and 16.9 < far < 17.1)
+    # scaled twice (the engine's half sizes twice the mesh's): the hit 6 m before the middle; the pose's scale 2
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 6, 1, 6 }, boxc = { 0.4, 20, 3 }, axes = { { 0, 1, 0 }, { -1, 0, 0 }, { 0, 0, 1 } } }")
+    far = max(max(d[3], d[6]) for d in drop) if drop else 0
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    check('the rock at twice the size: the hit at 14 m (mark at y %.1f, line to %.1f), scale 2 (%s)' % (level[0][3] if level else 0, far, poses),
+          level and abs(level[0][3] - 14) < 0.05 and 13.9 < far < 14.1 and poses and 'scale 2.00 2.00 2.00' in poses[0])
+    # no axes from the pose (an older game): the yaw from chef.unit_rotation, an upright unit turned by it
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, yaw = math.pi / 2 }")
+    far = max(max(d[3], d[6]) for d in drop) if drop else 0
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    check('no axes in the pose: turned by the unit\'s yaw instead (hit at y %.1f, %s)' % (level[0][3] if level else 0, poses),
+          level and abs(level[0][3] - 17) < 0.05 and poses and 'from the yaw' in poses[0])
+    # a rock beside the path: no hit, the mark on the ground as before; the setting off: no hit either
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 12, 20, 0, box = { 3, 0.5, 3 }, boxc = { 12, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }")
+    r2, level2, drop2, logs2 = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", extra='OPTS.rock_stop = false')
+    check('a rock beside the path: the mark on the ground (y %.1f); the setting off: the same (y %.1f, pose asked: %s)' % (level[0][3] if level else 0, level2[0][3] if level2 else 0, [l for l in logs2 if 'rock pose' in l]),
+          level and abs(level[0][3] - 36.5) < 1 and level2 and abs(level2[0][3] - 36.5) < 1 and not any('rock pose' in l for l in logs2))
+    # a rock destroyed after the listing: Unit.box never asked (it ends the game), no error, the mark on the ground
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", extra='UNITS[2].dead = true')
+    check('a rock gone since the listing: its pose never asked (%s), the mark on the ground (y %.1f)' % ([l for l in logs if 'rock pose' in l], level[0][3] if level else 0),
+          not any('rock pose' in l for l in logs) and level and abs(level[0][3] - 36.5) < 1)
+    # (3.0.15) a box turned about z (a plate on a wall's face: a 7th number, the angle). A plate 6 m long and 0.2 m
+    # thick turned 45 degrees stands across the line where an unturned one would lie beside it: the line (x 0.4,
+    # along y) meets the turned plate's near face at y 20 - 0.1 * sqrt(2); the same plate unturned and set 2 m to
+    # the side is missed
+    def plate_at(yaw):
+        kind_ = '{ name = "test_plate", box = { 3, 3, 3, 0, 0, 1.5 }, stop = { { 3, 0.1, 3, 0, 0, 1.5, %.4f } } }' % yaw
+        return rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 3, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=kind_)[1]
+    # (the mark's middle must lie on the plate's near face: 0.1 m from its mid-plane, whatever the line's own slant)
+    def off_plane(lv, yaw):
+        if not lv:
+            return None
+        mx = sum((d[2] + d[5]) / 2 for d in lv) / len(lv); my = sum((d[3] + d[6]) / 2 for d in lv) / len(lv)
+        return -(mx - 0.4) * math.sin(yaw) + (my - 20) * math.cos(yaw)
+    oa, ob = off_plane(plate_at(math.pi / 4), math.pi / 4), off_plane(plate_at(-math.pi / 4), -math.pi / 4)
+    check('a plate turned +45 and -45 degrees about z: the line stops on its slanted near face each time (the mark %.3f and %.3f m from the plate\'s mid-plane, -0.1 wanted)' % (oa or 9, ob or 9),
+          oa is not None and ob is not None and abs(oa + 0.1) < 0.03 and abs(ob + 0.1) < 0.03)
+    flat = '{ name = "test_plate", box = { 3, 3, 3, 0, 0, 1.5 }, stop = { { 0.1, 3, 3, 2, 0, 1.5 } } }'
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 3, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=flat)
+    turned90 = '{ name = "test_plate", box = { 3, 3, 3, 0, 0, 1.5 }, stop = { { 0.1, 3, 3, 0, 2, 1.5, %.4f } } }' % (math.pi / 2)
+    rr2, level2, drop2, logs2 = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 3, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=turned90)
+    check('a thin plate 2 m beside the line: missed (mark at y %.1f); the same plate turned 90 degrees and set 2 m ahead lies across it: stopped at y %.2f' % (
+          level[0][3] if level else 0, level2[0][3] if level2 else 0),
+          level and abs(level[0][3] - 36.5) < 1 and level2 and abs(level2[0][3] - 21.9) < 0.06)
+    # (3.0.16) a unit is held against the box round its stop boxes, in the world, before any of them is tested: a
+    # 40 m wall whose 12 stop boxes all stand at its far end (34 m from the line, which crosses the wall's middle)
+    # costs no box test — 3.0.15 asked all twelve of every segment within the ball round the mesh, 20 m. The same
+    # wall set so that the boxes stand in the line's way stops it at their face
+    far_kind = '{ name = "test_long", box = { 20, 0.5, 2, 0, 0, 2 }, stop = { %s } }' % ', '.join('{ 0.5, 0.5, 0.2, -19, 0, %.1f }' % (0.3 + 0.3 * i) for i in range(12))
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', -14.6, 20, 0, box = { 20, 0.5, 2 }, boxc = { -14.6, 20, 2 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=far_kind)
+    tests_far = rr.eval('M.debug_rock_tests()')
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    rr2, level2, drop2, logs2 = rock_run("{ 'R', 'abababababababab', 19.4, 20, 0, box = { 20, 0.5, 2 }, boxc = { 19.4, 20, 2 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=far_kind)
+    check('a long wall with its stop boxes 34 m from the line: its pose asked (%d), no box tested (%s), the mark on the ground (y %.1f); the boxes in the line\'s way: stopped at y %.2f' % (
+          len(poses), tests_far, level[0][3] if level else 0, level2[0][3] if level2 else 0),
+          len(poses) == 1 and tests_far == 0 and level and abs(level[0][3] - 36.5) < 1 and level2 and abs(level2[0][3] - 19.5) < 0.06)
+    # (3.0.17, luka's first 3.0.16 log) a small crate whose engine box is a few centimetres bigger than its mesh on
+    # every side (0.39 x 0.55 x 0.37 against 0.35 x 0.50 x 0.25) is not scaled up: 3.0.16 read "scale 1.10"
+    crate = '{ name = "test_crate", box = { 0.35, 0.50, 0.25, 0, 0, 0.25 }, stop = { { 0.3, 0.45, 0.2, 0, 0, 0.25 } } }'
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 0.39, 0.55, 0.37 }, boxc = { 0.4, 20, 0.3 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=crate)
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    check('a small crate with the engine\'s margin round it: no scale (%s)' % (poses[0][60:170] if poses else None),
+          len(poses) == 1 and 'scale 1.00 1.00 1.00 (from none)' in poses[0])
+    # (3.0.17, luka's first look at 3.0.16: "draw structure boxes is unusable ... hangs the game and crashes") Testing
+    # > Draw structure boxes with a rock in sight: one box for the unit (the box round its 12 stop boxes: 12 lines,
+    # where 3.0.16 drew the mesh's box and every stop box, 156), each line with a colour the game can draw (3.0.15
+    # and 3.0.16 gave chef.line the turned box's cosine for a colour: the harness's chef.line refuses a non-colour
+    # now, as the game's does)
+    def box_lines(unit, extra):
+        try:
+            rr_ = rock_run(unit, kind=far_kind, extra=extra)[0]
+        except Exception as e:
+            return None, str(e)[-160:]
+        return [d for d in rr_.eval('draws').values() if d[1] == 'line'], ''
+    one = "{ 'R', 'abababababababab', 19.4, 20, 0, box = { 20, 0.5, 2 }, boxc = { 19.4, 20, 2 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }"
+    off_l, _ = box_lines(one, '')
+    on_l, err = box_lines(one, 'OPTS.struct_boxes = true')
+    extra_l = [d for d in (on_l or []) if (d[7], d[8], d[9], d[10]) not in set((o[7], o[8], o[9], o[10]) for o in off_l)]
+    xs = [v for d in extra_l for v in (d[2], d[5])]
+    check('Draw structure boxes, a rock with 12 stop boxes: 12 lines more (%s; %s), all one colour, round the stop boxes (x %.1f to %.1f, the boxes at -0.1 to 0.9)' % (
+          len(on_l) - len(off_l) if on_l is not None else None, err, min(xs) if xs else 0, max(xs) if xs else 0),
+          on_l is not None and len(on_l) - len(off_l) == 12 and len(extra_l) == 12 and len(set((d[7], d[8], d[9], d[10]) for d in extra_l)) == 1
+          and abs(min(xs) + 0.1) < 0.01 and abs(max(xs) - 0.9) < 0.01)
+    # 80 such rocks within 60 m: the nearest 60 get a box, 720 lines, whatever the number listed
+    many = ', '.join("{ 'R%d', 'abababababababab', %.1f, %.1f, 0, box = { 20, 0.5, 2 }, boxc = { %.1f, %.1f, 2 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }" % (
+        i, 40 + (i % 8) * 2, -20 + (i // 8) * 3, 40 + (i % 8) * 2, -20 + (i // 8) * 3) for i in range(80))
+    many_l, err = box_lines(many, 'OPTS.struct_boxes = true')
+    col = set((d[7], d[8], d[9], d[10]) for d in extra_l)
+    n_box = len([d for d in (many_l or []) if (d[7], d[8], d[9], d[10]) in col]) if col else None
+    check('Draw structure boxes with 80 rocks near: the nearest 60 drawn, 720 lines (%s; %s)' % (n_box, err), n_box == 720)
+    # the grid lists a unit by that box: stop boxes 30 m from the unit's root (two cells off) are found by a line
+    # that passes nowhere near the root
+    off_kind = '{ name = "test_off", box = { 32, 0.5, 2, 0, 0, 2 }, stop = { { 1, 0.5, 2, -30, 0, 2 } } }'
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 30.4, 20, 0, box = { 32, 0.5, 2 }, boxc = { 30.4, 20, 2 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }", kind=off_kind)
+    check('a stop box 30 m from its unit\'s root: the line stops on it (y %.2f)' % (level[0][3] if level else 0), level and abs(level[0][3] - 19.5) < 0.06)
+    # (3.0.12, the review; luka's 3.0.5 logs) the engine's box is not the mesh's: a margin of a few cm a side (a
+    # tenth of a thin axis: 3.0.4 read "scale 1.12" and grew the stop boxes), and on a stump a box holding more than
+    # the mesh, its middle 0.3 m off. The mesh is placed from the unit's root at no scale: the hit where the first
+    # test's is, 19.5 m out (3.0.11: at 19.74, on the engine box's middle less its inflated half)
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3.06, 0.56, 3.25 }, boxc = { 0.4, 20.3, 1.9 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }")
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    check('the engine\'s box bigger than the mesh and off its middle: the mesh from the root, no scale (mark at y %.2f; %s)' % (level[0][3] if level else 0, poses),
+          level and abs(level[0][3] - 19.5) < 0.05 and poses and 'scale 1.00 1.00 1.00 (from none)' in poses[0])
+    # a pose whose axes carry the scale (twice as long) with the engine's half sizes the mesh's own: scale 2 from the axes
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 2, 0, 0 }, { 0, 2, 0 }, { 0, 0, 2 } } }")
+    poses = [l for l in logs if l.startswith('research: rock pose:')]
+    check('a scale in the pose\'s axes: taken from them (mark at y %.2f; %s)' % (level[0][3] if level else 0, poses),
+          level and abs(level[0][3] - 19) < 0.05 and poses and 'scale 2.00 2.00 2.00 (from the axes)' in poses[0])
+    # a rock destroyed while the line rests on it (its pose long cached): struck off at the next hit, the mark on the
+    # ground; no Unit.box on it again, no error. And a new world: the poses start over with the listing
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }")
+    err = None
+    try:
+        rr.execute('UNITS[2].dead = true run(0.5)')
+    except Exception as e:
+        err = str(e)
+    lines_all = [d for d in rr.eval('draws').values() if d[1] == 'line']
+    level2 = [d for d in lines_all if abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]
+    check('a rock destroyed with the line on it: the mark was on it (y %.1f), then on the ground (y %.1f), no error (%s)' % (
+          level[0][3] if level else 0, level2[0][3] if level2 else 0, err or 'none'),
+          level and abs(level[0][3] - 19.5) < 0.05 and level2 and abs(level2[0][3] - 36.5) < 1 and err is None)
+    # a kind with no stop box (too thin for one) is no rock kind: not listed, its pose never asked
+    rr, level, drop, logs = rock_run("{ 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }",
+                                     kind='{ name = "test_thin", box = { 3, 0.05, 3, 0, 0, 1.5 }, stop = { } }')
+    check('a kind without a stop box: not listed (%s), no pose asked' % [l for l in logs if l.startswith('research: rocks:')],
+          not any(l.startswith('research: rocks:') or 'rock pose' in l for l in logs) and level and abs(level[0][3] - 36.5) < 1)
+    # the generated data: every kind has a stop box, none is a pit (all of it under its root)
+    rocks_src = (ROOT / 'src' / 'rock_parts_generated.lua').read_text(encoding='utf-8')
+    kinds_ = re.findall(r"name = '([^']+)', box = \{ ([^}]*) \}, stop = \{(.*)\} \},", rocks_src)
+    empty = [n for n, b, st_ in kinds_ if not st_.strip()]
+    pits = [n for n, b, st_ in kinds_ if float(b.split(',')[5]) + float(b.split(',')[2]) < 1 and float(b.split(',')[5]) < -3]
+    check('the rock data: %d kinds, each with a stop box (without: %s), none a pit (all of it under its root, its middle 3 m down or more: %s)' % (len(kinds_), empty, pits),
+          len(kinds_) > 150 and not empty and not pits)
+    # (3.0.13, Rosensterner's notes: "do not call Unit.* on freshly spawned stratagem units; wait about 3 s") no
+    # engine call on a unit until its handle has been known for 3 s. FIRST[u]: the game time of the first call that
+    # takes the unit (Chef's unit helpers and the engine's Unit.* alike). Your own unit, a rock and a structure from
+    # the world's start; a teammate, a vehicle, a weapon's model and a rock that appear 10 s in
+    WATCH_CALLS = """FRESH_REAL = true FIRST = {}
+      local function seen(u) if type(u) == 'string' and FIRST[u] == nil then FIRST[u] = T end end
+      for _, n in ipairs({ 'unit_position', 'unit_alive', 'unit_kind', 'unit_node', 'unit_rotation' }) do
+        local f = chef[n] chef[n] = function(u, ...) seen(u) return f(u, ...) end
+      end
+      local ck = chef.call_kind
+      chef.call_kind = function(name, kind, s, a, ...) if name:sub(1, 5) == 'Unit.' then seen(s) end return ck(name, kind, s, a, ...) end
+    """
+    rf = lua51.LuaRuntime()
+    setup(rf)
+    rf.execute(WATCH_CALLS + """OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.health = 1 OPTS.research = true
+      WPOS = { U = { 0.4, 3, 0.4 }, R = { 0.4, 20, 0 }, V = { 5, 3, 0 }, X1 = { 9, 9, 0 }, W1 = { 0.4, 3, 1 }, R2 = { 30, 30, 0 } }
+      UNITS = { { 'U', '4d1c334d294dfa97' }, { 'R', 'abababababababab', 0.4, 20, 0, box = { 3, 0.5, 3 }, boxc = { 0.4, 20, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } } }
+      OBJ[3] = nil OBJ[90] = { name = NAMES.gl, fields = {} } local f = OBJ[90].fields f[ROLE.rounds] = 10 f[ROLE.magazines] = 3
+      f[ROLE.chamber] = true f[ROLE.carry] = 0 saved = { grip = { ["8c0aee6e"] = 51 } } M = (function(...) """ + SRC + """ end)(chef)
+      M.debug_rock('abababababababab', { name = "test_rock", box = { 3, 0.5, 3, 0, 0, 1.5 }, stop = { { 3, 0.5, 3, 0, 0, 1.5 } } })
+      T0 = T HAND_UP = true CAM_FZ = -0.005 GRIP = 51 run(2.5)""")
+    early = dict(rf.eval('FIRST').items())
+    lines_early = len([d for d in rf.eval('draws').values() if d[1] == 'line'])
+    rf.execute('run(7.5)')
+    first = dict(rf.eval('FIRST').items()); t0 = rf.eval('T0')
+    level = [d for d in rf.eval('draws').values() if d[1] == 'line' and abs(d.z2 - d[4]) < 1e-9 and d[10] in (200, 90) and d[7] == 236]
+    check('a unit\'s first 3 s: nothing asked of any unit in the first 2.5 s of a world (%s; %d lines drawn), then your unit at %.1f s and the rock at %.1f s, and the line stops on the rock (mark at y %.1f)' % (
+          sorted(early), lines_early, first.get('U', 0) - t0, first.get('R', 0) - t0, level[0][3] if level else 0),
+          not early and lines_early == 0 and 3 <= first.get('U', 0) - t0 < 3.6 and first.get('R', 0) - t0 >= 3 and level and abs(level[0][3] - 19.5) < 0.05)
+    # 10 s in: a teammate's Helldiver, a vehicle, a weapon's model and a new rock appear
+    rf.execute("""T1 = T
+      MATES = { items = { { unit = 'U', x = 0.4, y = 3, z = 0.4 }, { unit = 'V', x = 5, y = 3, z = 0 } } }
+      VEHICLES = { 'X1' } MODELS = { { unit = 'W1', kind = 'wkind' } }
+      UNITS[#UNITS + 1] = { 'R2', 'abababababababab', 30, 30, 0, box = { 3, 0.5, 3 }, boxc = { 30, 30, 1.5 }, axes = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }
+      run(2.5)""")
+    mid = dict(rf.eval('FIRST').items())
+    rf.execute('run(50)')
+    first = dict(rf.eval('FIRST').items()); t1 = rf.eval('T1')
+    new = ['V', 'X1', 'W1', 'R2']
+    check('units that appear mid-mission: none asked in their first 2.5 s (%s), each first asked 3 s or more after (a teammate %s, a vehicle %s, a weapon\'s model %s, a rock the walk lists %s)' % (
+          [u for u in new if u in mid], *['%.1f s' % (first[u] - t1) if u in first else 'never' for u in new]),
+          not any(u in mid for u in new) and all(u in first and first[u] - t1 >= 3 for u in ('V', 'X1', 'R2')) and ('W1' not in first or first['W1'] - t1 >= 3))
+    # your own unit new while a teammate's is long known (a reinforce): the teammate's is not taken for yours — no
+    # unit at all for those 3 s (so no hand pose read off a teammate: the 2.2.x fault), then yours
+    rm = lua51.LuaRuntime()
+    setup(rm)
+    rm.execute(WATCH_CALLS + """OPTS.health = 1 OPTS.research = true
+      MATES = { items = { { unit = 'V', x = 5, y = 0, z = 0 } } } WPOS = { U = { 0, 0, 0 }, V = { 5, 0, 0 } }
+      M = (function(...) """ + SRC + """ end)(chef) OBJ[2].fields.position = { 0, 0, 0 } run(6)
+      MATES = { items = { { unit = 'V', x = 5, y = 0, z = 0 }, { unit = 'U', x = 0, y = 0, z = 0 } } } T2 = T ASM = {} """)
+    rm.execute("""local ck = chef.call_kind
+      chef.call_kind = function(name, kind, s, a, ...) if name == 'Unit.animation_get_variable' then ASM[#ASM + 1] = { s, T - T2 } end return ck(name, kind, s, a, ...) end
+      run(5)""")
+    asm = [(e[1], round(e[2], 2)) for e in rm.eval('ASM').values()]
+    on_mate = [e for e in asm if e[0] == 'V']
+    mine_at = min([e[1] for e in asm if e[0] == 'U'] or [99])
+    check('your unit new, a teammate\'s long known: no hand pose read off the teammate (%d reads), yours from %.1f s on' % (len(on_mate), mine_at),
+          not on_mate and 3 <= mine_at < 3.6)
+    # a new world: every unit is new again (handles come round again)
+    rf.execute('T3 = T FIRST = {} WORLD = 2 run(2.5)')
+    again = dict(rf.eval('FIRST').items())
+    rf.execute('run(3)')
+    later = dict(rf.eval('FIRST').items())
+    check('a new world: the same handles wait their 3 s again (asked in the first 2.5 s: %s; by 5.5 s: %s)' % (sorted(again), sorted(later)),
+          not again and 'U' in later)
+    # (3.0.14; the idea HUDdle 0.7.5's) the crash trace: off by default, nothing written and Chef's table untouched;
+    # on, each call into the game named in narrowhud_lastcall.txt before it is made, the frame's end "idle", a clean
+    # quit "clean quit", and the next launch says in the log where the last one ended
+    import tempfile, os
+    tdir = tempfile.mkdtemp(prefix='nh_trace_')
+    os.mkdir(os.path.join(tdir, 'd'))
+    lastcall = os.path.join(tdir, 'd\\narrowhud_lastcall.txt')     # (the mod joins with a backslash, as on Windows: here that is the file's name)
+    def trace_rt(level, extra=''):
+        r_ = lua51.LuaRuntime()
+        setup(r_)
+        r_.execute('chef.log_directory = "%s/d" %s' % (tdir.replace('\\', '/'), ('OPTS.crash_trace = %d' % level) if level else ''))
+        r_.execute('OPTS.health = 1 ' + extra + ' M = (function(...) ' + SRC + ' end)(chef)')
+        return r_
+    def last_line():
+        return open(lastcall).readline().rstrip() if os.path.exists(lastcall) else None
+    rt0 = trace_rt(0)
+    rt0.execute('run(2)')
+    d0 = rt0.eval('M.debug_trace()')
+    check('crash trace off (the default): no file, no write, Chef\'s own table in use (%s writes, file %s)' % (d0.writes, last_line()),
+          d0.on is False and d0.writes == 0 and d0.proxied is False and last_line() is None)
+    # on (Reads): a read that never returns (here: it raises, as the stub does for a gone object) leaves its name
+    rt1 = trace_rt(2)
+    rt1.execute('run(2)')
+    idle = last_line()
+    d1 = rt1.eval('M.debug_trace()')
+    err = None
+    try:
+        rt1.execute("""local ck = chef.call_kind
+          chef.call_kind = function(name, kind, ...) if name == 'GameSession.game_object_field' and select(3, ...) == 'armor_set' then error('the game dies here') end return ck(name, kind, ...) end
+          OBJ[1].fields.armor_set = 1594318277 OPTS.stim_timer = true run(3)""")
+    except Exception as e:
+        err = str(e)
+    died = last_line()
+    check('crash trace on: after a frame the line says idle (%r), %d writes in 2 s; a read the game dies in leaves its name (%r)' % (idle, d1.writes, died),
+          d1.on is True and d1.proxied is True and idle and idle.startswith('idle (the frame') and 'frame' in idle
+          and err is not None and died and died.startswith('in GameSession.game_object_field') and 'player.armor' in died)
+    # the next launch reads it into the log; and its own clean quit
+    rt2 = trace_rt(2)
+    rt2.execute('run(1)')
+    said = [l for l in rt2.eval('logs').values() if l.startswith('crash trace:')]
+    rt2.execute('M.shutdown()')
+    quit_line = last_line()
+    rt3 = trace_rt(2)
+    rt3.execute('run(1)')
+    said3 = [l for l in rt3.eval('logs').values() if l.startswith('crash trace:')]
+    check('the next launch names the call (%s); a clean quit is written (%r) and said the launch after (%s)' % (said[:1], quit_line, said3[:1]),
+          said and 'INSIDE this call' in said[0] and 'GameSession.game_object_field' in said[0] and 'player.armor' in said[0]
+          and quit_line and quit_line.startswith('clean quit') and said3 and 'quit cleanly' in said3[0])
+    # a launch that ends between frames (the game's own crash): "outside any call of NarrowHUD"
+    rt3.execute('run(1)')            # (left as it is after a frame: idle)
+    rt4 = trace_rt(2)
+    rt4.execute('run(1)')
+    said4 = [l for l in rt4.eval('logs').values() if l.startswith('crash trace:')]
+    check('a launch that ended between frames: said as outside any call of the mod (%s)' % said4[:1], said4 and 'OUTSIDE any call' in said4[0])
+    # the draws only at level 3; and off again in F9: Chef's table back, the file says off
+    n2 = set(rt4.eval('M.debug_trace_names()').values())
+    rt5 = trace_rt(3)
+    rt5.execute('run(1)')
+    n3 = set(rt5.eval('M.debug_trace_names()').values())
+    rt5.execute('CHANGE.crash_trace(1) run(0.5)')
+    d5 = rt5.eval('M.debug_trace()')
+    check('level 2 names reads and no draws (%d names, draws %s); level 3 the draws too (%s); switched off in F9: Chef\'s table back, the file says %r' % (
+          len(n2), sorted(x for x in n2 if 'chef.rect' in x or 'chef.line' in x), sorted(x for x in n3 if 'chef.rect' in x or 'chef.line' in x)[:2], last_line()),
+          n2 and not any('chef.rect' in x or 'chef.color' in x or 'chef.line' in x for x in n2) and any('chef.line' in x for x in n3)
+          and any('chef.camera' in x or 'chef.unit_position' in x or 'Network.game_session' in x for x in n2)
+          and d5.on is False and d5.proxied is False and (last_line() or '').startswith('off'))
+    # off at the start with an old traced launch's line in the file: neutralised, so it is never read as the last launch's
+    rt6 = trace_rt(2); rt6.execute('run(0.5)')       # (leaves "idle ...")
+    rt7 = trace_rt(0); rt7.execute('run(0.5)')
+    stale = last_line()
+    rt8 = trace_rt(2); rt8.execute('run(0.5)')
+    said8 = [l for l in rt8.eval('logs').values() if l.startswith('crash trace: the last launch')]
+    check('a launch with the trace off in between: the old line is marked off (%r), nothing claimed about it later (%s)' % ((stale or '')[:40], said8),
+          (stale or '').startswith('off') and not said8)
+    # (3.0.14) the world's id asked of the game once a frame (it was asked at 14 places, several a frame)
+    rw = lua51.LuaRuntime()
+    setup(rw)
+    rw.execute("""WID_CALLS = 0 local wi = chef.world_id chef.world_id = function() WID_CALLS = WID_CALLS + 1 return wi() end
+      OPTS.landing_mark = true OPTS.drop_line = 3 OPTS.health = 1 M = (function(...) """ + SRC + """ end)(chef) run(1) WID_CALLS = 0 run(2)""")
+    calls = rw.eval('WID_CALLS')
+    rw.execute('WORLD = 2 run(0.1)')
+    check('the world id asked once a frame (%d calls in 120 frames), a new world still seen at once (%s)' % (calls, rw.eval('M.debug_world and M.debug_world() or WORLD')),
+          calls == 120)
+    # (3.0.12) your player object gone between two scans (leaving a mission): its armour not read (the one object
+    # read that went without the same-frame check; in the game a read of a gone object can end it)
+    rp1 = lua51.LuaRuntime()
+    setup(rp1)
+    # (the read comes round once a second, a few frames after the scan that found the player: the frames it lands
+    # on are found by counting the reads, and the player taken away for the ten frames the next one is due in)
+    rp1.execute('FIELD_READS = {} OPTS.stim_timer = true OPTS.health = 1 M = (function(...) ' + SRC + ' end)(chef) OBJ[1].fields.armor_set = 1594318277')
+    at, n_was = [], 0
+    for fr in range(1, 400):
+        rp1.execute('run(0.02)')
+        n_now = rp1.eval('FIELD_READS.armor_set or 0')
+        if n_now != n_was:
+            at.append(fr); n_was = n_now
+        if len(at) == 3:
+            break
+    err, n_gone, n_back = None, None, None
+    if len(at) == 3:
+        try:
+            # (no read comes sooner than 60 frames after the last, and the scan before it has run by then)
+            rp1.execute('for i = 1, 57 do run(0.02) end PLAYER_WAS = OBJ[1] OBJ[1] = nil for i = 1, 10 do run(0.02) end')
+            n_gone = rp1.eval('FIELD_READS.armor_set or 0')
+            rp1.execute('OBJ[1] = PLAYER_WAS run(2.2)')
+            n_back = rp1.eval('FIELD_READS.armor_set or 0')
+        except Exception as e:
+            err = str(e)
+    check('the player object gone as its armour is due (reads at frames %s): not read (%s reads, as before), no error (%s); back, read again (%s)' % (at, n_gone, err or 'none', n_back),
+          len(at) == 3 and err is None and n_gone == 3 and n_back is not None and n_back > 3)
     # (2.5.9) a spore spewer is env_bugs/assets/gameplay/bug_fog_generator (luka's MARKs): a structure; the hive's
     # spore lights (spore_light_01, 94 on a map) and spore clusters are none; the unnamed kind 4 m from the spewer is
     # named as its neighbour (for the record), the lights never (a kind by the dozen is scenery)

@@ -1,0 +1,337 @@
+<title>Stop Box Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* layout: a sticky strip of controls, a grid of kind cards (picture, name, numbers, verdict), a sticky tray with the list to copy */
+  :root {
+    --bg: #f2f4f7; --surface: #ffffff; --panel: #e7ebf1; --fg: #17202b; --muted: #5a6677; --line: #d3dae4;
+    --accent: #1f6feb; --out: #c2362f; --rule: #6f7a8b; --warn: #a76200; --keep: #17794a;
+    --out-wash: rgba(194, 54, 47, .10); --rule-wash: rgba(111, 122, 139, .12);
+    --text: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10141a; --surface: #19202a; --panel: #222b37; --fg: #e5eaf1; --muted: #98a4b5; --line: #2b3543;
+      --accent: #5d9dff; --out: #ff6f66; --rule: #8a95a6; --warn: #f1b450; --keep: #4dc48c;
+      --out-wash: rgba(255, 111, 102, .13); --rule-wash: rgba(138, 149, 166, .14); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10141a; --surface: #19202a; --panel: #222b37; --fg: #e5eaf1; --muted: #98a4b5; --line: #2b3543;
+    --accent: #5d9dff; --out: #ff6f66; --rule: #8a95a6; --warn: #f1b450; --keep: #4dc48c;
+    --out-wash: rgba(255, 111, 102, .13); --rule-wash: rgba(138, 149, 166, .14); color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--text); font-size: 14px; line-height: 1.45; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+  .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .top .wrap { padding-block: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .titleline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .sum { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
+  .sum b { color: var(--fg); font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ctl label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  select, input[type="search"] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+  input[type="search"] { width: 150px; }
+  input[type="range"] { width: 130px; accent-color: var(--accent); }
+  .reach-val { font-family: var(--mono); font-weight: 600; min-width: 4.5ch; }
+  .reach-note { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main .wrap { padding-block: 16px 120px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
+  .card { display: flex; flex-direction: column; text-align: left; font: inherit; color: inherit; padding: 0; cursor: pointer; user-select: none;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-width: 0; }
+  .card:hover { border-color: var(--accent); }
+  .card .pic { background: var(--panel); aspect-ratio: 440 / 200; width: 100%; display: block; position: relative; }
+  .card .pic img { width: 100%; height: 100%; display: block; object-fit: contain; }
+  .card .body { padding: 9px 11px 11px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .name { font-family: var(--mono); font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+  .folder { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .nums { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .nums b { color: var(--fg); font-weight: 500; }
+  .pills { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pill { font-size: 11.5px; font-weight: 500; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .pill.keep { color: var(--keep); } .pill.out { color: var(--out); } .pill.rule { color: var(--rule); }
+  .pill.new { color: var(--bg, #fff); background: var(--keep); border-color: var(--keep); }
+  .pill.warn { color: var(--warn); border-style: dashed; } .pill.count { color: var(--muted); border-color: var(--line); font-family: var(--mono); }
+  .card.is-out { background: linear-gradient(var(--out-wash), var(--out-wash)), var(--surface); border-color: var(--out); }
+  .card.is-out .pic img, .card.is-rule .pic img, .card.is-none .pic img { opacity: .38; filter: saturate(.3); }
+  .card.is-rule, .card.is-none { background: linear-gradient(var(--rule-wash), var(--rule-wash)), var(--surface); }
+  .card.is-none { cursor: default; }
+  .card.is-empty { background: linear-gradient(var(--rule-wash), var(--rule-wash)), var(--surface); }
+  .card.is-empty .pic img { opacity: .55; }
+  .fillsw { display: flex; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .fillsw button { flex: 1 1 0; font: inherit; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--bg); border: 0; padding: 6px 8px; cursor: pointer; min-width: 0; }
+  .fillsw button + button { border-left: 1px solid var(--line); }
+  .fillsw button[aria-pressed="true"] { color: var(--surface); background: var(--accent); }
+  .card.is-none:hover { border-color: var(--line); }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 26px 0 10px; }
+  .empty { color: var(--muted); padding: 30px 0; }
+  .tray { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .tray .wrap { padding-block: 10px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .tray .say { flex: 1 1 220px; min-width: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tray .say b { color: var(--fg); }
+  button.act { font: inherit; font-weight: 600; color: var(--surface); background: var(--accent); border: 0; border-radius: 6px; padding: 7px 14px; cursor: pointer; }
+  button.ghost { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  #listbox { width: 100%; height: 150px; font-family: var(--mono); font-size: 12px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; resize: vertical; }
+  .help { color: var(--muted); max-width: 78ch; margin: 0 0 14px; }
+  .help b { color: var(--fg); font-weight: 600; }
+  .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
+  @media (prefers-reduced-motion: no-preference) { .card { transition: border-color .12s; } }
+</style>
+
+<header class="top"><div class="wrap">
+  <div class="titleline">
+    <h1>Stop Box Review</h1>
+    <div class="sum" id="sum"></div>
+  </div>
+  <div class="controls">
+    <div class="ctl">
+      <label for="reach">Height rule</label>
+      <input type="range" id="reach" min="0" max="2" step="0.1" value="0">
+      <span class="reach-val" id="reachval">off</span>
+      <span class="reach-note" id="reachnote"></span>
+    </div>
+    <div class="ctl"><label for="sort">Sort</label>
+      <select id="sort">
+        <option value="look">Needs a look first</option>
+        <option value="count">Most on a map</option>
+        <option value="size">Biggest</option>
+        <option value="reach">Lowest reach</option>
+        <option value="name">Name</option>
+        <option value="folder">Folder</option>
+      </select></div>
+    <div class="ctl"><label for="show">Show</label>
+      <select id="show">
+        <option value="new">New since your last pass</option>
+        <option value="all">Everything</option>
+        <option value="look">Needs a look</option>
+        <option value="kept">Stops lines</option>
+        <option value="out">Left out</option>
+      </select></div>
+    <div class="ctl"><label for="q">Find</label><input type="search" id="q" placeholder="name or folder"></div>
+  </div>
+</div></header>
+
+<main><div class="wrap">
+  <p class="help">Each card is one kind of unit: the <b>side view</b> on the left with the ground line and a 1.8 m Helldiver, the <b>top view</b> on the right with the unit's root as a cross.
+    <span class="key" style="background:#2676ff"></span>Blue boxes sit inside the solid; <span class="key" style="background:#14a05a"></span>green ones are plates on flat faces and boxes laid over thin sheets (they may stand a little outside). A line would stop on either. <b>Click a card</b> to leave that kind out; click again to take it back.
+    A kind the height rule drops is greyed; clicking it keeps it anyway.
+    Some kinds are <b>open underneath</b> as modelled (a walkway on stilts, an arch, a tangle of roots): their cards have a switch.
+    <b>Open underneath</b> puts boxes only where the model is closed; <b>Filled solid</b> treats everything under it as rock, which is right when the game does (a root wall, a debris cover).
+    <b>By its outline</b> fills whatever lies behind the thing seen from both sides and from above, hollow or not: a ruined building or a car as one block. New kinds that are mostly air as modelled start on it.
+    When you are done, copy the list at the bottom and send it back.</p>
+  <div class="grid" id="grid"></div>
+  <div id="nonewrap" hidden>
+    <h2>Never candidates</h2>
+    <p class="help">Skipped before any boxes were made: too big (a backdrop), too small, a name that lets rounds through, or too thin for a box to fit.</p>
+    <div class="grid" id="none"></div>
+  </div>
+</div></main>
+
+<div class="tray"><div class="wrap">
+  <div class="say" id="say"></div>
+  <button class="ghost" id="toggle" type="button">Show the list</button>
+  <button class="act" id="copy" type="button">Copy the list</button>
+  <textarea id="listbox" hidden readonly aria-label="The list to send back"></textarea>
+</div></div>
+
+<script>
+const DATA = "__DATA__";
+const KEY = 'stop-box-review-1';
+const kinds = DATA.kinds;
+let st = { state: {}, fill: {}, reach: DATA.reach || 0, sort: 'look', show: 'all' };
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (saved && saved.state) { st = Object.assign(st, saved); st.fill = st.fill || {}; }
+  else seed();
+} catch (e) { seed(); }
+const anyNew = kinds.some(k => k.new);
+if (DATA.round && st.round !== DATA.round) { st.round = DATA.round; st.show = 'new'; }     // a new round: open on what is new, once
+if (!anyNew && st.show === 'new') st.show = 'all';
+function seed() {      // the kinds already in tools/rock_skip.txt come in as left out / kept
+  const skip = new Set(DATA.skip || []);
+  for (const k of kinds) {
+    if (skip.has(k.h) || skip.has(k.name)) st.state[k.h] = 'out';
+    if (skip.has('+' + k.h) || skip.has('+' + k.name)) st.state[k.h] = 'keep';
+    if (k.whole && (skip.has('=' + k.h) || skip.has('=' + k.name))) st.fill[k.h] = 'whole';
+    if (k.hull && (skip.has('~' + k.h) || skip.has('~' + k.name))) st.fill[k.h] = 'hull';
+  }
+}
+// a new kind that is mostly air as modelled (a ruined building, a car) starts on its outline fill, once; your own pick stays
+st.auto = st.auto || {};
+for (const k of kinds) if (k.new && k.hull && k.hull.auto && !st.auto[k.h]) { st.auto[k.h] = 1; if (!st.fill[k.h]) st.fill[k.h] = 'hull'; }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+
+const big = k => Math.max(k.size[0], k.size[1], k.size[2]);
+const cur = k => (k.whole && st.fill[k.h] === 'whole') ? k.whole : (k.hull && st.fill[k.h] === 'hull') ? k.hull : k;      // the fill chosen: its boxes, reach, picture
+const num = (k, f) => { const c = cur(k); return c[f] !== undefined ? c[f] : k[f]; };      // a number of the fill chosen (an older result has only the kind's own)
+// the picture of a kind's chosen fill: in the page, or in a pictures file loaded after it (window.THUMBS, by hash; "w" the whole fill)
+const pic = k => { const c = cur(k); return c.img || (window.THUMBS || {})[c === k ? k.h : k.h + (c === k.whole ? 'w' : 'u')] || ''; };
+const cand = k => k.boxes > 0 || k.over > 0 || (k.whole && k.whole.boxes > 0) || (k.hull && (k.hull.boxes > 0 || k.hull.over > 0));
+function flags(k) {
+  const f = [];
+  const byOutline = k.hull && cur(k) === k.hull;        // (the outline fill answers both "open underneath" and "mostly hollow")
+  if (!byOutline && k.whole && k.air > 0.12) f.push(['open underneath', Math.round(k.air * 100) + ' % of what would be filled is open underneath as modelled. Pick the fill that matches the game.']);
+  if (!byOutline && k.fill < 0.45 && !(k.whole && k.air > 0.12)) f.push(['mostly hollow', 'The solid fills under half of the shape around it: an arch, a ring or a cave?']);
+  if (cur(k).boxes && (num(k, 'seen') !== undefined ? num(k, 'seen') < 0.5 : cur(k).cover < 0.35) && big(k) >= 4) f.push(['boxes miss much of it', 'Seen from its sides and from above, the boxes stand in front of under half of it: a line passes through the rest.']);
+  if (num(k, 'spill') > 0.12) f.push(['boxes stand outside', Math.round(num(k, 'spill') * 100) + ' % of the boxes\' outline has nothing behind it: a line would stop in the open there.']);
+  return f;
+}
+function verdict(k) {
+  if (!cand(k)) return 'none';
+  const u = st.state[k.h], c = cur(k);
+  if (u === 'out') return 'out';
+  if (!c.boxes && !num(k, 'over')) return 'empty';
+  if (c.reach < st.reach && u !== 'keep') return 'rule';
+  return 'kept';
+}
+const fmt = n => (Math.round(n * 10) / 10).toFixed(1);
+
+const grid = document.getElementById('grid'), none = document.getElementById('none');
+const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => {
+  for (const e of es) if (e.isIntersecting) { const im = e.target; im.src = im.dataset.src; io.unobserve(im); }
+}, { rootMargin: '600px' }) : null;
+
+function card(k) {
+  const v = verdict(k), fl = flags(k), c = cur(k);
+  const el = document.createElement('div');
+  el.className = 'card is-' + v;
+  if (v !== 'none') { el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-pressed', v === 'out' ? 'true' : 'false'); }
+  const frame = document.createElement('span'); frame.className = 'pic';
+  const src = pic(k);
+  if (src) { const im = document.createElement('img'); im.alt = k.name + ', side and top view'; im.decoding = 'async';
+    if (io) { im.dataset.src = src; io.observe(im); } else im.src = src; frame.appendChild(im); }
+  else if ((DATA.thumbs || []).length) { frame.dataset.wait = k.h; }
+  el.appendChild(frame);
+  if ((k.whole || k.hull) && v !== 'none') {
+    const sw = document.createElement('span'); sw.className = 'fillsw';
+    const opts = [['open', k.whole ? 'Open underneath' : 'As modelled']];
+    if (k.whole) opts.push(['whole', 'Filled solid']);
+    if (k.hull) opts.push(['hull', 'By its outline']);
+    const on = c === k.whole ? 'whole' : c === k.hull ? 'hull' : 'open';
+    for (const [val, label] of opts) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+      b.setAttribute('aria-pressed', on === val ? 'true' : 'false');
+      b.addEventListener('click', e => { e.stopPropagation(); st.fill[k.h] = val; save(); render(true); });
+      b.addEventListener('keydown', e => e.stopPropagation());
+      sw.appendChild(b);
+    }
+    el.appendChild(sw);
+  }
+  const body = document.createElement('span'); body.className = 'body';
+  const say = { kept: ['keep', 'Stops lines'], out: ['out', 'Left out by you'], rule: ['rule', 'Under the height rule'],
+    empty: ['rule', 'No box fits: stops nothing'], none: ['rule', 'Not a candidate'] }[v];
+  let pills = (k.new ? '<span class="pill new">new</span>' : '') + '<span class="pill ' + say[0] + '">' + say[1] + '</span>';
+  if (v === 'kept' && st.state[k.h] === 'keep') pills += '<span class="pill keep">kept by you</span>';
+  for (const f of fl) pills += '<span class="pill warn" title="' + f[1] + '">' + f[0] + '</span>';
+  if (k.hull && c === k.hull) pills += '<span class="pill count" title="As modelled this kind is ' + Math.round(k.hull.share * 100) + ' % of its outline: the boxes fill what lies behind it seen from both sides and from above, hollow or not.">by its outline</span>';
+  if (k.n) pills += '<span class="pill count" title="The most units of this kind on one of your logged maps">&times;' + k.n + ' on a map</span>';
+  body.innerHTML = '<span class="name"></span><span class="folder"></span>' +
+    '<span class="nums"><b>' + fmt(k.size[0]) + ' &times; ' + fmt(k.size[1]) + ' &times; ' + fmt(k.size[2]) + ' m</b>' +
+    (c.boxes ? ' &middot; ' + c.boxes + ' boxes &middot; reach <b>' + c.reach.toFixed(2) + ' m</b>' : '') +
+    (num(k, 'over') ? '<br>+ ' + num(k, 'plates') + ' plates, ' + (num(k, 'over') - num(k, 'plates')) + ' covering (green) &middot; outline covered <b>' + Math.round(num(k, 'seen0') * 100) + ' &rarr; ' + Math.round(num(k, 'seen') * 100) + '%</b>' + (num(k, 'spill') > 0.03 ? ', spill ' + Math.round(num(k, 'spill') * 100) + '%' : '')
+             : (num(k, 'seen') !== undefined ? '<br>outline covered <b>' + Math.round(num(k, 'seen') * 100) + '%</b>' : '')) + '</span>' +
+    '<span class="pills">' + pills + '</span>' + (v === 'none' && k.why ? '<span class="folder"></span>' : '');
+  body.querySelector('.name').textContent = k.name;
+  const fo = body.querySelectorAll('.folder'); fo[0].textContent = k.folder || (k.name === k.h ? 'no name known' : '');
+  if (fo[1]) fo[1].textContent = k.why;
+  el.appendChild(body);
+  if (v !== 'none') {
+    const flip = () => {
+      const u = st.state[k.h], low = (c.boxes > 0 || num(k, 'over') > 0) && c.reach < st.reach;
+      if (u) delete st.state[k.h]; else st.state[k.h] = low ? 'keep' : 'out';
+      save(); render(true);
+    };
+    el.addEventListener('click', flip);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+  }
+  return el;
+}
+
+function look(k) { return flags(k).length; }
+const sorts = {
+  look: (a, b) => look(b) - look(a) || big(b) - big(a),
+  count: (a, b) => (b.n || 0) - (a.n || 0) || a.name.localeCompare(b.name),
+  size: (a, b) => big(b) - big(a),
+  reach: (a, b) => cur(a).reach - cur(b).reach,
+  name: (a, b) => a.name.localeCompare(b.name),
+  folder: (a, b) => (a.folder || '').localeCompare(b.folder || '') || a.name.localeCompare(b.name),
+};
+function listText() {
+  const out = [], keep = [], whole = [], hull = [];
+  for (const k of kinds) { if (!cand(k)) continue;
+    const c = cur(k);
+    if (st.state[k.h] === 'out') out.push(k.h + '   # ' + k.name);
+    if (st.state[k.h] === 'keep' && c.boxes && c.reach < st.reach) keep.push('+' + k.h + '   # ' + k.name + ', reach ' + c.reach.toFixed(2) + ' m');
+    if (k.whole && st.fill[k.h] === 'whole') whole.push('=' + k.h + '   # ' + k.name);
+    if (k.hull && st.fill[k.h] === 'hull') hull.push('~' + k.h + '   # ' + k.name); }
+  return '# tools/rock_skip.txt, from the review page\n# the height rule: kinds whose boxes reach under this many metres above the root are left out\nreach ' + st.reach.toFixed(1) +
+    '\n\n# left out by eye (' + out.length + ')\n' + out.join('\n') +
+    '\n\n# filled solid although open underneath as modelled (' + whole.length + ')\n' + whole.join('\n') +
+    '\n\n# filled by its outline (' + hull.length + ')\n' + hull.join('\n') +
+    '\n\n# kept although under the height rule (' + keep.length + ')\n' + keep.join('\n') + '\n';
+}
+function render(keepScroll) {
+  const y = window.scrollY;
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const cands = kinds.filter(cand), nc = kinds.filter(k => !cand(k));
+  let list = cands.filter(k => !q || k.name.toLowerCase().includes(q) || (k.folder || '').toLowerCase().includes(q));
+  if (st.show === 'new') list = list.filter(k => k.new);
+  if (st.show === 'look') list = list.filter(k => look(k));
+  if (st.show === 'kept') list = list.filter(k => verdict(k) === 'kept');
+  if (st.show === 'out') list = list.filter(k => verdict(k) !== 'kept');
+  list.sort(sorts[st.sort] || sorts.look);
+  grid.replaceChildren(...list.map(card));
+  if (!list.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = 'No kind matches.'; grid.appendChild(p); }
+  const ncShown = st.show === 'new' ? nc.filter(k => k.new) : nc;
+  const showNone = (st.show === 'all' || st.show === 'new') && !q && ncShown.length;
+  document.getElementById('nonewrap').hidden = !showNone;
+  if (showNone) none.replaceChildren(...ncShown.map(card)); else none.replaceChildren();
+  // the counts
+  const c = { kept: 0, out: 0, rule: 0, empty: 0 }, u = { kept: 0, out: 0, rule: 0, empty: 0 };
+  for (const k of cands) { const v = verdict(k); c[v]++; u[v] += k.n || 0; }
+  const units = '';     // (the cards carry each kind's own count; the counts come from different maps and don't add up to one)
+  const nNew = cands.filter(k => k.new).length;
+  document.getElementById('sum').innerHTML = '<b>' + cands.length + '</b> kinds with boxes' + (nNew ? ' &middot; <b>' + nNew + '</b> new' : '') + ' &middot; <b>' + c.kept + '</b> stop lines' + units;
+  document.getElementById('say').innerHTML = 'Left out by you: <b>' + c.out + '</b> &middot; by the height rule: <b>' + c.rule + '</b> &middot; no box fits: <b>' + c.empty + '</b> &middot; stopping lines: <b>' + c.kept + '</b>';
+  document.getElementById('reachval').textContent = st.reach > 0 ? st.reach.toFixed(1) + ' m' : 'off';
+  const below = cands.filter(k => (cur(k).boxes || num(k, 'over')) && cur(k).reach < st.reach);
+  document.getElementById('reachnote').textContent = st.reach > 0 ? 'drops ' + below.length + ' kinds' + '' : 'drag to leave out kinds that barely rise above the ground';
+  const box = document.getElementById('listbox'); if (!box.hidden) box.value = listText();
+  if (keepScroll) window.scrollTo(0, y);
+}
+const reach = document.getElementById('reach');
+reach.value = st.reach; document.getElementById('sort').value = st.sort; if (!anyNew) document.querySelector('#show option[value="new"]').remove();
+document.getElementById('show').value = st.show;
+reach.addEventListener('input', () => { st.reach = parseFloat(reach.value) || 0; save(); render(true); });
+document.getElementById('sort').addEventListener('change', e => { st.sort = e.target.value; save(); render(); });
+document.getElementById('show').addEventListener('change', e => { st.show = e.target.value; save(); render(); });
+document.getElementById('q').addEventListener('input', () => render());
+document.getElementById('toggle').addEventListener('click', e => {
+  const box = document.getElementById('listbox'); box.hidden = !box.hidden;
+  e.target.textContent = box.hidden ? 'Show the list' : 'Hide the list'; if (!box.hidden) box.value = listText();
+});
+document.getElementById('copy').addEventListener('click', e => {
+  const text = listText(), b = e.target;
+  const fallback = () => { const box = document.getElementById('listbox'); box.hidden = false; box.value = text; box.focus(); box.select();
+    document.getElementById('toggle').textContent = 'Hide the list'; b.textContent = 'Select and copy it'; };
+  try { navigator.clipboard.writeText(text).then(() => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy the list'; }, 1600); }, fallback); }
+  catch (err) { fallback(); }
+});
+render();
+// the pictures kept beside the page: loaded one file after another, each filling the cards that wait for it
+let thumbAt = 0;
+window.onThumbs = () => { for (const f of document.querySelectorAll('.pic[data-wait]')) { if ((window.THUMBS || {})[f.dataset.wait] || (window.THUMBS || {})[f.dataset.wait + 'w'] || (window.THUMBS || {})[f.dataset.wait + 'u']) { render(true); break; } } };
+(function next() {
+  const list = DATA.thumbs || [];
+  if (thumbAt >= list.length) return;
+  const sc = document.createElement('script'); sc.src = list[thumbAt++]; sc.onload = next; sc.onerror = next;
+  document.head.appendChild(sc);
+})();
+</script>

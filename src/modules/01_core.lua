@@ -84,12 +84,41 @@ local blocked = { n = 0, said = false, since = nil }
 -- read, once a frame: it still exists and is still that type. A gone one is forgotten until the next scan.
 N.frame, N.checked = 0, {}
 N.forget = nil                                   -- set below (the objects list)
+-- (3.0.13, Rosensterner's notes on his own crashes: "do not call Unit.* on freshly spawned stratagem units; wait
+-- about 3 s") A unit's first 3 s: no engine call on a unit — a Helldiver's, a weapon's model, a vehicle, anything
+-- the walk lists — until its handle has been known here for FRESH seconds. A handle is first known the moment a
+-- list hands it over (Chef's watch, World.units), so a unit is at least that old when it is first asked anything.
+-- Kept by unit, and started over at a new world (a new world's unit can come up under an old one's handle).
+-- Not the things you throw (12_throw: the grenade, the stratagem ball and the C4 in your hand are read the frame
+-- they appear — that read is the throw line — and have been since 1.5), nor the decal units this mod spawns itself.
+-- (3.0.14) The world's id, asked of the game once a frame: 14 places asked it, several every frame. A precaution
+-- from HUDdle 0.8.0 (a player's game hung inside this very call, asked dozens of times a frame there), and a saving.
+N.wid, N.wid_frame = nil, -1
+function N.world_id()
+  if N.wid_frame ~= N.frame then
+    N.wid_frame = N.frame
+    N.wid = chef.world_id and chef.world_id() or nil
+  end
+  return N.wid
+end
+local FRESH = 3
+N.unit_seen = setmetatable({}, { __mode = 'k' })
+function N.unit_ready(u)
+  if u == nil then return false end
+  local now = chef.time()
+  local t = N.unit_seen[u]
+  if t == nil then N.unit_seen[u] = now return FRESH <= 0 end
+  return now - t >= FRESH
+end
+function N.units_forget() N.unit_seen = setmetatable({}, { __mode = 'k' }) end
+function N.fresh_s() return FRESH end
+function M.debug_fresh(s) FRESH = s end           -- (tests: most run with no wait; the rule's own tests with 3 s)
 local function alive(s, goid, t)
   local c = N.checked[goid]
   if c and c.frame == N.frame and c.t == t then return c.ok end
   local ok = call('exists', 'GameSession.game_object_exists', s, goid) == true
   if ok and t then ok = call(t.id, 'GameSession.game_object_is_type', s, goid, t.name) == true end
-  N.checked[goid] = { frame = N.frame, t = t, ok = ok }
+  if c then c.frame, c.t, c.ok = N.frame, t, ok else N.checked[goid] = { frame = N.frame, t = t, ok = ok } end   -- (3.0.12: the entry kept, not a new table a read)
   if not ok and N.forget then N.forget(goid) end
   return ok
 end

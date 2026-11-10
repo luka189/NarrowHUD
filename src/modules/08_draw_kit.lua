@@ -13,7 +13,7 @@ local call, cfg = N.call, N.cfg
 -- (The approach follows Chef Shared Loader 1.1's text; no code of it is copied.)
 local CHEF_TEXT = chef.text_fit ~= nil                     -- Chef 1.1: chef.text is the game font already
 local FONT = { font = 'content/fonts/fs_sinclair_medium_runtime', material = 'content/fonts/runtime_font' }
-local gf = { failed = CHEF_TEXT, gui = nil, world = nil, wid = nil, widths = {}, cap100 = nil, base100 = 0 }
+local gf = { failed = CHEF_TEXT, gui = nil, world = nil, wid = nil, widths = {}, nwidths = 0, cap100 = nil, base100 = 0 }
 local function gf_fail(why)
   if not gf.failed then log('game font off (%s): pixel font from now on', tostring(why)) end
   gf.failed, gf.gui = true, nil
@@ -50,7 +50,7 @@ local function game_font()
   if gf.failed or not cfg.font then return nil end
   -- (2.4.13, the frame time: the world asked once a frame, not twice for every text drawn or measured)
   if gf.gui and gf.frame == N.frame then return gf.gui end
-  local world, wid = chef.world(), chef.world_id()
+  local world, wid = chef.world(), N.world_id()
   if world == nil then return nil end
   if gf.gui and gf.world == world and gf.wid == wid then gf.frame = N.frame return gf.gui end
   gf.gui = nil                                             -- a GUI from an older world is never touched again
@@ -89,7 +89,7 @@ local UI_SLOT = '3aa8b87e00000000'
 -- as Chef finds it (loader.lua top_world) — and forgotten when the list changes (a world gone). No list, or the UI
 -- layer off: the game's world, as before.
 local function icon_world()
-  local world, wid = chef.world(), chef.world_id()
+  local world, wid = chef.world(), N.world_id()
   if world == nil then return nil end
   if (N.L0 or 0) == 0 then return world, wid, 0, false end
   local ws = call('worlds', 'Application.worlds')
@@ -157,7 +157,9 @@ local function txt_width(str, cap)
       local a = numbers(lo)
       local b = numbers(hi)
       w = (a and b) and (b - a) or (#str * size * 0.6)
-      gf.widths[key] = w
+      -- (3.0.12: the kept widths start over at 4000: every distance, count and timer at every size is one)
+      if gf.nwidths >= 4000 then gf.widths, gf.nwidths = {}, 0 end
+      gf.widths[key], gf.nwidths = w, gf.nwidths + 1
     end
     return w
   end
@@ -565,7 +567,8 @@ local function txt_right(x, y, str, cap, c, layer) txt(x - txt_width(str, cap), 
 local MODE_TONE = { SEMI = 1, AUTO = 2, BURST = 3, VOLLEY = 3, SAFE = 1, UNSAFE = 2, TOTAL = 1,   -- (2.0.23: TOTAL cream — the Variable has AUTO, VOLLEY and TOTAL, luka)
   GUIDED = 1, UNGUIDED = 2, APHET = 1, FLAK = 2, CLUSTER = 3, HE = 2, DEPLOY = 1, DETONATE = 2, ARTILLERY = 2,
   LASER = 2, ['NO LASER'] = 1, FLECHETTE = 1, STUN = 2 }
-local function txt_modes(x, y, str, cap, a, layer, right)
+-- (3.0.7) tone: the step's tone (1 cream, 2, 3) for every word, over the words' own — the zeroing's "100 M" by its step
+local function txt_modes(x, y, str, cap, a, layer, right, tone)
   if not cfg.mode_colors then
     if right then txt_right(x, y, str, cap, col(CREAM, a), layer) else txt(x, y, str, cap, col(CREAM, a), layer) end
     return
@@ -575,7 +578,7 @@ local function txt_modes(x, y, str, cap, a, layer, right)
   local sep = txt_width('  ', cap)
   if right then x = x - txt_width(str, cap) end
   for _, w in ipairs(parts) do
-    local n = MODE_TONE[w] or (string.match(w, '^OPT (%d)$') and math.min(3, tonumber(string.match(w, '^OPT (%d)$')) + 1)) or 1
+    local n = tone or MODE_TONE[w] or (string.match(w, '^OPT (%d)$') and math.min(3, tonumber(string.match(w, '^OPT (%d)$')) + 1)) or 1
     txt(x, y, w, cap, col(n == 3 and MODE3 or (n == 2 and MODE2 or CREAM), a), layer)
     x = x + txt_width(w, cap) + sep
   end
@@ -761,16 +764,17 @@ end
 -- colour: way 2 through Chef's plain UI material (the mask's black comes out black), 3 through the sprite's own icon
 -- material (the game's mask shader, the vertex colour its tint) on a GUI of ours (shipped), 4 the same in blue
 -- the colour of a mode's word, as txt_modes gives the text (cream, or the mode's tone with Modes in their own colours)
-local function mode_rgb(word)
-  if not cfg.mode_colors or not word then return CREAM end
-  local n = MODE_TONE[word] or (string.match(word, '^OPT (%d)$') and math.min(3, tonumber(string.match(word, '^OPT (%d)$')) + 1)) or 1
+-- (3.0.7, luka: the rate-of-fire and zeroing icons in the mode colours too) tone: the sprite's own step (1, 2, 3)
+local function mode_rgb(word, tone)
+  if not cfg.mode_colors or not (word or tone) then return CREAM end
+  local n = tone or MODE_TONE[word] or (string.match(word, '^OPT (%d)$') and math.min(3, tonumber(string.match(word, '^OPT (%d)$')) + 1)) or 1
   return n == 3 and MODE3 or (n == 2 and MODE2 or CREAM)
 end
 local TEST_BLUE = { 60, 110, 255 }
 -- e: the sprite; word: the mode it stands for (its colour follows the text's)
 local function mode_icon(e, x, y, tw, L, word, k)
   local way = cfg.mode_icons
-  local c = mode_rgb(word)
+  local c = mode_rgb(word, e.tone)
   local a = 220 * (k or 1)                                  -- (2.4.5: k, its share in a cross-fade)
   -- (2.0.20) a sprite of our own (the all-barrels one: the game's material for it draws nothing): our texture
   if e.tex then

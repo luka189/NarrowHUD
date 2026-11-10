@@ -470,5 +470,10 @@ local function struct_update(now)
   end
 end
 N.struct_update = struct_update
-local function struct_reset() st.list = {} st.n = nil st.hits = 0 kind_box = {} end   -- (2.5.8: a new world's kinds may be built anew)
+-- (2.5.8: a new world's kinds may be built anew; 3.0.12: the boxes kept by unit too — a new world's unit can come
+-- up under an old one's handle, and would have worn the old one's box)
+local function struct_reset()
+  st.list, st.n, st.hits, kind_box = {}, nil, 0, {}
+  st.box = setmetatable({}, { __mode = 'k' })
+end
 N.struct_reset = struct_reset

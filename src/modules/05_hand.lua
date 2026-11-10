@@ -31,7 +31,7 @@ end
 -- moment his hand pose, his weapons' models and his hand were yours — luka's 2026-11-03 log, a drop line drawn
 -- from an ally and "model at hand: 3b718900", a weapon he doesn't carry.)
 local mine = { at = -100, x = nil, y = nil, z = nil, unit = nil, said = 0 }
-local function my_unit(s)
+local function my_unit_any(s)
   if not watch or not watch.items or #watch.items == 0 then return nil end
   if #watch.items == 1 then mine.unit = watch.items[1].unit return mine.unit end
   local now = chef.time()
@@ -49,7 +49,10 @@ local function my_unit(s)
   if not mine.x or not chef.unit_position then mine.unit = by_cam return by_cam end
   local best, bd = nil, nil
   for _, it in ipairs(watch.items) do
-    local x, y, z = chef.unit_position(it.unit)
+    -- (3.0.13: a unit in its first 3 s is not asked: where the watch last saw it, up to 2 s old, stands in — it
+    -- still has to be weighed, or a teammate's unit would be taken for yours while yours is new)
+    local x, y, z
+    if N.unit_ready(it.unit) then x, y, z = chef.unit_position(it.unit) else x, y, z = it.x, it.y, it.z end
     if x then
       local d = (x - mine.x) ^ 2 + (y - mine.y) ^ 2 + (z - mine.z) ^ 2
       if it.unit == mine.unit then d = d * 0.5 end   -- (the one chosen last keeps the place on a close call)
@@ -75,6 +78,13 @@ local function my_unit(s)
     mine.unit = best
   end
   return best
+end
+-- (3.0.13) your Helldiver's unit only once it has been known 3 s: nil till then (after a reinforce that is the
+-- hellpod's ride), and every read of it — the hand pose, the hand's place, your feet — waits with it
+local function my_unit(s)
+  local u = my_unit_any(s)
+  if u ~= nil and not N.unit_ready(u) then return nil end
+  return u
 end
 N.my_unit = my_unit
 
@@ -207,7 +217,7 @@ N.menu_blind = menu_blind
 local pose_said = {}
 local function pose_fail(why)
   if not cfg.research then return nil end
-  local wid = chef.world_id and chef.world_id() or 0
+  local wid = (N.world_id() or 0)
   if pose_said[wid .. why] then return nil end
   pose_said[wid .. why] = true
   local n = watch and watch.items and #watch.items or 0
@@ -224,13 +234,15 @@ local function hand_pose(s)
   -- nearest unit took its place there, a fresh one checked afresh ("hand pose not read: the unit has no animation
   -- state machine" in luka's 2.2.2 log, 6 s after a death). luka's three 2.3.0 crashes: each one at the reinforce.
   if call('asm', 'Unit.has_animation_state_machine', u) ~= true then grip_index[u] = nil return pose_fail('the unit has no animation state machine') end
-  local idx = grip_index[u]
-  if idx == nil then
-    if call('hasvar', 'Unit.animation_has_variable', u, GRIP_VARIABLE) ~= true then return pose_fail('the unit has no hand pose variable') end
-    idx = call('findvar', 'Unit.animation_find_variable', u, GRIP_VARIABLE)
-    if type(idx) ~= 'number' then return pose_fail('the hand pose variable has no index') end
-    grip_index[u] = idx
-  end
+  -- (3.0.6, luka's thought on a user's crashes in seats and vehicles) the variable's index asked afresh before every
+  -- read, not kept per unit: a unit whose state machine is swapped (a seat's, a vehicle's) keeps the machine but
+  -- not necessarily the variable or its index, and a read by a stale index is a read off the end of a table in
+  -- the engine. Two calls more ten times a second
+  if call('hasvar', 'Unit.animation_has_variable', u, GRIP_VARIABLE) ~= true then grip_index[u] = nil return pose_fail('the unit has no hand pose variable') end
+  local idx = call('findvar', 'Unit.animation_find_variable', u, GRIP_VARIABLE)
+  if type(idx) ~= 'number' then grip_index[u] = nil return pose_fail('the hand pose variable has no index') end
+  if grip_index[u] ~= nil and grip_index[u] ~= idx and cfg.research then log('research: the hand pose variable moved from index %s to %s on your unit', tostring(grip_index[u]), tostring(idx)) end
+  grip_index[u] = idx
   local v = call('getvar', 'Unit.animation_get_variable', u, idx)
   if type(v) ~= 'number' then return pose_fail('the hand pose variable reads ' .. type(v)) end
   return math.floor(v + 0.5)
@@ -401,13 +413,27 @@ N.HOLD_FIRST = HOLD_FIRST
 -- (1.5.18) a support weapon lying on the ground keeps a link to its pickup there (the floor field, a goid; none
 -- while it's in a hand: every held one in 22 logs, every one on the ground with a goid). One of yours from an
 -- earlier life, far away, was shown at drop-in as the weapon in hand for its learned pose until the first shot.
+-- (3.0.18, a user's report, luka's log: a weapon taken from a crate or a crashed flier on the map "fails to
+-- register on the hud") A weapon the map placed keeps the link in your hand: b697955d, pickup 358 from the world's
+-- start, its carry 0 > 1 as the crate opened, picked up, in hand and fired — and the link 358 all along. So a
+-- linked weapon is out only until it is lifted (pick(): its model at your hand), and lies again when the link
+-- changes (dropped at a death: a new pickup), when it leaves your body (04_objects) or at a new life
 local floor_said = {}
-local function on_floor(s, goid, t)
+local function on_floor(s, goid, t, o)
   if not t.has.floor or not N.REF_READS then return false end
   local v = field(s, goid, t, 'floor')
   local yes = type(v) == 'number' and v ~= NO_OBJECT
-  if yes and cfg.research and not floor_said[goid] then floor_said[goid] = true log('research: weapon %s (object %s) lies on the ground (pickup %s): not in your hand', t.id, tostring(goid), tostring(v)) end
-  return yes
+  if not yes then
+    if o then o.lifted, o.lift_floor = nil, nil end
+    return false
+  end
+  if o and o.lifted then
+    if o.lift_floor == nil then o.lift_floor = v end
+    if o.lift_floor == v then return false end
+    o.lifted, o.lift_floor = nil, nil
+  end
+  if cfg.research and not floor_said[goid] then floor_said[goid] = true log('research: weapon %s (object %s) lies on the ground (pickup %s): not in your hand', t.id, tostring(goid), tostring(v)) end
+  return true
 end
 -- (1.5.51) A mounted gun: an emplacement's gun is a weapon object that goes onto your body as you sit (its carry
 -- field, as a pick-up) while the hand pose reads 0 (the HMG and AT emplacements) or 51 (the Grenadier Battlement,
@@ -488,22 +514,56 @@ local function pick(s, grip, now)
   local mounted = seat_gun(s, grip, now)
   if mounted then return mounted end
   if grip == 0 then return nil end
-  local same, unknown, last = {}, {}, nil
+  local same = {}
   local on_body = {}                        -- (2.2.2: every weapon on you, for the model at the hand)
+  local linked                              -- (3.0.18: on you by its carry, and linked to a pickup still)
+  local at_hand = N.type_at_hand and N.type_at_hand(now)
   for goid, o in pairs(objs) do
     local t = o.t and TYPES[o.t]
     if t and HANDHELD[t.id] and not t.pack and not t.player and not t.avatar and not t.other and o.on and not o.ub
-       and not o.notmine and not on_floor(s, goid, t) then
-      on_body[#on_body + 1] = goid
-      if has_pose(t.id, grip) then same[#same + 1] = goid
-      elseif learned.grip[t.id] == nil and learned.poses[t.id] == nil then unknown[#unknown + 1] = goid end
+       and not o.notmine then
+      if on_floor(s, goid, t, o) then
+        linked = linked or {}
+        linked[#linked + 1] = goid
+      else
+        on_body[#on_body + 1] = goid
+        -- (a lifted weapon with its model at the hand is in hand whatever its pose: a crate's weapon is often one
+        -- never held before, on a pose your sidearm has)
+        if has_pose(t.id, grip) or (o.lifted and at_hand == t.id) then same[#same + 1] = goid end
+      end
+    end
+  end
+  -- (3.0.18) a linked weapon is lifted when the model at your hand is of its type and no weapon on you proper is:
+  -- what you hold is that weapon. Of several linked ones of the type (two alike in one crate), the one that went
+  -- onto your body last (04_objects' pick-up), and none if none did. The takeover the link rule was made for — a
+  -- Stalwart of an earlier life, 400 m off, shown for the Arbitrator in hand on the same pose — stays out: the
+  -- model at the hand is the Arbitrator's
+  if linked then
+    local at = at_hand
+    local have = false
+    for _, goid in ipairs(on_body) do if TYPES[objs[goid].t].id == at then have = true end end
+    if at and not have then
+      local cand, n = nil, 0
+      for _, goid in ipairs(linked) do
+        local o = objs[goid]
+        if TYPES[o.t].id == at then
+          n = n + 1
+          if cand == nil or (o.picked_at or -1) > (objs[cand].picked_at or -1) then cand = goid end
+        end
+      end
+      if cand and (n == 1 or objs[cand].picked_at) then
+        local o, t = objs[cand], TYPES[objs[cand].t]
+        o.lifted, o.lift_floor, o.chosen_at = true, nil, now
+        log('weapon %s (object %s): linked to a pickup still, its model at your hand: taken as the one you hold', t.id, tostring(cand))
+        on_body[#on_body + 1] = cand
+        same[#same + 1] = cand
+      end
     end
   end
   -- (2.2.2) the weapon model at the hand (05_model): of two of your weapons of different types on one pose, the one
   -- whose model sits on the hand node is the one out (the Nova and the Breacher: 2.1's guess from the swap keys
   -- stays as the fallback). Not between two objects of one type (yours and a SEAF soldier's: the model says the
   -- type, not whose), and never over the one firing (the sticky rule below)
-  local at_hand = N.type_at_hand and N.type_at_hand(now)
   if at_hand and #same > 1 then
     local hits, other = {}, false
     for _, goid in ipairs(same) do
@@ -531,10 +591,13 @@ local function pick(s, grip, now)
   if #same > 1 then
     -- a weapon fed from the backpack sharing a pose with a weapon of its own ammo: the fed one was learned wrongly
     -- (a backpack reload taken for its shot); its pose is forgotten
-    local own = {}
+    -- (3.0.3: a gun that isn't yours doesn't count as that weapon — a SEAF soldier's rifle on the M-1000 Maximum's
+    -- pose took the Maximum's pose away for the session; its type is distrusted by then, or its object marked)
+    local own, by = {}, nil
     for _, goid in ipairs(same) do
       local t = TYPES[objs[goid].t]
-      if not t.fed then own[#own + 1] = goid end
+      local o = objs[goid]
+      if not t.fed and not o.notmine and not (distrust[t.id] and not o.mine) then own[#own + 1] = goid by = t.id end
     end
     if #own > 0 and #own < #same then
       for _, goid in ipairs(same) do
@@ -544,7 +607,7 @@ local function pick(s, grip, now)
           if not N.pose_shared[key] then
             log('type %s: its hand pose %d forgotten (shared with a weapon of its own; not learned again this session)', t.id, grip)
           end
-          N.pose_shared[key] = true
+          N.pose_shared[key] = { by = by, id = t.id, grip = grip }   -- (3.0.3: who took it, to give it back if that gun proves someone else's)
           forget_poses(t.id)
         end
       end

@@ -41,9 +41,10 @@ local function model_at_hand(now)
   if not hx then return nil end
   local near, best, bd = {}, nil, nil
   for _, it in ipairs(watch.items) do
-    local k = it.kind or (chef.unit_kind and chef.unit_kind(it.unit))
+    local ready = N.unit_ready(it.unit)            -- (3.0.13: a model in its first 3 s is not asked anything)
+    local k = it.kind or (ready and chef.unit_kind and chef.unit_kind(it.unit))
     local l = k and units_of[k]
-    if l and (not chef.unit_alive or chef.unit_alive(it.unit) == true) then
+    if l and ready and (not chef.unit_alive or chef.unit_alive(it.unit) == true) then
       local x, y, z = chef.unit_position(it.unit)
       if x then
         local d = math.sqrt((x - hx) ^ 2 + (y - hy) ^ 2 + (z - hz) ^ 2)

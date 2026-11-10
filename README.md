@@ -36,7 +36,7 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
   straight from a backpack show the backpack's ammo.
 - **Underbarrels** (marked UB, or as the game names them: FLAME, 10G, 40MM HE), **fire modes** (AUTO, SEMI, BURST ...),
   **weapon modes** (GUIDED / UNGUIDED, APHET / FLAK, HEAT / HE ...) and the **rate of fire** for weapons with a
-  setting; the modes as the **game's own icons** too, beside the stims. With a setting, each mode in its own colour
+  setting, with the game's low / medium / high icon beside the number; the modes as the **game's own icons** too, beside the stims. With a setting, each mode in its own colour
   (cream, blue or green), icons and words alike, so a switch is easy to see.
 - **Lock-on** (Spear, WASP ...) and **charge meters** (Railgun, Epoch).
 - **Stims, grenades** and how full your **backpack** is; the warp pack's heat, the jump pack's recharge, the hover
@@ -52,6 +52,10 @@ format is in [docs/LAYOUT.md](docs/LAYOUT.md) for editing by hand.
   the view, an F9 choice), and it starts where the shot has fallen a set distance below a straight aim (10 cm by
   default), so a flat-shooting gun's line begins far out.
 - A **throw line** for a stratagem ball, a grenade or C4: where the throw goes, while you aim it.
+- Both lines **stop on the world**: on the boulder, cliff, wall, building or wreck they would hit, with the landing
+  mark there, instead of passing into it and marking the ground beyond. 878 kinds of scenery, their shapes worked
+  out from the game's own models and looked over by eye, a little inside each surface so a line never stops where
+  the round would get through. Bug holes, fabricators and nests keep the red mark.
 - A **landing mark** where a drop or throw line lands, painted on the ground (it lies on rocks, slopes and steps) with
   a chevron over it, from the map's own heights (the rocks, trees and props, calibrated by where Helldivers walk, and
   wherever you have looked, remembered per planet); faint where the ground is a guess. It turns **red** where the
@@ -78,7 +82,7 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   each round loaded on weapons that load a round at a time (Shell loading); a stim timer, warning pulses (pulsing
   or one flash), the hit trail (what each hit took, in chunks or as one piece) and how long it stays, a reload line.
 - Parts: a rule per part (the bar, the count, the spare magazines, the charge meter, the HEAT label, weapon and
-  fire modes, the game's mode icons, the rate of fire, stims, the range, grenades, the backpack bar, health,
+  fire modes, the game's mode icons, the rate of fire and its icon, stims, the range, grenades, the backpack bar, health,
   stamina): off, always, while not full, on a change (for a few seconds), while aiming, or one of those joined
   with aiming.
 - Visibility: how long a change shows, a part held back hidden or dimmed; the opacity while aiming; dimming or
@@ -89,16 +93,17 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   shade behind the bars (none, solid, or the game's hatching, drawn as one texture or stripe by stripe); the count's digits fixed (it never slides as it falls) or tight; the modes in their own
   colours; colours standard or colourblind (white, sky blue, yellow,
   magenta: told apart by brightness too); the share of a magazine that counts as low ammo (orange, with one
-  flash); a dark outline round the count and the words for bright planets. The HUD is drawn in the game's UI layer, so the colours are exact on every planet.
+  flash); a dark outline round the count and the words for bright planets; the game's icons taking up only what they draw (Icons by their ink), so they line up by the picture. The HUD is drawn in the game's UI layer, so the colours are exact on every planet.
 - Colours: Text, Bars, Low, Empty, the two mode colours, Lines (pure colours only: they're drawn in the world) and
   Stamina, each a colour row, with Standard and Colourblind presets that set them all. The crosshairs keep the game's cream.
   A Custom layout file can carry the same roles (`colors = {...}`, winning over the tab) and a colour per part
   (`color`, docs/LAYOUT.md); Low and Empty stay shared, so a low magazine always reads as one. The layout editor sets
   both: a colour picker, the hex and the swatches on each part, and "Colours in the file" under its F9 settings.
 - Crosshairs: the sniper crosshair (while aiming or always; on the game's own aim point or static at the centre;
-  and one for the Maxigun and, if you like, the flamethrowers in first person), and its size.
+  and one for the Maxigun and, if you like, the flamethrowers in first person), its size, and the opacity of the ring
+  that marks the screen's middle while the crosshair follows the aim.
 - Lines and marks: the map pin and death marker, the drop line (while aiming, whenever in hand, or off; its
-  length, whether it follows the reticle or the view, and where it starts), the throw line, the landing mark, its
+  length, whether it follows the reticle or the view, and where it starts), the throw line, whether the lines stop on rocks, walls and buildings, the landing mark, its
   size and the distance beside it, structure hits (the mark red where the shot goes into a bug hole, a fabricator,
   a warp ship, a nest, an emplacement's gun — shapes from the structures' own models), the lines' thickness,
   opacity and look (dashes, flowing dashes or Classic), the mark's look (on the ground or Classic), the blast zone
@@ -106,7 +111,8 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
 - Your fire button, swap keys, whether the mouse wheel swaps and the weapon options key, as you've bound them in the
   game (left mouse, 1 / 2 / 3, the wheel and R by default).
 - Two keys to forget what NarrowHUD has learned: about the weapon in hand, or everything.
-- A research log for bug reports, and running on a game version NarrowHUD wasn't made for.
+- A research log for bug reports, a crash trace (if the game crashes with the mod on, the mod's last call is named
+  for a report), and running on a game version NarrowHUD wasn't made for.
 
 ## How it works (and what it can't do)
 
@@ -117,12 +123,16 @@ the [layout editor](https://luka189.github.io/NarrowHUD/editor/).
   your swap keys.
 - A shot counts as yours only within a moment of your fire button: as host, you own the soldiers' and some other
   objects too.
+- The game gives mods no raycast, so the lines stop on shapes NarrowHUD brings along: a few boxes for each kind of
+  scenery, worked out from the game's own models, set a little inside the surface and checked by eye. A kind it
+  doesn't know lets the line through.
 - After a game patch it checks its data against the game (on Chef 1.2 and newer) and leaves out anything that
   moved. If it can't check, it stays off and says so, rather than risk a crash.
 
 **Known issues:** controllers (right trigger to fire, Y to swap) work on an Xbox-style pad; PlayStation pads are
 untested, reports welcome. The Arc Thrower and the
-Blitzer show no ammo (they have none); the Solo Silo's remote shows nothing.
+Blitzer show no ammo (they have none); the Solo Silo's remote shows nothing. The newer, intact city towers are not
+among the scenery the lines stop on yet.
 
 ## For developers
 
@@ -153,7 +163,7 @@ python3 tools/make_seed.py <learned file> [--drop ids]   # the shipped knowledge
 - The under-the-crosshair look follows the "Bar" style of Reticle Ammo HUD; none of its code or assets is used here.
 - The grenade icon was traced by dogo314 and is used with his permission. The stim icon, the all-barrels icon and the sniper crosshair (a
   tracing of the game's default reticle) are luka189's.
-- Chef Shared Loader by Th3chef runs it; filediver (BSD) takes the network config out of the game files, its known-path lists name the map's units for the landing mark and the research log, and its unit exports give the structures' shapes the red mark tests (tools/make_shapes.py).
+- Chef Shared Loader by Th3chef runs it; filediver (BSD) takes the network config out of the game files, its known-path lists name the map's units for the landing mark and the research log, and its unit exports give the structures' shapes the red mark tests and the scenery's shapes the lines stop on (tools/make_shapes.py; boxes only, none of the game's models).
 
 ## License
 

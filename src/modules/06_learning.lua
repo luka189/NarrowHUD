@@ -18,7 +18,7 @@ local WIKI_HEAT = {
 -- (a mission), from the weapons with a wiki rate, the middle of the last five, snapped to 0.75 / 1 / 1.5 when within 12 %.
 local planet = { wid = nil, factor = 1, samples = {} }
 local function planet_factor()
-  local wid = chef.world_id and chef.world_id()
+  local wid = N.world_id()
   if wid ~= planet.wid then planet.wid, planet.factor, planet.samples = wid, 1, {} end
   return planet.factor
 end
@@ -86,6 +86,15 @@ local function not_yours(goid, o, t, why)
     log('type %s: swap key %s forgotten (learned from a gun that isn\'t yours)', t.id, SWAP_KEYS[o.taught_slot])
     learn('slot', t.id, nil)
   end
+  -- (3.0.3) a fed weapon's pose this gun's type took as "a weapon of its own" (05_hand) is given back, and the
+  -- session's block on learning it lifted
+  for key, sh in pairs(N.pose_shared) do
+    if type(sh) == 'table' and sh.by == t.id then
+      log('type %s: its hand pose %d given back (the gun that shared it isn\'t yours)', sh.id, sh.grip)
+      N.add_pose(sh.id, sh.grip)
+      N.pose_shared[key] = nil
+    end
+  end
   if hand.goid == goid then hand.goid = nil end
 end
 -- (three shots without it, and a quarter or more of all its shots: a soldier firing while you fire too got 10 with and
@@ -149,7 +158,6 @@ local function watch_fire(s, grip)
     pending_learn = {}
   end
   local any_fired = false
-  local reloaded = {}
   N.watched = 0
   watch_n = watch_n + 1
   for goid, o in pairs(objs) do
@@ -269,7 +277,27 @@ local function watch_fire(s, grip)
       end
       -- a charge (the Nova, the Quasar): the trigger held while the heat stays put, then the heat jumps (the shot).
       -- Weapons that heat up while firing (the Laser Cannon) are never charge weapons.
-      if w.charging == true and (o.prev == nil or o.prev.charging ~= true) then o.charge_t0, o.charge_h0 = now, w.heat end
+      -- (3.0.2, luka's Nova) the charge begins when the gun can charge, not at the press: pressed while it cools, the
+      -- game cools it to rest first and charges then (his log: pressed at 20.7, the shot 1.9 s later = 0.5 s of
+      -- cooling + the 1.6 s charge); held through an overheat, it charges again as soon as it has cooled (the
+      -- charging field never drops, so there's no press to see). So a press sets the gun waiting, and the charge
+      -- starts the frame the heat is at rest (the per-frame model's value, 12_heat) with the gun not overheated
+      if w.charging == true and (o.prev == nil or o.prev.charging ~= true) then o.charge_wait = true end
+      if w.charging ~= true then o.charge_wait = nil end
+      if o.charge_wait and w.overheated ~= true and type(w.heat) == 'number' then
+        -- (the heat now: the field's last value cooled since it was read — the field steps every half second —
+        -- or the bar's own value, whichever is lower, since the bar settles a moment behind)
+        local rest = learned.rest2[t.id] or 0
+        local at = o.sim or w.heat
+        if o.h_last and o.h_last_t then
+          -- (no more than one step of the field below its last value: the Nova's steps by 15.6, every half second)
+          local est = math.max(rest, o.h_last - math.min(16, (heat_rate('down', t.id) or 0) * math.max(0, now - o.h_last_t)))
+          if est < at then at = est end
+        end
+        if at <= rest + 1.5 or (not CHARGE_WEAPONS[t.id]) then
+          o.charge_t0, o.charge_h0, o.charge_wait = now, w.heat, nil
+        end
+      end
       if o.charge_t0 and o.prev and type(w.heat) == 'number' and type(o.prev.heat) == 'number'
          and w.heat > o.prev.heat + 5 then
         local took = now - o.charge_t0
@@ -279,6 +307,7 @@ local function watch_fire(s, grip)
           learn('charge2', t.id, math.floor(took * 10 + 0.5) / 10)
         end
         o.charge_t0 = nil
+        if w.charging == true and CHARGE_WEAPONS[t.id] then o.charge_wait = true end   -- (held on: it charges again once cooled)
       end
       if o.charge_t0 and type(w.heat) == 'number' and w.heat ~= o.charge_h0 and w.heat <= (o.prev and o.prev.heat or w.heat) + 5 then
         o.charge_t0 = nil                                  -- rising bit by bit while held: firing, not charging
@@ -305,7 +334,6 @@ local function watch_fire(s, grip)
         if w.heat < o.prev.heat then o.cooling = true elseif w.heat > o.prev.heat then o.cooling = false end
       end
       if o.prev and not w.gone and loaded(w) > loaded(o.prev) and goid == hand.goid then   -- (yours: the one in hand)
-        reloaded[#reloaded + 1] = t
         recent.reload_t, recent.reload_t_type = now, t
         -- its own magazines or spare rounds went down: it reloads from those, never from the backpack (the Railgun
         -- reloading just as the Guard Dog reloaded from its backpack was learned as a backpack weapon, and showed the

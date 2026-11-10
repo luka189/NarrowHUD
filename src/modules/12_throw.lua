@@ -273,6 +273,9 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
   local marked, mst = false, {}
   local shit = cfg.struct_mark and N.struct_hit     -- (2.0.16) the enemies' structures: the mark red where the throw hits one
   local sst = shit and {}
+  local rhit = cfg.rock_stop and N.rock_hit         -- (3.1, luka) the rocks: the arc ends where the throw would hit one
+  local rst = rhit and {}
+  local cut = false
   -- (2.4.13, the frame time) the flight is stepped every 0.03 s as before, but a piece of the line is drawn (and
   -- the ground looked at) only every PIECE metres of it, or sooner once it has turned TURN: a grenade's 0.6 m
   -- steps made 60–100 pieces a throw, each a ground look-up, an across vector and 2–4 engine lines (luka's 2.4.11
@@ -288,6 +291,13 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
     if plen >= PIECE or last or math.abs(math.atan2(vz, hs) - pdir) >= TURN then
       -- (2.0.13) where the arc meets the ground (12_ground's guess): a ring there; the arc runs on (2.0.14, luka:
       -- the depth test hides the rest; never within 7 m of you)
+      if rhit and not marked and t > 0.1 then
+        local hx, hy, hz = rhit(px, py, pz, x, y, z, rst, 'throw')
+        if hx then
+          N.draw_ground_mark(hx, hy, hz, 'feet', nil, ox, oy, blast, 'throw') marked = true
+          x, y, z, cut = hx, hy, hz, true            -- (the arc to the rock and no further)
+        end
+      end
       if shit and not marked and t > 0.1 then
         local hx, hy, hz = shit(px, py, pz, x, y, z, sst, ox, oy)
         if hx then N.draw_ground_mark(hx, hy, hz, 'feet', N.RED, ox, oy, blast, 'throw') marked = true end
@@ -300,6 +310,7 @@ local function draw_arc(kind, ox, oy, oz, cam, now, feet_z, gk)
       if not ax then ax, ay, az = crx, cry, 0 end
       n = n + N.line_piece(lst, cam, px, py, pz, x, y, z, ax, ay, az, lines, c, dk, cfun)
       px, py, pz, plen, pdir, pt = x, y, z, 0, math.atan2(vz, hs), t
+      if cut then break end
     end
   end
   n = n + N.line_end(lst, cam, lines, c, dk, cfun)

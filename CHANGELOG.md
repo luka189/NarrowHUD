@@ -1,5 +1,50 @@
 # Changelog
 
+## 3.1.0
+
+- **NEW: lines stop on the world.** The drop and throw lines end on what they would hit — a boulder, a cliff, a
+  wall, a building, a wreck — with the landing mark there, instead of passing into it and marking the ground
+  beyond. 878 kinds of scenery from the game's own models, each looked over by eye: rocks and cliffs on every kind
+  of planet, city and colony buildings and their ruins, cars and wrecks, the Super Earth base walls, platforms,
+  containers and pipes, the Automaton factories, fortifications and dropship wrecks, the Terminid caves, bones and
+  webs, the Illuminate ruins, labs and crashed ships, roots, ice and coral. The shapes sit a little inside the
+  surface, so a line never stops where the round would get through; a ruined building or a car counts as one
+  block; what barely rises above the ground (under half a metre) stops nothing. Bug holes, fabricators, nests,
+  towers and turrets keep their red mark. Off with "Lines stop on rocks" under Lines and marks. Not known yet: the
+  newer, intact city towers (a line passes through them as before).
+- **NEW: the rate-of-fire icon**: the game's own low / medium / high icon for a weapon's rate-of-fire setting,
+  beside the number in every built-in layout and in the editor (the `rpmicon` part, with a rule of its own under
+  Parts). With "Modes in colour" it and the zeroing icon take their step's colour, as the mode words and icons do.
+- **Icons by their ink** (Look, on): the mode, fire-mode, zeroing and rate-of-fire icons take up only what they
+  draw — the game's sprites come with padding about half their square — so they sit against other parts and line
+  up by the picture. The built-in layouts keep their look. A custom layout tuned to the old squares will see its
+  icons move by about 14 px at Medium: retune the gaps, or switch the row off.
+- **Centre ring opacity** (Crosshairs, under "Crosshair at"): 0 to 100 for the larger ring that marks the screen's
+  middle with "The reticle" chosen; 0 hides it.
+- A weapon taken from a crate or a crashed flier on the map shows on the HUD (a user's report): it was taken for
+  one still lying on the ground.
+- A backpack-fed weapon (the M-1000 Maximum) could vanish from the HUD for the mission when a SEAF soldier's rifle
+  fired on its hand pose. The pose goes back to the weapon it was taken from.
+- The Nova's charge on the bar begins when the gun can charge, not at the press: held through an overheat it
+  charges again as the gun has cooled; pressed while cooling, it finishes cooling first.
+- A part pinned to a hidden icon sits at the icon's middle instead of climbing into its neighbour; a part switched
+  Off in F9 gives up its place at once.
+- A weapon with no magazines of its own took the first worn backpack found as its reserve, which could be another
+  player's or a soldier's: your own now.
+- **Nothing is asked of a unit in its first 3 seconds** (a precaution from another mod author's crash reports with
+  freshly called-in equipment). What you may notice: after a reinforce, and for the first 3 seconds of a mission
+  or on the ship, the weapon in hand is not read and the drop and throw lines are not drawn.
+- Safer reads: your armour (for the stim timer) is checked to exist before it is read, as everything else is; the
+  hand pose is asked for afresh each time; what was remembered of one mission's scenery can't be taken for the
+  next's.
+- A Stoker's underbarrel flamer no longer has its hand pose learned and forgotten every session; two F9 hints that
+  were shown cut off fit again.
+- **Crash trace** (F9 > Testing, off): for a game that crashes or hangs with the mod on. Each call the mod makes
+  into the game is named in `narrowhud_lastcall.txt` just before it is made, and the next start says in
+  `narrowhud.log` whether the last launch ended inside one of them. It costs frame time: on for a test session,
+  send both files after a crash, off again.
+- Testing > "Draw structure boxes" also draws a box round each thing a line stops on, the nearest 60.
+
 ## 3.0.1
 
 - Shell-by-shell weapons (the Evictor, the Sweeper, the shotguns) dropped into missions one round over what they

@@ -78,7 +78,7 @@ local function classify_list(s, list, order, budget, on_miss)
 end
 local function classify(s)
   orders()
-  local w = chef.world_id and chef.world_id()
+  local w = N.world_id()
   if w ~= classify_said.wid then classify_said.wid, classify_said.t0 = w, chef.time() end
   local budget = classify_list(s, queue, ORDER_A, BUDGET, function(goid, o) o.next = 1 queue_2[#queue_2 + 1] = goid end)
   if #queue == 0 and budget > 0 then
@@ -87,7 +87,7 @@ local function classify(s)
     end)
   end
   if #queue == 0 and #queue_2 == 0 and next(objs) ~= nil then
-    local wid = chef.world_id and chef.world_id()
+    local wid = N.world_id()
     if wid and not classify_said[wid] and chef.in_mission() then
       classify_said[wid] = true
       local n, known = 0, 0
@@ -170,7 +170,11 @@ local function scan(s, peer)
     me.avatar = nil
   end
   -- which weapons and backpacks are on you (types with a carry field: carried when it's a multiple of 4)
+  -- (3.0.18: a new life — another Helldiver of yours — and nothing is lifted: the weapons of the last one lie)
+  local new_life = me.avatar ~= nil and session.avatar_was ~= nil and me.avatar ~= session.avatar_was
+  if me.avatar ~= nil then session.avatar_was = me.avatar end
   for goid, o in pairs(objs) do
+    if new_life then o.lifted, o.lift_floor = nil, nil end
     local t = o.t and TYPES[o.t]
     if t and (t.pack or (not t.player and not t.avatar)) then
       if t.has.carry then
@@ -185,6 +189,7 @@ local function scan(s, peer)
           o.picked_at = chef.time()
           if cfg.research then log('research: weapon %s (object %s) picked up%s', t.id, tostring(goid), HANDHELD[t.id] and '' or ' (not a hand weapon: a mounted gun?)') end
         end
+        if not o.on then o.lifted, o.lift_floor = nil, nil end     -- (3.0.18: off your body: a linked weapon lies again, 05_hand)
         o.on_was = o.on
         -- A backpack's carry field (the 2026-10-25 log): 0 worn, 1 in its hellpod, 2 dropped. One that isn't yours
         -- (a mission objective's, a soldier's: as host you own those) can read 0 too. A called backpack can't be

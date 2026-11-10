@@ -174,7 +174,7 @@ local function br_read(s, goid, t, label, now)
 end
 N.batched_research = function(s, now, shown_goid, grip)
   if BR.lines >= 6000 then return end
-  local wid = chef.world_id and chef.world_id()
+  local wid = N.world_id()
   if BR.wid ~= wid then BR.wid, BR.objs, BR.queue, BR.next, BR.refs = wid, {}, {}, now + 2, nil end
   if #BR.queue == 0 then
     if now < BR.next then return end

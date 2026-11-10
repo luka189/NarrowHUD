@@ -19,7 +19,7 @@ local PARK_Z, CAP = -5000, 8
 -- game's settings once a world — High about 1.5, luka's zone stopped at ~80 m)
 local reach = { wid = nil, m = 80 }
 local function REACH()
-  local wid = chef.world_id and chef.world_id() or 0
+  local wid = (N.world_id() or 0)
   if reach.wid ~= wid then
     reach.wid = wid
     local v = chef.setting and chef.setting('render_settings.lod_selection_multiplier')
@@ -37,7 +37,7 @@ end
 local P = { ok = nil, why = nil, wid = nil, pool = {}, used = {}, frame = -1, said = {} }
 local function id64(hex) return call('decal.id', 'IdString64.from_hex', hex) end
 local function decal_ok()
-  local wid = chef.world_id and chef.world_id()
+  local wid = N.world_id()
   if wid ~= P.wid then P.wid, P.pool, P.used, P.ok, P.why = wid, {}, {}, nil, nil end   -- (Chef took the old world's)
   if P.ok ~= nil then return P.ok end
   local why

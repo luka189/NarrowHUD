@@ -67,12 +67,15 @@ Sizes are in pixels at 1440p for Medium; they scale with the screen's height and
 | `icon2` | the fire mode's icon | `style` `line` / `stacked` |
 | `zoomicon` | the zeroing icon (the game's low / medium / high); a part like any other | — |
 | `rpm` | the rate of fire setting | — |
+| `rpmicon` | the rate of fire setting as the game's icon (low / medium / high: the setting's step among the weapon's); beside or instead of `rpm` | — |
 | `stims` | the stim icon and count | — |
 | `grenades` | the grenade icon and count | — |
 | `pack` | the backpack bar (also the warp pack's heat, the jump pack's recharge) | `style` (see below); `length` (135); `thickness` (7); `radius` (150); `edge`, `shade` |
 | `health` | your health (1.1.0; shown when F9 › Health bar is on): cream, orange from half, red from a quarter, a hit's loss in red for a moment | `style` (see below); `length` (260); `thickness` (5); `radius` (150); `edge`, `shade` |
 | `stamina` | your stamina (1.1.0; shown when F9 › Stamina bar is on): blue, orange when nearly out | `style` (see below); `length` (260); `thickness` (3); `radius` (150); `edge`, `shade` |
 | `stim` | the stim timer (1.2.0; shown when F9 › Stim timer is on): green, shrinking over a stim's effect | `style` (see below); `length` (260); `thickness` (3); `radius` (150); `edge`, `shade` |
+
+The icon parts (`icon1`, `icon2`, `zoomicon`, `rpmicon`) are placed by their **ink** (3.0.10): the box a pin, a gap or an alignment uses is the drawn icon, not the padded square the game's sprite comes in (about twice the icon). F9 → Look → "Icons by their ink" off brings the squares back for a layout tuned to them.
 
 The elements are listed in the order they're drawn. A part placed on its own doesn't move when another grows: with
 `digits` tight the count's width changes with its digits and its % sign, so the magazines follow it (`after = 'count'`)
