@@ -43,6 +43,7 @@
   into the game is named in `narrowhud_lastcall.txt` just before it is made, and the next start says in
   `narrowhud.log` whether the last launch ended inside one of them. It costs frame time: on for a test session,
   send both files after a crash, off again.
+- The landing mark's ground starts out knowing 260 kinds of map unit (248): a city mission's worth more.
 - Testing > "Draw structure boxes" also draws a box round each thing a line stops on, the nearest 60.
 
 ## 3.0.1
